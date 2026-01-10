@@ -505,56 +505,6 @@
             .zen-trigger { display: none; }
         }
 
-        /* Hamburger Menu */
-        .hamburger-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 5100;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            width: 44px;
-            height: 44px;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            cursor: pointer;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .hamburger-btn:hover {
-            background: var(--accent);
-            border-color: var(--accent);
-        }
-
-        .hamburger-btn span {
-            width: 24px;
-            height: 2px;
-            background: var(--text);
-            border-radius: 2px;
-            transition: all 0.3s ease;
-            display: block;
-        }
-
-        .hamburger-btn.active span:nth-child(1) {
-            transform: rotate(45deg) translate(10px, 10px);
-        }
-
-        .hamburger-btn.active span:nth-child(2) {
-            opacity: 0;
-        }
-
-        .hamburger-btn.active span:nth-child(3) {
-            transform: rotate(-45deg) translate(7px, -7px);
-        }
-
-        /* Sidebar stacking: above overlay and interactive */
-        aside { z-index: 3001; pointer-events: auto; }
-        .sidebar-overlay { z-index: 3000; }
-
         /* Sidebar Queue Items: make them clearly visible and interactive */
         #sidebarQueueList .song-item {
             background: rgba(255, 255, 255, 0.08);
@@ -614,66 +564,143 @@
             .mobile-add-btn { display: flex; }
         }
 
-        /* Sidebar Overlay */
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1999;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
+/* === MOBILE SIDEBAR SYSTEM === */
 
-        .sidebar-overlay.active {
-            display: block;
-            opacity: 1;
-        }
+.mobile-menu-trigger {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10000;
+    width: 48px;
+    height: 48px;
+    background: rgba(15, 15, 15, 0.85);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
 
-        /* Animated Sidebar */
-        aside {
-            transition: transform 0.4s cubic-bezier(0.23, 1, 0.320, 1);
-        }
+.mobile-sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 8000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s ease;
+}
 
-        aside.sidebar-hidden {
-            transform: translateX(-100%);
-        }
+.mobile-sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
 
-        @media (max-width: 1024px) {
-            .hamburger-btn {
-                display: flex;
-            }
+.mobile-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85%;
+    max-width: 320px;
+    height: 100vh;
+    background: rgba(10,10,10,.98);
+    backdrop-filter: blur(50px);
+    border-right: 1px solid var(--border);
+    z-index: 9000;
+    transform: translateX(-100%);
+    transition: transform .4s cubic-bezier(.4,0,.2,1);
+    pointer-events: auto;
+    padding: 40px 25px; /* Re-adding padding from desktop <aside> */
+    display: flex; /* Re-adding flex from desktop <aside> */
+    flex-direction: column; /* Re-adding flex from desktop <aside> */
+}
 
-            aside {
-                position: fixed;
-                left: 0;
-                top: 0;
-                height: 100vh;
-                width: 280px;
-                z-index: 2000;
-                transform: translateX(0);
-                padding-top: 80px;
-            }
+.mobile-sidebar.active {
+    transform: translateX(0);
+}
 
-            aside.sidebar-hidden {
-                transform: translateX(-100%);
-            }
+.mobile-sidebar * {
+    pointer-events: auto;
+}
 
-            aside.right {
-                display: none;
-            }
+.mobile-sidebar-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-            main {
-                padding-left: 20px;
-            }
-        }
+@media (max-width: 1024px) {
+    .mobile-menu-trigger {
+        display: flex;
+    }
+}
 
+@media (min-width: 1025px) {
+    .mobile-menu-trigger,
+    .mobile-sidebar,
+    .mobile-sidebar-overlay {
+        display: none !important;
+    }
+}
     </style>
 </head>
 <body class="lang-ru">
+
+<button class="mobile-menu-trigger" aria-label="Open menu">
+    <i data-lucide="menu"></i>
+</button>
+<div class="mobile-sidebar-overlay"></div>
+<nav class="mobile-sidebar">
+    <button class="mobile-sidebar-close">
+        <i data-lucide="x"></i>
+    </button>
+    <div class="nav-brand">
+        <i data-lucide="zap" style="color: var(--accent); margin-right: 8px;"></i>
+        <span class="brand-z">Z</span><span class="brand-beta">BETA</span>
+    </div>
+    <nav class="sidebar-section">
+        <span class="section-label" data-t="navigation">Разделы</span>
+        <div class="nav-item active" id="nav-all-mobile" onclick="switchTab('all'); closeMobileMenu();">
+            <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
+        </div>
+        <div class="nav-item" id="nav-fav-mobile" onclick="switchTab('fav'); closeMobileMenu();">
+            <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
+        </div>
+    </nav>
+    <nav class="sidebar-section">
+        <span class="section-label">
+            <span data-t="playlists">Коллекции</span>
+            <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="togglePlaylistModal()"></i>
+        </span>
+        <div id="playlistNav-mobile"></div>
+    </nav>
+    <nav class="sidebar-section">
+        <span class="section-label">Queue</span>
+        <div class="list-container" id="sidebarQueueList-mobile" style="max-height:200px; margin-top:6px; overflow-y:auto; overflow-x:hidden;"></div>
+    </nav>
+    <div class="nav-item" onclick="document.getElementById('fileInput').click()" style="margin-top:auto;">
+        <i data-lucide="upload-cloud"></i> <span data-t="add_files">Загрузить треки</span>
+    </div>
+    <div class="nav-item" onclick="toggleSettings()">
+        <i data-lucide="sliders"></i> <span data-t="settings">Настройки</span>
+    </div>
+    <div class="credits-footer">
+        Made by <span class="credits-name">thebitsamurai</span>
+    </div>
+</nav>
+
 
     <div class="loader-overlay" id="appLoader">
         <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">Z BETA</h2>
@@ -691,16 +718,6 @@
     <div class="zen-trigger" title="Zen Mode" onclick="toggleZen(true)">
         <i data-lucide="expand"></i>
     </div>
-
-    <!-- Hamburger Menu Button -->
-    <button class="hamburger-btn" id="hamburgerBtn" onclick="toggleSidebar()">
-        <span></span>
-        <span></span>
-        <span></span>
-    </button>
-
-    <!-- Sidebar Overlay -->
-    <div class="sidebar-overlay" id="sidebarOverlay" onclick="if (event.target.id === 'sidebarOverlay') closeSidebar();"></div>
 
     <!-- Mobile Add Button (opens file picker) -->
     <button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks">
@@ -903,7 +920,7 @@
             audioCtx: null, analyser: null, bassFilter: null, isPlaying: false, lang: 'ru',
             pendingSongId: null, bassEnabled: true, bassGain: 15, isZen: false,
             draggedItem: null,
-            shuffle: false, repeat: 'none', sidebarOpen: false
+            shuffle: false, repeat: 'none'
         };
 
         const dom = {
@@ -983,13 +1000,6 @@
                 updateRepeatUI();
 
                 document.body.addEventListener('click', () => { if (!state.audioCtx) setupAudioNodes(); }, { once: true });
-                ensureSidebarState();
-                window.addEventListener('resize', ensureSidebarState);
-                
-                // Mobile overlay: close sidebar only when clicking directly on the overlay itself
-                document.getElementById('sidebarOverlay').addEventListener('click', (e) => { 
-                    if (e.target.id === 'sidebarOverlay' && state.sidebarOpen) closeSidebar(); 
-                });
 
                 // hide loader after successful init
                 setTimeout(() => dom.loader.classList.add('hidden'), 300);
@@ -1132,54 +1142,6 @@
             }
         }
 
-        function openSidebar() {
-            const aside = document.querySelector('aside:not(.right)');
-            const hamburger = document.getElementById('hamburgerBtn');
-            const overlay = document.getElementById('sidebarOverlay');
-            if (!aside) return;
-            aside.style.display = 'block';
-            // allow browser to paint then slide in
-            requestAnimationFrame(() => {
-                aside.style.transform = 'translateX(0)';
-                hamburger.classList.add('active');
-                overlay.classList.add('active');
-                state.sidebarOpen = true;
-            });
-        }
-
-        function closeSidebar() {
-            const aside = document.querySelector('aside:not(.right)');
-            const hamburger = document.getElementById('hamburgerBtn');
-            const overlay = document.getElementById('sidebarOverlay');
-            if (!aside) return;
-            aside.style.transform = 'translateX(-100%)';
-            hamburger.classList.remove('active');
-            overlay.classList.remove('active');
-            state.sidebarOpen = false;
-            setTimeout(() => {
-                if (window.innerWidth <= 1024) aside.style.display = 'none';
-            }, 420);
-        }
-
-        function toggleSidebar() {
-            if (state.sidebarOpen) closeSidebar(); else openSidebar();
-        }
-
-        // Ensure sidebar is hidden on small screens by default and restored on large screens
-        function ensureSidebarState() {
-            const aside = document.querySelector('aside:not(.right)');
-            if (!aside) return;
-            if (window.innerWidth <= 1024) {
-                aside.style.display = 'none';
-                aside.style.transform = 'translateX(-100%)';
-                state.sidebarOpen = false;
-            } else {
-                aside.style.display = '';
-                aside.style.transform = '';
-                state.sidebarOpen = false;
-            }
-        }
-
         function initKeybinds() {
             window.addEventListener('keydown', (e) => {
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -1235,14 +1197,38 @@
         }
 
         function renderPlaylistNav() {
-            const container = document.getElementById('playlistNav');
-            container.innerHTML = "";
-            state.playlists.forEach(pl => {
-                const div = document.createElement('div');
-                div.className = `nav-item ${state.currentTab === pl.id ? 'active' : ''}`;
-                div.innerHTML = `<i data-lucide="music-2"></i> <span>${pl.name}</span>`;
-                div.onclick = (e) => { e.stopPropagation(); switchTab(pl.id); };
-                container.appendChild(div);
+            const containers = [document.getElementById('playlistNav'), document.getElementById('playlistNav-mobile')];
+            containers.forEach(container => {
+                if (!container) return;
+                container.innerHTML = "";
+                state.playlists.forEach(pl => {
+                    const div = document.createElement('div');
+                    div.className = `nav-item ${state.currentTab === pl.id ? 'active' : ''}`;
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.innerText = pl.name;
+                    nameSpan.style.flexGrow = '1';
+                    nameSpan.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        switchTab(pl.id);
+                        if (window.innerWidth <= 1024) closeMobileMenu();
+                    };
+
+                    div.innerHTML = `<i data-lucide="music-2"></i>`;
+                    div.appendChild(nameSpan);
+
+                    const actions = document.createElement('div');
+                    actions.style.display = 'flex';
+                    actions.style.gap = '8px';
+
+                    actions.innerHTML = `
+                        <i data-lucide="pencil" style="width:16px; cursor:pointer;" onclick="event.stopPropagation(); renamePlaylist(${pl.id}, '${pl.name}')"></i>
+                        <i data-lucide="trash-2" style="width:16px; cursor:pointer;" onclick="event.stopPropagation(); deletePlaylist(${pl.id})"></i>
+                    `;
+                    
+                    div.appendChild(actions);
+                    container.appendChild(div);
+                });
             });
             refreshIcons();
         }
@@ -1482,58 +1468,41 @@
 
         function closePlaylistPicker() { toggleModal('playlistPickerOverlay'); }
 
-        // Render current queue (right playlist) into sidebar for mobile interaction
         function renderSidebarQueue() {
-            const container = document.getElementById('sidebarQueueList');
-            if (!container) return;
-            container.innerHTML = '';
+            const containers = [document.getElementById('sidebarQueueList'), document.getElementById('sidebarQueueList-mobile')];
             
-            // Get the current view list
-            const queue = getCurrentListView();
-            
-            if (queue.length === 0) {
-                container.innerHTML = '<div style="color:var(--text-dim); font-size:13px; padding:12px;">Queue is empty</div>';
-                return;
-            }
+            containers.forEach(container => {
+                if (!container) return;
+                container.innerHTML = '';
+                
+                const queue = getCurrentListView();
+                
+                if (queue.length === 0) {
+                    container.innerHTML = '<div style="color:var(--text-dim); font-size:13px; padding:12px;">Queue is empty</div>';
+                    return;
+                }
 
-            // Render fresh queue items with proper event handlers (not cloned)
-            queue.forEach((track) => {
-                const isActive = state.currentIndex !== -1 && state.library[state.currentIndex]?.id === track.id;
-                const div = document.createElement('div');
-                div.className = `song-item${isActive ? ' active' : ''}`;
-                div.style.cursor = 'pointer';
-                div.innerHTML = `
-                    <img src="${track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
-                    <div class="song-item-info">
-                        <h4>${track.title}</h4>
-                        <p>${track.artist}</p>
-                    </div>
-                `;
-                div.addEventListener('click', async function(e) {
-                    e.stopPropagation();
-                    // Set active class visually before playing
-                    container.querySelectorAll('.song-item').forEach(el => el.classList.remove('active'));
-                    div.classList.add('active');
-                    // On mobile, resume audio context if needed
-                    let audioResumed = true;
-                    if (window.innerWidth <= 1024 && state.audioCtx && state.audioCtx.state !== 'running') {
-                        try { await state.audioCtx.resume(); } catch (err) { audioResumed = false; }
-                    }
-                    // Play track and re-render sidebar queue to update highlight
-                    playTrack(track.id);
-                    setTimeout(() => {
-                        renderSidebarQueue();
-                        // Only close sidebar on mobile, after UI update
-                        if (window.innerWidth <= 1024) closeSidebar();
-                    }, 120);
-                    // If playback did not start, show a hint
-                    setTimeout(() => {
-                        if (dom.audio.paused) {
-                            showToast('Tap play to start playback');
-                        }
-                    }, 400);
+                queue.forEach((track) => {
+                    const isActive = state.currentIndex !== -1 && state.library[state.currentIndex]?.id === track.id;
+                    const div = document.createElement('div');
+                    div.className = `song-item${isActive ? ' active' : ''}`;
+                    div.style.cursor = 'pointer';
+                    div.innerHTML = `
+                        <img src="${track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
+                        <div class="song-item-info">
+                            <h4>${track.title}</h4>
+                            <p>${track.artist}</p>
+                        </div>
+                    `;
+                    div.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        playTrack(track.id);
+                        setTimeout(() => {
+                            if (window.innerWidth <= 1024) closeMobileMenu();
+                        }, 120);
+                    });
+                    container.appendChild(div);
                 });
-                container.appendChild(div);
             });
         }
 
@@ -1612,11 +1581,20 @@
 
         function switchTab(tab) {
             state.currentTab = tab;
+            // Deactivate all navigation items in both sidebars
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            if (tab === 'all') document.getElementById('nav-all').classList.add('active');
-            if (tab === 'fav') document.getElementById('nav-fav').classList.add('active');
+            
+            // Activate the correct items in both sidebars
+            if (tab === 'all') {
+                document.getElementById('nav-all')?.classList.add('active');
+                document.getElementById('nav-all-mobile')?.classList.add('active');
+            } else if (tab === 'fav') {
+                document.getElementById('nav-fav')?.classList.add('active');
+                document.getElementById('nav-fav-mobile')?.classList.add('active');
+            }
+            
             renderLibrary();
-            renderPlaylistNav();
+            renderPlaylistNav(); // This will handle the active state for playlist items
         }
 
         function initAudioEvents() {
@@ -1744,5 +1722,28 @@
         async function patchedLoadLibrary() { await originalLoadLibrary(); renderSidebarQueue(); }
         loadLibraryFromDB = patchedLoadLibrary;
     </script>
+<script>
+// New Mobile Sidebar Logic
+const menuBtn = document.querySelector('.mobile-menu-trigger');
+const sidebar = document.querySelector('.mobile-sidebar');
+const overlay = document.querySelector('.mobile-sidebar-overlay');
+const closeBtn = document.querySelector('.mobile-sidebar-close');
+
+function openMobileMenu() {
+    if (sidebar) sidebar.classList.add('active');
+    if (overlay) overlay.classList.add('active');
+}
+
+function closeMobileMenu() {
+    if (sidebar) sidebar.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+}
+
+menuBtn?.addEventListener('click', openMobileMenu);
+overlay?.addEventListener('click', closeMobileMenu);
+closeBtn?.addEventListener('click', closeMobileMenu);
+
+document.addEventListener('touchstart', function(){}, { passive: true });
+</script>
 </body>
 </html>
