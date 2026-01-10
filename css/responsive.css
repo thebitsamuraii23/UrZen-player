@@ -1,0 +1,22 @@
+/* Media queries и адаптив */
+@media (max-width: 900px) {
+  .app-container {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    display: none;
+  }
+  .mobile-menu-trigger {
+    display: block;
+  }
+}
+@media (max-width: 600px) {
+  .master-controls {
+    flex-direction: column;
+    padding: 1rem;
+  }
+  .track-meta {
+    margin-left: 0;
+    margin-top: 0.5rem;
+  }
+}

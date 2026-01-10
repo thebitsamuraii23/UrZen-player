@@ -1,0 +1,37 @@
+/* Общие компоненты */
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-fast);
+}
+.nav-item:hover {
+  background: var(--primary-color);
+  color: #fff;
+}
+.song-item {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.song-item:hover {
+  background: var(--secondary-color);
+}
+.vinyl-container {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.track-meta {
+  margin-left: 1rem;
+  flex: 1;
+}
+.button, .input, .slider {
+  /* Общие стили для кнопок, инпутов, слайдеров */
+}

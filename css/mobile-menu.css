@@ -1,0 +1,41 @@
+/* Мобильное меню */
+.mobile-menu-trigger {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 200;
+}
+.mobile-sidebar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--mobile-sidebar-width);
+  height: 100vh;
+  background: var(--secondary-color);
+  z-index: 201;
+  transform: translateX(-100%);
+  transition: transform var(--transition-fast);
+}
+.mobile-sidebar.open {
+  display: block;
+  transform: translateX(0);
+}
+.mobile-sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+}
+.mobile-sidebar.open + .mobile-sidebar-overlay {
+  display: block;
+}
+.mobile-nav-item {
+  padding: 1rem;
+  border-bottom: 1px solid var(--background-color);
+}

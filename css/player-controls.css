@@ -1,0 +1,40 @@
+/* Player controls */
+.master-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  background: var(--secondary-color);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+.playback-btns {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.play-main {
+  font-size: 2rem;
+  background: var(--primary-color);
+  color: #fff;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  margin: 0.5rem 0;
+}
+.volume-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.fx-panel {
+  margin-left: 1rem;
+}

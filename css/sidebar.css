@@ -1,0 +1,25 @@
+/* Sidebar (desktop) */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--secondary-color);
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+.nav-brand {
+  font-size: 1.5rem;
+  font-weight: bold;
+  padding: 1.5rem 1rem 1rem 1rem;
+}
+.sidebar-section {
+  margin-bottom: 2rem;
+}
+.queue-list {
+  list-style: none;
+  padding: 0;
+}

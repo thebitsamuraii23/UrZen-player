@@ -1,110 +1,142 @@
-# Z BETA — Audio Player
+# 🎵 Z BETA — Modern Audio Player
 
-Минималистичный веб-плеер с поддержкой плейлистов, Bass Boost и Zen Mode. Музыка хранится локально в IndexedDB.
+A sleek, minimalist web-based audio player with playlist management, Bass Boost, and Zen Mode. Your music is stored locally in IndexedDB with full privacy.
 
-## 🎯 Возможности
+## ✨ Features
 
-- ✅ **Плейлисты**: создание, удаление, добавление/удаление песен
-- ✅ **Multi-Select**: добавить одну песню в несколько плейлистов одновременно
-- ✅ **Bass Boost**: эквалайзер с регулировкой баса (0-25 dB)
-- ✅ **Shuffle & Repeat**: перемешивание и повтор (все / текущий трек)
-- ✅ **Favorites**: отмечать любимые треки
-- ✅ **Drag & Drop**: переупорядочивание песен в библиотеке
-- ✅ **Zen Mode** (F): полноэкранный режим с увеличенным визуализатором
-- ✅ **Метаданные**: автоматическое извлечение названия, артиста и обложки
-- ✅ **Локализация**: русский и английский языки
-- ✅ **Клавиатурные сокращения**:
-  - `Space` — play/pause
-  - `← / →` — перемотка на ±10 сек
-  - `↑ / ↓` — громкость
-  - `Ctrl+← / Ctrl+→` — предыдущий/следующий трек
+- 🎯 **Playlist Management** - Create, delete, and organize playlists with ease
+- 🎼 **Multi-Select Playlists** - Add one song to multiple playlists simultaneously
+- 🔊 **Bass Boost** - EQ with bass adjustment (0-25 dB)
+- 🔀 **Shuffle & Repeat** - Mix it up or loop your favorites
+- ❤️ **Favorites** - Mark and quick-access your favorite tracks
+- 🖱️ **Drag & Drop** - Reorder songs in your library intuitively
+- 🌙 **Zen Mode** (F key) - Immersive fullscreen experience with enhanced visualizer
+- 🎨 **Metadata Extraction** - Automatic title, artist, and album art detection
+- 🌍 **Multi-Language** - English and Russian support
+- ⌨️ **Keyboard Shortcuts**:
+  - `Space` — Play/Pause
+  - `← / →` — Seek ±10 seconds
+  - `↑ / ↓` — Volume control
+  - `Ctrl+← / Ctrl+→` — Previous/Next track
   - `F` — Zen Mode
-  - `ESC` — выход из Zen Mode
+  - `ESC` — Exit Zen Mode
 
-## 📁 Структура проекта
+## 📁 Project Structure
 
 ```
 html-player/
-├── player-standalone.html    # Основной файл (все в одном)
-├── modules/                  # Разделённые модули
-│   ├── playlist-manager.js   # Управление плейлистами
-│   ├── audio-manager.js      # Управление аудиоплеером
-│   ├── library-manager.js    # Управление библиотекой
-│   ├── settings-ui.js        # Настройки и интерфейс
-│   ├── metadata-import.js    # Импорт и метаданные
-│   └── visualizer.js         # Визуализатор
-├── README.md                 # Эта документация
-└── LICENSE                   # MIT License
+├── index.html              # Main application file
+├── css/
+│   └── main.css           # Complete styling
+├── js/
+│   ├── app.js             # Core application logic
+│   └── state.js           # Global state management
+├── assets/
+│   └── musicjacker.png    # Music Jacker icon
+├── README.md              # This documentation
+└── LICENSE                # MIT License
 ```
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-1. **Откройте** `player-standalone.html` в браузере.
-2. **Загрузьте музыку** кнопкой "Загрузить треки".
-3. **Наслаждайтесь** — метаданные загружаются автоматически.
+1. **Open** `index.html` in your browser
+2. **Import music** using the "Import Tracks" button
+3. **Enjoy** — Metadata loads automatically with beautiful UI
 
-## 📚 Основные функции
+## 🎮 Core Features Explained
 
-### Плейлисты: Многовыбор
+### Create & Manage Playlists
 
-1. На песне нажмите **+**
-2. Выберите несколько плейлистов (чекбоксы)
-3. Нажмите "Сохранить"
-4. Одну песню можно добавить в несколько плейлистов сразу!
+- Click **+** icon on any track
+- Select multiple playlists to add the song to
+- Changes save instantly to local storage
 
-### Изменения (обновление)
+### Add to Multiple Playlists
 
-- Реализован multi-select picker для добавления одной песни в несколько плейлистов одновременно.
-- При просмотре конкретного плейлиста у трека теперь отображается кнопка удаления именно из этого плейлиста (не удаляет сам трек из библиотеки).
+- One song can belong to many playlists
+- Removing from a playlist doesn't delete the track
+- Just hover over a track and click **+** to manage
 
-### Удаление из плейлиста
+### Bass Boost Control
 
-1. Перейдите в плейлист
-2. Нажмите **✕** на песне
-3. Удаляется только из этого плейлиста, остальные не меняются
+- Settings ⚙️ → "Ultra Bass" (toggle) → Adjust slider (0-25 dB)
+- Real-time audio processing with Web Audio API
 
-### Bass Boost
+### Zen Mode Experience
 
-- Настройки ⚙️ → "Ультра-бас" (включить) → Ползунок 0-25 dB
+- Press **F** or click the Zen Mode button
+- Immersive fullscreen with enhanced visualizer
+- Perfect for focused listening
 
-### Zen Mode
+### Keyboard Shortcuts
 
-- Нажмите **F** или иконку ⬜ → Полноэкранный режим
+| Key | Action |
+|-----|--------|
+| `Space` | Play/Pause |
+| `← / →` | Seek ±10 seconds |
+| `↑ / ↓` | Volume |
+| `Ctrl+← / →` | Previous/Next |
+| `F` | Zen Mode Toggle |
+| `ESC` | Exit Zen Mode |
 
-### Горячие клавиши
+## 💾 Data Storage
 
-```
-Space           → Play/Pause
-← / →           → Перемотка ±10 сек
-↑ / ↓           → Громкость
-Ctrl+← / Ctrl+→ → Предыдущий/следующий трек
-F               → Zen Mode
-ESC             → Выход из Zen Mode
-```
+- **IndexedDB** — Local browser storage for complete privacy
+- **Zero cloud sync** — Your music stays on your device
+- **Clear data** — Settings → "Wipe Data" option available
 
-## 💾 Хранение
+## 🛠️ Technical Stack
 
-- **IndexedDB** (браузер) — музыка и плейлисты сохраняются автоматически
-- Данные не передаются на серверы
-- Очистка: Настройки → "Wipe All Data"
+- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
+- **Audio**: Web Audio API with BiquadFilter for Bass Boost
+- **Database**: Dexie.js (IndexedDB wrapper)
+- **Icons**: Lucide Icons
+- **Metadata**: jsmediatags for ID3 extraction
 
-## 🔧 Структура модулей
+## 📦 Built With
 
-| Модуль | Что делает |
-|--------|-----------|
-| `playlist-manager.js` | Создание, удаление, добавление/удаление песен в плейлистах |
-| `audio-manager.js` | Проигрывание, пауза, навигация по трекам |
-| `library-manager.js` | Отображение библиотеки, фильтры, drag-drop |
-| `settings-ui.js` | Настройки, язык, Bass Boost, горячие клавиши |
-| `metadata-import.js` | Импорт файлов и извлечение метаданных (ID3 теги) |
-| `visualizer.js` | Аудиовизуализатор спектра |
+- **Vanilla JavaScript** - No frameworks needed
+- **Modern CSS** - Glassmorphism design
+- **Web Audio API** - Professional audio processing
+- **IndexedDB** - Fast local storage
 
-> **Внимание**: Модули находятся в папке `/modules/` для организации кода. Весь код встроен в `player-standalone.html` для полной автономности — модули не загружаются в HTML!
+## 🔗 My Other Projects
 
-## 📝 Лицензия
+- 🤖 **Music Jacker Bot** — [t.me/ytdlpload_bot](https://t.me/ytdlpload_bot) - Telegram bot for music
+- 🌐 **Music Jacker Website** — [musicjacker-site.onrender.com](https://musicjacker-site.onrender.com)
+- 📄 **My Resume** — [samuraizz-resume.githuib.io/samuraizz-resume](https://samuraizz-resume.githuib.io/samuraizz-resume)
 
-MIT — используйте свободно! Автор: **thebitsamuraii23**
+## 📊 Recent Updates
+
+### v2.0 - Modern UI Overhaul
+- ✅ Modular architecture with clean separation
+- ✅ Beautiful modal dialogs for playlist operations
+- ✅ Interactive playlist picker with visual feedback
+- ✅ English as default language
+- ✅ Animated settings panel with hover effects
+- ✅ Clear Queue button for quick playlist management
+
+## 🎨 UI/UX Highlights
+
+- **Dark Theme** with accent orange (#ff3e00)
+- **Glassmorphic Design** with blur effects
+- **Smooth Animations** throughout the interface
+- **Responsive Layout** for desktop and tablet
+- **Intuitive Controls** with clear visual feedback
+
+## 🔐 Privacy First
+
+- No tracking
+- No ads
+- No data collection
+- Everything stays on your device
+
+## 📜 License
+
+MIT License © 2026 - Feel free to use, modify, and distribute
 
 ---
 
-Приятного прослушивания! 🎧
+**Made with ❤️ by [thebitsamuraii23](https://github.com/thebitsamuraii23)**
+
+**Enjoy your music! 🎧**

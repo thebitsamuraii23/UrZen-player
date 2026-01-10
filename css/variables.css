@@ -1,0 +1,25 @@
+/* CSS переменные цветов, размеров, шрифтов */
+:root {
+  /* Пример переменных */
+  --primary-color: #1db954;
+  --secondary-color: #191414;
+  --accent-color: #ffb300;
+  --text-color: #fff;
+  --background-color: #121212;
+  --sidebar-width: 260px;
+  --mobile-sidebar-width: 80vw;
+  --font-main: 'Inter', Arial, sans-serif;
+  --border-radius: 8px;
+  --transition-fast: 0.2s;
+  --transition-slow: 0.4s;
+}
+
+/* Темы (пример) */
+[data-theme="dark"] {
+  --background-color: #121212;
+  --text-color: #fff;
+}
+[data-theme="light"] {
+  --background-color: #fff;
+  --text-color: #222;
+}
