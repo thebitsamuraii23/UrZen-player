@@ -1,4 +1,4 @@
-// Глобальное состояние приложения
+// Global application state
 export const state = {
     library: [],
     playlists: [],
@@ -15,10 +15,12 @@ export const state = {
     isZen: false,
     draggedItem: null,
     shuffle: false,
-    repeat: 'none'
+    repeat: 'none',
+    selectedTracks: new Set(),
+    searchQuery: ''
 };
 
-// DOM элементы
+// DOM elements
 export const dom = {
     audio: null,
     playBtn: null,
@@ -46,9 +48,12 @@ export const dom = {
     visualizer: null,
     shuffleBtn: null,
     repeatBtn: null
+    ,
+    searchInput: null
 };
 
-// Инициализация DOM ссылок
+
+// Initialize DOM references
 export function initDOM() {
     dom.audio = document.getElementById('audioSource');
     dom.playBtn = document.getElementById('btnPlay');
@@ -76,4 +81,5 @@ export function initDOM() {
     dom.visualizer = document.getElementById('visualizerCanvas');
     dom.shuffleBtn = document.getElementById('shuffleBtn');
     dom.repeatBtn = document.getElementById('repeatBtn');
+    dom.searchInput = document.getElementById('globalSearch');
 }

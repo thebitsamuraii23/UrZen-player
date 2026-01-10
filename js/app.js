@@ -71,8 +71,9 @@ async function loadSettings() {
     
     const bGain = await db.settings.get('bassGain');
     if (bGain !== undefined) state.bassGain = bGain.value;
+    // set slider value and apply visual fill
     dom.bassSlider.value = state.bassGain;
-    dom.bassValText.innerText = state.bassGain + "dB";
+    updateBassGain(state.bassGain);
 
     const shuff = await db.settings.get('shuffle');
     if (shuff !== undefined) state.shuffle = shuff.value;
@@ -119,6 +120,14 @@ window.updateBassGain = (val) => {
     dom.bassValText.innerText = val + "dB";
     db.settings.put({key: 'bassGain', value: val});
     if (state.bassFilter && state.bassEnabled) state.bassFilter.gain.value = val;
+    try {
+        // visually fill the slider: orange fill for value portion, black for the rest
+        const max = parseFloat(dom.bassSlider.max) || 25;
+        const pct = Math.max(0, Math.min(1, parseFloat(val) / max)) * 100;
+        dom.bassSlider.style.background = `linear-gradient(90deg, #ff8c00 0%, #ff8c00 ${pct}%, #000 ${pct}%, #000 100%)`;
+    } catch (e) {
+        // ignore styling errors in older browsers
+    }
 };
 
 // ============ ПЛЕЙЛИСТ И БИБЛИОТЕКА ============
@@ -243,6 +252,11 @@ function getCurrentListView() {
     else if (typeof state.currentTab === 'number') {
         const pl = state.playlists.find(p => p.id === state.currentTab);
         list = state.library.filter(t => pl?.songIds.includes(t.id));
+    }
+    // Apply search filter if present
+    if (state.searchQuery && state.searchQuery.trim().length > 0) {
+        const q = state.searchQuery.toLowerCase();
+        list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q));
     }
     return list;
 }
@@ -374,10 +388,38 @@ function renderSidebarQueue() {
                     <p>${track.artist}</p>
                 </div>
             `;
-            div.addEventListener('click', (e) => {
-                e.stopPropagation();
-                window.playTrack(track.id);
-            });
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (e.ctrlKey || e.metaKey) {
+                        window.toggleTrackSelection(track.id);
+                        renderSidebarQueue();
+                        refreshIcons();
+                    } else {
+                        window.playTrack(track.id);
+                    }
+                });
+                // Add button to add selected tracks to playlist if any are selected
+                if (state.selectedTracks.size > 0) {
+                    const addSelectedBtn = document.createElement('button');
+                    addSelectedBtn.style.cssText = `
+                        width: 100%;
+                        margin-top: 12px;
+                        padding: 10px;
+                        background: var(--accent);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 13px;
+                        transition: 0.3s;
+                    `;
+                    addSelectedBtn.textContent = `Add ${state.selectedTracks.size} track(s) to playlist`;
+                    addSelectedBtn.onmouseover = () => addSelectedBtn.style.opacity = '0.9';
+                    addSelectedBtn.onmouseout = () => addSelectedBtn.style.opacity = '1';
+                    addSelectedBtn.onclick = () => window.openPlaylistPickerMultiSelect();
+                    container.appendChild(addSelectedBtn);
+                }
             container.appendChild(div);
         });
     });
@@ -653,6 +695,113 @@ window.removeSongFromPlaylist = async (playlistId, songId) => {
     await loadPlaylistsFromDB();
 };
 
+    window.toggleTrackSelection = (trackId) => {
+        if (state.selectedTracks.has(trackId)) {
+            state.selectedTracks.delete(trackId);
+        } else {
+            state.selectedTracks.add(trackId);
+        }
+        renderSidebarQueue();
+    };
+
+    window.clearTrackSelection = () => {
+        state.selectedTracks.clear();
+        renderSidebarQueue();
+    };
+
+    window.openPlaylistPickerMultiSelect = () => {
+        if (state.selectedTracks.size === 0) return;
+    
+        const container = document.getElementById('pickerContainer');
+        container.innerHTML = "";
+
+        const listWrap = document.createElement('div');
+        listWrap.style.display = 'flex';
+        listWrap.style.flexDirection = 'column';
+        listWrap.style.gap = '12px';
+        listWrap.style.maxHeight = '320px';
+        listWrap.style.overflow = 'auto';
+
+        state.playlists.forEach(pl => {
+            const id = pl.id;
+            const btn = document.createElement('button');
+            btn.className = 'playlist-picker-btn';
+            btn.style.padding = '14px 18px';
+            btn.style.background = 'var(--surface)';
+            btn.style.border = '1px solid var(--border)';
+            btn.style.borderRadius = '12px';
+            btn.style.color = 'white';
+            btn.style.cursor = 'pointer';
+            btn.style.fontWeight = '600';
+            btn.style.fontSize = '14px';
+            btn.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            btn.style.display = 'flex';
+            btn.style.alignItems = 'center';
+            btn.style.justifyContent = 'space-between';
+        
+            btn.innerHTML = `<span>${pl.name}</span><i data-lucide="plus" style="width: 18px; height: 18px; margin-left: 10px;"></i>`;
+        
+            btn.onmouseover = function() {
+                this.style.background = 'var(--surface-bright)';
+                this.style.borderColor = 'var(--accent)';
+                this.style.transform = 'translateX(4px)';
+            };
+        
+            btn.onmouseout = function() {
+                this.style.background = 'var(--surface)';
+                this.style.borderColor = 'var(--border)';
+                this.style.transform = 'translateX(0)';
+            };
+        
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                const playlist = await db.playlists.get(id);
+                if (!playlist) return;
+            
+                playlist.songIds = Array.isArray(playlist.songIds) ? playlist.songIds : [];
+            
+                for (const trackId of state.selectedTracks) {
+                    if (!playlist.songIds.includes(trackId)) {
+                        playlist.songIds.push(trackId);
+                    }
+                }
+            
+                await db.playlists.update(id, { songIds: playlist.songIds });
+                await loadPlaylistsFromDB();
+            
+                const count = state.selectedTracks.size;
+                showToast(`Added ${count} track(s) to ${pl.name}`);
+                window.clearTrackSelection();
+                window.toggleModal('playlistPickerOverlay');
+                refreshIcons();
+            };
+        
+            listWrap.appendChild(btn);
+        });
+
+        const controls = document.createElement('div');
+        controls.style.display = 'flex';
+        controls.style.justifyContent = 'flex-end';
+        controls.style.gap = '12px';
+        controls.style.marginTop = '20px';
+        controls.style.paddingTop = '15px';
+        controls.style.borderTop = '1px solid var(--border)';
+
+        const btnCancel = document.createElement('button');
+        btnCancel.className = 'mini-btn';
+        btnCancel.innerText = 'Cancel';
+        btnCancel.onclick = () => {
+            window.toggleModal('playlistPickerOverlay');
+            window.clearTrackSelection();
+        };
+
+        controls.appendChild(btnCancel);
+        container.appendChild(listWrap);
+        container.appendChild(controls);
+        window.toggleModal('playlistPickerOverlay');
+        refreshIcons();
+    };
+
 // ============ ИМПОРТ ФАЙЛОВ ============
 async function extractMetadata(file) {
     return new Promise((resolve) => {
@@ -885,9 +1034,41 @@ export async function initApp() {
         const p = (e.clientX - dom.progBar.getBoundingClientRect().left) / dom.progBar.offsetWidth;
         dom.audio.currentTime = p * dom.audio.duration;
     };
+    // Click to set volume
     dom.volBar.onclick = (e) => {
         const v = (e.clientX - dom.volBar.getBoundingClientRect().left) / dom.volBar.offsetWidth;
         dom.audio.volume = Math.max(0, Math.min(1, v));
         updateVolumeUI();
     };
+
+    // Pointer drag/hold for volume (mouse, touch, pen)
+    const handleVolumePointer = (e) => {
+        const rect = dom.volBar.getBoundingClientRect();
+        const v = (e.clientX - rect.left) / rect.width;
+        dom.audio.volume = Math.max(0, Math.min(1, v));
+        updateVolumeUI();
+    };
+
+    dom.volBar.addEventListener('pointerdown', (e) => {
+        dom.volBar.setPointerCapture(e.pointerId);
+        handleVolumePointer(e);
+
+        const onMove = (ev) => handleVolumePointer(ev);
+        const onUp = (ev) => {
+            try { dom.volBar.releasePointerCapture(ev.pointerId); } catch (err) {}
+            dom.volBar.removeEventListener('pointermove', onMove);
+            dom.volBar.removeEventListener('pointerup', onUp);
+        };
+
+        dom.volBar.addEventListener('pointermove', onMove);
+        dom.volBar.addEventListener('pointerup', onUp);
+    });
+
+    // Search input wiring
+    if (dom.searchInput) {
+        dom.searchInput.addEventListener('input', (e) => {
+            state.searchQuery = e.target.value || '';
+            renderLibrary();
+        });
+    }
 }
