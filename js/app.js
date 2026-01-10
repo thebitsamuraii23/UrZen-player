@@ -440,13 +440,36 @@ window.prevTrack = () => {
     }
 };
 
-window.clearQueue = () => {
-    if (state.currentTab !== 'all') {
-        showToast(I18N[state.lang].queue_cleared || 'Queue cleared');
-        window.switchTab('all');
+window.clearQueue = async () => {
+    const lang = state.lang;
+    const confirmMsg = lang === 'ru' ? 'Вы уверены? Все песни в очереди будут удалены.' : 'Are you sure? All tracks in the queue will be deleted.';
+    const successMsg = lang === 'ru' ? 'Очередь очищена' : 'Queue cleared';
+    
+    if (!confirm(confirmMsg)) return;
+    
+    const queue = getCurrentListView();
+    
+    // Если это плейлист - удалить все песни из плейлиста
+    if (typeof state.currentTab === 'number') {
+        const playlist = state.playlists.find(p => p.id === state.currentTab);
+        if (playlist) {
+            playlist.songIds = [];
+            await db.playlists.update(state.currentTab, { songIds: [] });
+        }
     } else {
-        showToast(I18N[state.lang].queue_cleared || 'Queue cleared');
+        // Если это вся библиотека или избранное - удалить все
+        for (const track of queue) {
+            await db.songs.delete(track.id);
+        }
+        state.library = [];
+        state.currentIndex = -1;
+        dom.audio.pause();
+        resetUI();
     }
+    
+    await loadPlaylistsFromDB();
+    await loadLibraryFromDB();
+    showToast(successMsg);
     renderSidebarQueue();
 };
 
