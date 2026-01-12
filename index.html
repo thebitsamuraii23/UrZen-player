@@ -98,6 +98,38 @@
     </div>
 </div>
 
+<!-- Auth Modal -->
+<div class="modal-overlay" id="authModal">
+    <div class="modal-content" style="width: 400px;">
+        <div class="modal-close" onclick="window.toggleAuthModal()"><i data-lucide="x"></i></div>
+        
+        <!-- Login Tab -->
+        <div id="authLoginTab" class="auth-tab active">
+            <h3 style="margin-bottom: 25px; text-align: center;">Sign In</h3>
+            <input type="text" id="loginUsername" placeholder="Username" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
+            <input type="password" id="loginPassword" placeholder="Password" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
+            <button onclick="window.handleLogin()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;">Sign In</button>
+            <div style="text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 16px;">
+                Don't have an account? <span onclick="window.switchAuthTab('register')" style="color: var(--accent); cursor: pointer; text-decoration: underline;">Create one</span>
+            </div>
+            <div id="authLoginStatus" class="auth-status"></div>
+        </div>
+
+        <!-- Register Tab -->
+        <div id="authRegisterTab" class="auth-tab" style="display: none;">
+            <h3 style="margin-bottom: 25px; text-align: center;">Create Account</h3>
+            <input type="text" id="registerUsername" placeholder="Username (min 3 chars)" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
+            <input type="password" id="registerPassword" placeholder="Password (min 6 chars)" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
+            <button onclick="window.handleRegister()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;">Create Account</button>
+            <div style="text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 16px;">
+                Already have an account? <span onclick="window.switchAuthTab('login')" style="color: var(--accent); cursor: pointer; text-decoration: underline;">Sign in</span>
+            </div>
+            <div id="authRegisterStatus" class="auth-status"></div>
+        </div>
+    </div>
+    </div>
+</div>
+
 <!-- Rename Playlist Modal -->
 <div class="modal-overlay" id="renamePlaylistModal">
     <div class="modal-content" style="width: 380px;">
@@ -222,6 +254,24 @@
             <input type="file" id="fileInput" accept="audio/*" multiple>
         </div>
 
+        <!-- Auth Button (not logged in) -->
+        <div id="authNavItem" class="nav-item" onclick="window.toggleAuthModal()" style="display: none;">
+            <i data-lucide="log-in"></i> <span id="authNavLabel">Login</span>
+        </div>
+
+        <!-- User Panel (logged in) -->
+        <div id="userNavItem" class="nav-item user-nav-item" style="display: none !important;">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <i data-lucide="user" style="width: 16px; height: 16px;"></i>
+                    <span id="userNavLabel" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                </div>
+                <button id="logoutNavBtn" onclick="event.stopPropagation(); window.handleLogout()" style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: 0.2s; font-size: 12px; font-weight: 600;" title="Logout">
+                    <i data-lucide="log-out" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+        </div>
+
         <div class="nav-item" onclick="window.toggleSettings()">
             <i data-lucide="sliders"></i> <span data-t="settings">Настройки</span>
         </div>
@@ -338,4 +388,4 @@ closeBtn?.addEventListener('click', window.closeMobileMenu);
 </script>
 
 </body>
-</html> 
+</html>

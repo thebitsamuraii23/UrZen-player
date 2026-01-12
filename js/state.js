@@ -17,7 +17,9 @@ export const state = {
     shuffle: false,
     repeat: 'none',
     selectedTracks: new Set(),
-    searchQuery: ''
+    searchQuery: '',
+    shuffledOrder: [],  // Массив индексов в перемешанном порядке
+    shufflePosition: 0  // Текущая позиция в перемешанном порядке
 };
 
 // DOM elements
