@@ -1,19 +1,61 @@
-/* Grid и позиционирование */
+/* Grid и позиционирование - улучшено */
 .app-container {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr var(--right-sidebar-width);
   grid-template-rows: 1fr auto;
   min-height: 100vh;
+  gap: 0;
 }
+
 main {
   grid-column: 2;
   grid-row: 1 / span 2;
-  padding: 2rem 1.5rem 6rem 1.5rem;
+  padding: 24px 20px 120px 20px;
+  overflow-y: auto;
 }
+
+.right {
+  grid-column: 3;
+  grid-row: 1;
+  padding: 20px;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
 .fixed-bottom {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 100;
+}
+
+.hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 50px;
+  text-align: center;
+  width: 100%;
+  max-width: 600px;
+  min-height: calc(100vh - 240px);
+  padding-bottom: 80px;
+}
+
+.section-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  margin-top: 16px;
+}
+
+.list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

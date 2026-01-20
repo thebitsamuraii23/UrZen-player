@@ -2,42 +2,12 @@
 import { state, dom, initDOM } from './state.js';
 import { initAuth } from './auth.js';
 import { searchLocalLibrary } from './navidrome-search.js';
-
-// Константы и переводы
-const I18N = {
-    ru: {
-        library: "Фонотека", favorites: "Любимое", playlists: "Коллекции",
-        settings: "Настройки", queue: "Очередь", ready: "Выберите трек",
-        language: "Локализация", bass_boost: "Ультра-бас", reset_db: "Удалить данные",
-        create_playlist: "Новая коллекция", save: "Создать", cancel: "Отмена",
-        import: "Ресурсы", add_files: "Загрузить треки", navigation: "Разделы",
-        choose_playlist: "Добавить в плейлист", added: "Успешно добавлено!", 
-        already_exists: "Трек уже в списке", removed: "Удалено",
-        zen_exit_hint: "Нажмите ESC, чтобы выйти из Zen Mode",
-        rename_playlist: "Переименовать коллекцию", confirm: "Подтвердить", delete: "Удалить",
-        delete_playlist: "Удалить коллекцию?", delete_playlist_confirm: "Это действие нельзя отменить",
-        renamed: "Переименовано", deleted: "Удалено",
-        clear_queue: "Очистить очередь", queue_cleared: "Очередь очищена",
-        music_search: "Поиск музыки", auth_required: "Требуется авторизация",
-        login_to_search: "Вход для поиска и потокового воспроизведения музыки из Navidrome"
-    },
-    en: {
-        library: "Library", favorites: "Favorites", playlists: "Playlists",
-        settings: "Settings", queue: "Queue", ready: "Select Media",
-        language: "Localization", bass_boost: "Bass Boost", reset_db: "Wipe Data",
-        create_playlist: "New Collection", save: "Create", cancel: "Cancel",
-        import: "Resources", add_files: "Import Tracks", navigation: "Sections",
-        choose_playlist: "Add to Playlist", added: "Success Added!", 
-        already_exists: "Track already exists", removed: "Removed",
-        zen_exit_hint: "Press ESC to exit Zen Mode",
-        rename_playlist: "Rename Playlist", confirm: "Confirm", delete: "Delete",
-        delete_playlist: "Delete Playlist?", delete_playlist_confirm: "This action cannot be undone",
-        renamed: "Renamed", deleted: "Deleted",
-        clear_queue: "Clear Queue", queue_cleared: "Queue cleared",
-        music_search: "Music Search", auth_required: "Authentication Required",
-        login_to_search: "Sign in to search and stream music from Navidrome"
-    }
-};
+import { loadLibraryFromDB, getCurrentListView, deleteTrack, saveQueueState, restoreQueueState } from './modules/library-manager.js';
+import { addSongToPlaylist, removeSongFromPlaylist, createPlaylist, deletePlaylist, renamePlaylist } from './modules/playlist-manager.js';
+import { isUserAuthenticated, syncPlaylistsWithServer } from './modules/server-playlist-manager.js';
+import { I18N } from './i18n.js';
+import { formatTime, showToast, refreshIcons } from './helpers.js';
+import { loadSettings, applyLanguage, initSettingsHandlers } from './settings.js';
 
 // Инициализация БД
 const db = new Dexie("AetherProDB");
@@ -47,107 +17,8 @@ db.version(7).stores({
     settings: "key"
 });
 
-// ============ УТИЛИТЫ ============
-function refreshIcons() { 
-    if (window.lucide && typeof window.lucide.createIcons === 'function') {
-        window.lucide.createIcons();
-    }
-}
-
-function formatTime(s) {
-    const m = Math.floor(s/60); const sec = Math.floor(s%60);
-    return `${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
-}
-
-function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.innerText = msg; t.classList.add('active');
-    setTimeout(() => t.classList.remove('active'), 2500);
-}
-
 // ============ НАСТРОЙКИ ============
-async function loadSettings() {
-    const lang = await db.settings.get('language');
-    if (lang) state.lang = lang.value;
-    else if (localStorage.getItem('language')) state.lang = localStorage.getItem('language');
-    document.getElementById('langSelect').value = state.lang;
-    
-    const bass = await db.settings.get('bassEnabled');
-    if (bass !== undefined) state.bassEnabled = bass.value;
-    else if (localStorage.getItem('bassEnabled')) state.bassEnabled = localStorage.getItem('bassEnabled') === 'true';
-    dom.bassCheck.checked = state.bassEnabled;
-    
-    const bGain = await db.settings.get('bassGain');
-    if (bGain !== undefined) state.bassGain = bGain.value;
-    else if (localStorage.getItem('bassGain')) state.bassGain = parseFloat(localStorage.getItem('bassGain'));
-    // set slider value and apply visual fill
-    dom.bassSlider.value = state.bassGain;
-    updateBassGain(state.bassGain);
-
-    const shuff = await db.settings.get('shuffle');
-    if (shuff !== undefined) state.shuffle = shuff.value;
-    else if (localStorage.getItem('shuffle')) state.shuffle = localStorage.getItem('shuffle') === 'true';
-
-    const rep = await db.settings.get('repeat');
-    if (rep !== undefined) state.repeat = rep.value;
-    else if (localStorage.getItem('repeat')) state.repeat = localStorage.getItem('repeat');
-    
-    // Загружаем последний открытый таб
-    const tab = localStorage.getItem('currentTab');
-    if (tab) {
-        try {
-            state.currentTab = JSON.parse(tab);
-        } catch (e) {
-            state.currentTab = 'all';
-        }
-    }
-    
-    // Загружаем Navidrome избранное
-    const navFavorites = localStorage.getItem('navidromeFavorites');
-    if (navFavorites) {
-        try {
-            window.navidromeFavorites = JSON.parse(navFavorites);
-        } catch (e) {
-            window.navidromeFavorites = [];
-        }
-    }
-    
-    // Загружаем недавно открытые Navidrome песни
-    const navidromeSongs = localStorage.getItem('navidromeSongs');
-    if (navidromeSongs) {
-        try {
-            const songs = JSON.parse(navidromeSongs);
-            console.log('[SETTINGS] Loading', songs.length, 'Navidrome songs from localStorage');
-            if (Array.isArray(songs)) {
-                state.library = state.library || [];
-                // Add Navidrome songs that aren't already in the library
-                songs.forEach(song => {
-                    if (!state.library.some(s => s.navidromeId === song.navidromeId)) {
-                        state.library.push(song);
-                    }
-                });
-            }
-        } catch (e) {
-            console.error('[SETTINGS] Error loading Navidrome songs:', e);
-        }
-    }
-}
-
-function applyLanguage() {
-    const t = I18N[state.lang];
-    document.querySelectorAll('[data-t]').forEach(el => {
-        const key = el.getAttribute('data-t');
-        if (t[key]) el.innerText = t[key];
-    });
-    refreshIcons();
-}
-
-window.changeLanguage = async (val) => {
-    state.lang = val;
-    await db.settings.put({key: 'language', value: val});
-    localStorage.setItem('language', val);
-    applyLanguage();
-};
+// (Теперь в settings.js)
 
 // ============ МОДАЛЬНЫЕ ОКНА ============
 window.toggleModal = (id) => { 
@@ -185,6 +56,10 @@ window.updateBassGain = (val) => {
 // ============ ПЛЕЙЛИСТ И БИБЛИОТЕКА ============
 async function loadPlaylistsFromDB() {
     state.playlists = await db.playlists.toArray();
+    console.log('[PLAYLISTS] Loaded', state.playlists.length, 'playlists');
+    state.playlists.forEach((pl, i) => {
+        console.log(`  [${i}] "${pl.name}" - songs: ${pl.songIds?.length || 0}, navidromeSongs: ${pl.navidromeSongs?.length || 0}`);
+    });
     renderPlaylistNav();
 }
 
@@ -193,18 +68,6 @@ function renderPlaylistNav() {
     containers.forEach(container => {
         if (!container) return;
         container.innerHTML = "";
-        
-        // Add Navidrome menu item
-        const navdiv = document.createElement('div');
-        navdiv.id = container.id === 'playlistNav' ? 'nav-navidrome' : 'nav-navidrome-mobile';
-        navdiv.className = `nav-item ${state.currentTab === 'navidrome' ? 'active' : ''}`;
-        navdiv.innerHTML = `<i data-lucide="radio"></i><span style="flex-grow: 1;">Navidrome</span>`;
-        navdiv.onclick = (e) => { 
-            e.stopPropagation(); 
-            window.switchTab('navidrome');
-            if (window.innerWidth <= 1024) window.closeMobileMenu();
-        };
-        container.appendChild(navdiv);
         
         // Add playlists
         state.playlists.forEach(pl => {
@@ -242,7 +105,19 @@ function renderPlaylistNav() {
 window.saveNewPlaylist = async () => {
     const name = document.getElementById('playlistNameInp').value;
     if (!name) return;
-    await db.playlists.add({ name, songIds: [] });
+    await createPlaylist(name);
+    
+    // Sync with server if authenticated
+    if (isUserAuthenticated()) {
+        try {
+            const { createServerPlaylist } = await import('./modules/server-playlist-manager.js');
+            await createServerPlaylist(name);
+            console.log('[SYNC] Created playlist on server');
+        } catch (error) {
+            console.error('[SYNC] Failed to create playlist on server:', error);
+        }
+    }
+    
     document.getElementById('playlistNameInp').value = "";
     window.togglePlaylistModal();
     await loadPlaylistsFromDB();
@@ -257,7 +132,22 @@ window.confirmDeletePlaylist = async () => {
     const id = deleteData.playlistId;
     if (!id) return;
     
+    // Get playlist name before deleting (for server sync)
+    const playlist = state.playlists.find(p => p.id === id);
+    
     await db.playlists.delete(id);
+    
+    // Sync with server if authenticated
+    if (isUserAuthenticated() && playlist) {
+        try {
+            const { deleteServerPlaylist } = await import('./modules/server-playlist-manager.js');
+            await deleteServerPlaylist(id);
+            console.log('[SYNC] Deleted playlist on server');
+        } catch (error) {
+            console.error('[SYNC] Failed to delete playlist on server:', error);
+        }
+    }
+    
     await loadPlaylistsFromDB();
     if (state.currentTab === id) window.switchTab('all');
     
@@ -289,6 +179,18 @@ window.confirmRenamePlaylist = async () => {
     }
     
     await db.playlists.update(id, { name: newName });
+    
+    // Sync with server if authenticated
+    if (isUserAuthenticated()) {
+        try {
+            const { renameServerPlaylist } = await import('./modules/server-playlist-manager.js');
+            await renameServerPlaylist(id, newName);
+            console.log('[SYNC] Renamed playlist on server');
+        } catch (error) {
+            console.error('[SYNC] Failed to rename playlist on server:', error);
+        }
+    }
+    
     await loadPlaylistsFromDB();
     
     renameData.playlistId = null;
@@ -303,59 +205,20 @@ window.cancelRenamePlaylist = () => {
     renameData.oldName = null;
     window.toggleModal('renamePlaylistModal');
 };
-
-async function loadLibraryFromDB() {
-    const saved = await db.songs.toArray();
-    saved.sort((a, b) => (a.order || 0) - (b.order || 0));
-    
-    // Сохраняем Navidrome песни перед перезагрузкой
-    const navidromeSongs = state.library.filter(s => s.source === 'navidrome');
-    
-    // Очищаем старые Object URLs от локальных песен
-    state.library.forEach(s => {
-        if (s.source !== 'navidrome' && s.url) {
-            URL.revokeObjectURL(s.url);
-        }
-    });
-    
-    // Загружаем локальные песни и объединяем с Navidrome
-    const localSongs = saved.map(s => ({ ...s, url: URL.createObjectURL(s.fileBlob) }));
-    state.library = [...localSongs, ...navidromeSongs];
-    
-    console.log('[LIBRARY] Loaded', localSongs.length, 'local songs and kept', navidromeSongs.length, 'Navidrome songs');
-    renderLibrary();
-}
-
-function getCurrentListView() {
-    let list = state.library;
-    if (state.currentTab === 'fav') {
-        list = state.library.filter(t => t.isFavorite);
-    }
-    else if (state.currentTab === 'navidrome') {
-        // Показываем только Navidrome песни
-        list = state.library.filter(t => t.source === 'navidrome');
-    }
-    else if (typeof state.currentTab === 'number') {
-        const pl = state.playlists.find(p => p.id === state.currentTab);
-        if (pl) {
-            // Объединяем локальные и Navidrome песни из плейлиста
-            const localSongs = state.library.filter(t => pl.songIds && pl.songIds.includes(t.id));
-            const navidromeSongs = pl.navidromeSongs || [];
-            list = [...localSongs, ...navidromeSongs];
-        }
-    }
-    // Apply search filter if present
-    if (state.searchQuery && state.searchQuery.trim().length > 0) {
-        const q = state.searchQuery.toLowerCase();
-        list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q));
-    }
-    return list;
-}
+// loadLibraryFromDB is imported from library-manager module
+// getCurrentListView is imported from library-manager module
 
 function renderLibrary() {
     dom.playlist.innerHTML = "";
     let list = getCurrentListView();
-
+    
+    // Default list layout for local songs and playlists
+    dom.playlist.style.display = 'flex';
+    dom.playlist.style.gridTemplateColumns = '';
+    dom.playlist.style.flexDirection = 'column';
+    dom.playlist.style.padding = '0';
+    dom.playlist.style.gap = '0';
+    
     list.forEach((track, index) => {
         const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
         const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
@@ -404,9 +267,296 @@ function renderLibrary() {
         div.addEventListener('dragend', handleDragEnd);
 
         dom.playlist.appendChild(div);
-    });
+    })
+    
     refreshIcons();
     renderSidebarQueue();
+}
+
+// Инициализация контейнера Navidrome (один раз)
+function initNavidromeContainer() {
+    // Проверяем, уже ли создан контейнер
+    let navidromeContainer = document.getElementById('navidromeContainer');
+    if (navidromeContainer) {
+        // Контейнер уже есть, просто обновим сетку
+        updateNavidromeSongs();
+        return;
+    }
+    
+    // Создаём контейнер ОДИН раз
+    navidromeContainer = document.createElement('div');
+    navidromeContainer.id = 'navidromeContainer';
+    document.body.appendChild(navidromeContainer);
+    
+    navidromeContainer.style.cssText = `
+        display: none;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        background: var(--bg);
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1000;
+    `;
+    
+    // Верхняя панель с поиском и кнопкой назад (создаём один раз)
+    const header = document.createElement('div');
+    header.style.cssText = `
+        padding: 20px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-shrink: 0;
+    `;
+    
+    const backBtn = document.createElement('button');
+    backBtn.innerText = '← Back';
+    backBtn.style.cssText = 'background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;';
+    backBtn.onclick = () => window.switchTab('all');
+    
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.id = 'navidromeSearchInput';
+    searchInput.placeholder = 'Search Navidrome...';
+    searchInput.value = state.searchQuery || '';
+    searchInput.style.cssText = 'flex: 1; background: var(--surface-bright); border: 1px solid var(--border); padding: 10px 15px; border-radius: 8px; color: white; font-size: 14px;';
+    
+    // Слушатель НА ОДНОМ input элементе
+    searchInput.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        updateNavidromeSongs();
+    });
+    
+    header.appendChild(backBtn);
+    header.appendChild(searchInput);
+    navidromeContainer.appendChild(header);
+    
+    // Контейнер для сетки (создаём один раз, будем обновлять содержимое)
+    const grid = document.createElement('div');
+    grid.id = 'navidromeGrid';
+    grid.style.cssText = `
+        flex: 1;
+        overflow-y: auto;
+        padding: 30px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 25px;
+        width: 100%;
+        box-sizing: border-box;
+        align-content: start;
+    `;
+    navidromeContainer.appendChild(grid);
+    
+    // Теперь заполняем сетку песнями
+    updateNavidromeSongs();
+}
+
+// Обновление сетки песен (вызывается при поиске)
+function updateNavidromeSongs() {
+    const grid = document.getElementById('navidromeGrid');
+    if (!grid) return;
+    
+    grid.innerHTML = ''; // Очищаем только сетку
+    
+    // If search query is empty, show all loaded songs
+    if (!state.searchQuery || state.searchQuery.trim().length === 0) {
+        let list = state.navidromeSongs || [];
+        // If list is empty, try to reload from API/cache
+        if (list.length === 0 && typeof window.getAllNavidromeSongs === 'function') {
+            grid.innerHTML = '';
+            const loadingMsg = document.createElement('div');
+            loadingMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+            loadingMsg.innerHTML = `<p>🌐 Loading Navidrome songs...</p>`;
+            grid.appendChild(loadingMsg);
+            window.getAllNavidromeSongs().then((songs) => {
+                state.navidromeSongs = songs;
+                grid.innerHTML = '';
+                if (songs.length === 0) {
+                    const emptyMsg = document.createElement('div');
+                    emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+                    emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+                    grid.appendChild(emptyMsg);
+                } else {
+                    renderNavidromeTiles(songs, grid);
+                }
+            }).catch(() => {
+                grid.innerHTML = '';
+                const errorMsg = document.createElement('div');
+                errorMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+                errorMsg.innerHTML = `<p>⚠️ Failed to load Navidrome songs</p>`;
+                grid.appendChild(errorMsg);
+            });
+            return;
+        }
+        if (list.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+            emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+            grid.appendChild(emptyMsg);
+            return;
+        }
+        renderNavidromeTiles(list, grid);
+        return;
+    }
+    
+    // If there's a search query, use API search
+    const searchMsg = document.createElement('div');
+    searchMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+    searchMsg.innerHTML = `<p>🔍 Searching...</p>`;
+    grid.appendChild(searchMsg);
+    
+    // Use the searchNavidrome function from navidrome-search.js
+    if (window.searchNavidrome) {
+        window.searchNavidrome(state.searchQuery).then((results) => {
+            grid.innerHTML = ''; // Clear loading message
+            
+            if (results.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+                emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+                grid.appendChild(emptyMsg);
+                return;
+            }
+            
+            renderNavidromeTiles(results, grid);
+        }).catch(err => {
+            console.error('[NAV] Search error:', err);
+            grid.innerHTML = '';
+            const errorMsg = document.createElement('div');
+            errorMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
+            errorMsg.innerHTML = `<p>⚠️ Search error</p>`;
+            grid.appendChild(errorMsg);
+        });
+    }
+}
+
+// Функция для отрисовки плиток песен
+function renderNavidromeTiles(list, grid) {
+    list.forEach((track) => {
+        const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
+        const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
+        
+        const tile = document.createElement('div');
+        tile.className = `navidrome-song-tile ${isActive ? 'active' : ''}`;
+        tile.style.cssText = `
+            cursor: pointer;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface);
+            transition: all 0.2s ease;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 220px;
+        `;
+        
+        // Контейнер для обложки
+        const imgContainer = document.createElement('div');
+        imgContainer.style.cssText = `
+            position: relative;
+            width: 100%;
+            flex-grow: 1;
+            overflow: hidden;
+            background: var(--surface-bright);
+        `;
+        
+        const img = document.createElement('img');
+        img.src = track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300';
+        img.onerror = () => { img.src = 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300'; };
+        img.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        `;
+        imgContainer.appendChild(img);
+        
+        // Overlay для артиста (появляется при наведении)
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        `;
+        overlay.innerHTML = `
+            <div style="color: white; text-align: center; padding: 20px; animation: fadeInScale 0.3s ease;">
+                <p style="margin: 0; font-size: 13px; color: var(--text-dim); margin-bottom: 8px;">Artist</p>
+                <p style="margin: 0; font-size: 14px; font-weight: 600; word-break: break-word;">${track.artist}</p>
+            </div>
+        `;
+        imgContainer.appendChild(overlay);
+        
+        // Текстовая информация
+        const info = document.createElement('div');
+        info.style.cssText = `
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            min-height: 70px;
+        `;
+        info.innerHTML = `
+            <h4 style="margin: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3;">
+                ${track.title}
+            </h4>
+        `;
+        
+        tile.appendChild(imgContainer);
+        tile.appendChild(info);
+        
+        const trackId = track.id || track.navidromeId;
+        const safeTitle = (track.title || '').replace(/'/g, "\\'");
+        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const safeAlbum = (track.album || '').replace(/'/g, "\\'");
+        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        
+        tile.onclick = () => {
+            // Animate tile and open player
+            tile.style.animation = 'scaleToPlayer 0.6s ease-in-out forwards';
+            
+            setTimeout(() => {
+                window.playNavidromeSong(trackId, safeTitle, safeArtist, safeAlbum, safeCover);
+            }, 300);
+        };
+        
+        // Эффекты при наведении
+        tile.addEventListener('mouseenter', () => {
+            tile.style.transform = 'scale(1.08) translateY(-5px)';
+            tile.style.boxShadow = '0 12px 24px rgba(0,0,0,0.4)';
+            overlay.style.opacity = '1';
+            img.style.transform = 'scale(1.1)';
+        });
+        
+        tile.addEventListener('mouseleave', () => {
+            tile.style.transform = 'scale(1)';
+            tile.style.boxShadow = 'none';
+            overlay.style.opacity = '0';
+            img.style.transform = 'scale(1)';
+        });
+        
+        grid.appendChild(tile);
+    });
+}
+
+function renderNavidromeInterface() {
+    initNavidromeContainer();
+    // Always refresh Navidrome grid when entering the tab
+    setTimeout(() => {
+        if (typeof updateNavidromeSongs === 'function') updateNavidromeSongs();
+    }, 0);
 }
 
 function handleDragStart(e) {
@@ -518,26 +668,9 @@ function renderSearchResults(results) {
     refreshIcons();
 }
 
+// deleteTrack moved to library-manager.js module
 window.deleteTrack = async (id, source = 'local') => {
-    const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
-    const isCurrentTrack = currentTrack && (currentTrack.id === id || currentTrack.navidromeId === id);
-    
-    if (isCurrentTrack) {
-        dom.audio.pause();
-        state.currentIndex = -1;
-        resetUI();
-    }
-    
-    // Удалить из состояния
-    state.library = state.library.filter(t => !(t.id === id || t.navidromeId === id));
-    
-    // Если локальная песня, удалить из БД
-    if (source === 'local') {
-        await db.songs.delete(id);
-    }
-    
-    renderLibrary();
-    renderSidebarQueue();
+    await deleteTrack(id, source);
 };
 
 function resetUI() {
@@ -557,7 +690,6 @@ window.toggleFav = async (id, source = 'local') => {
     if (source === 'local') {
         await db.songs.update(id, { isFavorite: track.isFavorite });
     } else {
-        // Для Navidrome песен сохраняем в localStorage
         const favorites = JSON.parse(localStorage.getItem('navidromeFavorites') || '[]');
         if (track.isFavorite) {
             if (!favorites.find(f => f.navidromeId === id)) {
@@ -587,7 +719,7 @@ function renderSidebarQueue() {
             return;
         }
 
-        queue.forEach((track) => {
+        queue.forEach((track, idx) => {
             const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
             const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
             const trackId = track.id || track.navidromeId;
@@ -595,7 +727,11 @@ function renderSidebarQueue() {
             
             const div = document.createElement('div');
             div.className = `song-item${isActive ? ' active' : ''}`;
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.gap = '8px';
             div.style.cursor = 'pointer';
+            div.style.position = 'relative';
             
             const safeTitle = (track.title || '').replace(/'/g, "\\'");
             const safeArtist = (track.artist || '').replace(/'/g, "\\'");
@@ -609,14 +745,43 @@ function renderSidebarQueue() {
                 onClickHandler = `window.playTrack(${trackId})`;
             }
             
-            div.innerHTML = `
-                <img src="${track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'">
-                <div class="song-item-info">
-                    <h4>${track.title}${source === 'navidrome' ? ' 🌐' : ''}</h4>
-                    <p>${track.artist}</p>
-                </div>
-            `;
+            // Create img element
+            const img = document.createElement('img');
+            img.src = track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100';
+            img.style.width = '40px';
+            img.style.height = '40px';
+            img.style.borderRadius = '4px';
+            img.onerror = () => { img.src = 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'; };
+            
+            // Create info div
+            const info = document.createElement('div');
+            info.className = 'song-item-info';
+            info.style.flex = '1';
+            info.innerHTML = `<h4>${track.title}${source === 'navidrome' ? ' 🌐' : ''}</h4><p>${track.artist}</p>`;
+            
+            // Create delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'mini-btn danger';
+            deleteBtn.title = 'Remove from queue';
+            deleteBtn.style.cssText = 'background: transparent; border: none; cursor: pointer; padding: 6px; color: var(--text-dim); transition: 0.2s;';
+            deleteBtn.innerHTML = '<i data-lucide="trash-2" style="width:18px; height:18px;"></i>';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                console.log('[QUEUE] Removing track at index:', idx);
+                window.removeFromQueue(trackId);
+            };
+            deleteBtn.onmouseover = () => deleteBtn.style.color = '#ff3e00';
+            deleteBtn.onmouseout = () => deleteBtn.style.color = 'var(--text-dim)';
+            
+            // Assemble div
+            div.appendChild(img);
+            div.appendChild(info);
+            div.appendChild(deleteBtn);
+            
+            // Add click handler for playing the track
             div.addEventListener('click', (e) => {
+                // Don't trigger if clicking the delete button
+                if (e.target.closest('.mini-btn')) return;
                 e.stopPropagation();
                 if (e.ctrlKey || e.metaKey) {
                     window.toggleTrackSelection(trackId);
@@ -625,33 +790,37 @@ function renderSidebarQueue() {
                 } else {
                     eval(onClickHandler);
                 }
-                });
-                // Add button to add selected tracks to playlist if any are selected
-                if (state.selectedTracks.size > 0) {
-                    const addSelectedBtn = document.createElement('button');
-                    addSelectedBtn.style.cssText = `
-                        width: 100%;
-                        margin-top: 12px;
-                        padding: 10px;
-                        background: var(--accent);
-                        color: white;
-                        border: none;
-                        border-radius: 8px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 13px;
-                        transition: 0.3s;
-                    `;
-                    addSelectedBtn.textContent = `Add ${state.selectedTracks.size} track(s) to playlist`;
-                    addSelectedBtn.onmouseover = () => addSelectedBtn.style.opacity = '0.9';
-                    addSelectedBtn.onmouseout = () => addSelectedBtn.style.opacity = '1';
-                    addSelectedBtn.onclick = () => window.openPlaylistPickerMultiSelect();
-                    container.appendChild(addSelectedBtn);
-                }
+            });
+            
             container.appendChild(div);
         });
+        refreshIcons();
     });
 }
+
+// Remove a track from the queue by ID
+window.removeFromQueue = (trackId) => {
+    console.log('[QUEUE] Removing track:', trackId);
+    // Find and remove from state.library
+    const idx = state.library.findIndex(t => t.id === trackId || t.navidromeId === trackId);
+    if (idx !== -1) {
+        console.log('[QUEUE] Found at index:', idx);
+        state.library.splice(idx, 1);
+        // If currentIndex is after removed, decrement
+        if (state.currentIndex > idx) state.currentIndex--;
+        // If currentIndex is now out of bounds, reset
+        if (state.currentIndex >= state.library.length) state.currentIndex = -1;
+        // Save and update
+        if (typeof saveQueueState === 'function') {
+            console.log('[QUEUE] Saving queue state');
+            saveQueueState();
+        }
+        renderSidebarQueue();
+        renderLibrary();
+    } else {
+        console.warn('[QUEUE] Track not found:', trackId);
+    }
+};
 
 // ============ ПЛЕЕР ============
 window.playTrack = (id) => {
@@ -668,8 +837,31 @@ window.playTrack = (id) => {
         state.shufflePosition = 0;
     }
     
-    dom.audio.src = track.url;
-    dom.audio.play();
+    // Для Navidrome песен: ВСЕГДА генерируем свежий URL, так как токены истекают
+    let audioSrc = track.url;
+    if (track.source === 'navidrome' && track.navidromeId) {
+        console.log('[PLAYBACK] Regenerating stream URL for Navidrome track ID:', track.navidromeId);
+        if (window.getNavidromeStreamUrl) {
+            audioSrc = window.getNavidromeStreamUrl(track.navidromeId);
+            console.log('[PLAYBACK] Generated fresh URL:', audioSrc);
+        } else {
+            console.error('[PLAYBACK] getNavidromeStreamUrl function not available');
+            return;
+        }
+    }
+    
+    if (!audioSrc) {
+        console.error('[PLAYBACK] No audio source available for track:', track);
+        return;
+    }
+    
+    console.log('[PLAYBACK] Playing:', track.title, 'from', track.source, 'navidromeId:', track.navidromeId);
+    dom.audio.src = audioSrc;
+    dom.audio.crossOrigin = 'anonymous';
+    dom.audio.play().catch(err => {
+        console.error('[PLAYBACK] Play error:', err);
+        showToast('Ошибка воспроизведения: ' + err.message);
+    });
     dom.trackName.innerText = track.title;
     dom.artistName.innerText = track.artist;
     if (track.cover) {
@@ -678,6 +870,10 @@ window.playTrack = (id) => {
     } else {
         dom.vinylContainer.classList.remove('visible');
     }
+    
+    // Сохраняем состояние очереди
+    if (window.saveQueueState) window.saveQueueState();
+    
     renderLibrary();
 };
 
@@ -797,11 +993,14 @@ window.prevTrack = () => {
 };
 
 window.clearQueue = async () => {
+    window.toggleModal('clearQueueModal');
+};
+
+window.confirmClearQueue = async () => {
     const lang = state.lang;
-    const confirmMsg = lang === 'ru' ? 'Вы уверены? Все песни в очереди будут удалены.' : 'Are you sure? All tracks in the queue will be deleted.';
     const successMsg = lang === 'ru' ? 'Очередь очищена' : 'Queue cleared';
     
-    if (!confirm(confirmMsg)) return;
+    window.toggleModal('clearQueueModal');
     
     const queue = getCurrentListView();
     
@@ -845,8 +1044,20 @@ window.togglePlayback = () => {
 };
 
 window.switchTab = (tab) => {
+    // Check for Music tab access restriction BEFORE setting the tab
+    if (tab === 'navidrome') {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            console.log('[TAB] User not authenticated, showing restriction overlay');
+            window.showMusicRestrictionOverlay();
+            // Don't change tab
+            return;
+        }
+    }
+    
     state.currentTab = tab;
     state.searchQuery = '';  // Clear search when switching tabs
+    state.navidromeSearchQuery = '';  // Clear Navidrome search
     
     // Сбросить shuffle порядок при переключении табов/плейлистов
     state.shuffledOrder = [];
@@ -854,27 +1065,107 @@ window.switchTab = (tab) => {
     
     localStorage.setItem('currentTab', JSON.stringify(tab));
     
-    // Clear search input
-    if (dom.searchInput) {
-        dom.searchInput.value = '';
+    // Update search input placeholder
+    const searchInput = document.getElementById('globalSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        // Use "Search Music..." only in zen mode, otherwise "Search library..."
+        searchInput.placeholder = state.isZen ? 'Search Music...' : 'Search library...';
     }
     
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     
+    // Обработка переключения вкладок
     if (tab === 'all') {
         document.getElementById('nav-all')?.classList.add('active');
         document.getElementById('nav-all-mobile')?.classList.add('active');
+        console.log('[TAB] Switched to All Library');
+        
+        // Скрываем Navidrome, показываем остальное
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'flex';
+        if (rightPanel) rightPanel.style.display = 'flex';
+        if (playerControls) playerControls.style.display = 'flex';
+        if (topSearch) topSearch.style.display = 'flex';
+        
+        renderLibrary();
+        renderPlaylistNav();
     } else if (tab === 'fav') {
         document.getElementById('nav-fav')?.classList.add('active');
         document.getElementById('nav-fav-mobile')?.classList.add('active');
+        console.log('[TAB] Switched to Favorites');
+        
+        // Скрываем Navidrome, показываем остальное
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'flex';
+        if (rightPanel) rightPanel.style.display = 'flex';
+        if (playerControls) playerControls.style.display = 'flex';
+        if (topSearch) topSearch.style.display = 'flex';
+        
+        renderLibrary();
+        renderPlaylistNav();
     } else if (tab === 'navidrome') {
         document.getElementById('nav-navidrome')?.classList.add('active');
         document.getElementById('nav-navidrome-mobile')?.classList.add('active');
+        
+        // ПЕРВЫЙ показываем контейнер
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        if (navidromeContainer) navidromeContainer.style.display = 'flex';
+        if (mainContent) mainContent.style.display = 'none';
+        if (rightPanel) rightPanel.style.display = 'none';
+        if (playerControls) playerControls.style.display = 'none';
+        if (topSearch) topSearch.style.display = 'none';
+        
+        // Проверяем, загружены ли песни
+        if (!state.navidromeSongs || state.navidromeSongs.length === 0) {
+            console.log('[TAB] Navidrome songs not loaded, loading now...');
+            if (window.getAllNavidromeSongs) {
+                window.getAllNavidromeSongs().then((songs) => {
+                    console.log('[TAB] Navidrome songs loaded:', songs.length);
+                    state.navidromeSongs = songs;
+                    renderNavidromeInterface();
+                }).catch(err => {
+                    console.error('[TAB] Error loading Navidrome:', err);
+                    renderNavidromeInterface();
+                });
+                return;
+            }
+        }
+        // Always refresh Navidrome grid when entering the tab
+        renderNavidromeInterface();
+    } else {
+        // Playlist tab
+        console.log('[TAB] Switched to playlist:', tab);
+        
+        // Скрываем Navidrome, показываем остальное
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'flex';
+        if (rightPanel) rightPanel.style.display = 'flex';
+        if (playerControls) playerControls.style.display = 'flex';
+        if (topSearch) topSearch.style.display = 'flex';
+        
+        renderLibrary();
+        renderPlaylistNav();
     }
-    
-    console.log('[TAB] Switched to tab:', tab, 'clearing search query and shuffle');
-    renderLibrary();
-    renderPlaylistNav();
 };
 
 window.toggleShuffle = () => {
@@ -1074,7 +1365,35 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
             if (source === 'navidrome' && track) {
                 if (!isNavCurrentlyIncluded) {
                     playlist.navidromeSongIds.push(track.navidromeId);
-                    playlist.navidromeSongs.push(track);
+                    // Сохраняем полный объект песни для надёжности
+                    playlist.navidromeSongs.push({
+                        navidromeId: track.navidromeId,
+                        title: track.title,
+                        artist: track.artist,
+                        album: track.album,
+                        cover: track.cover,
+                        source: 'navidrome'
+                    });
+                    
+                    // Sync with server if authenticated
+                    if (isUserAuthenticated()) {
+                        try {
+                            const { addTrackToServerPlaylist } = await import('./modules/server-playlist-manager.js');
+                            const trackData = {
+                                track_title: track.title,
+                                track_artist: track.artist,
+                                track_album: track.album,
+                                track_duration: track.duration,
+                                track_source: 'navidrome',
+                                navidrome_id: track.navidromeId,
+                                cover_art_id: track.coverArtId || track.cover
+                            };
+                            await addTrackToServerPlaylist(id, trackData);
+                            console.log('[SYNC] Added track to server playlist');
+                        } catch (error) {
+                            console.error('[SYNC] Failed to add track to server playlist:', error);
+                        }
+                    }
                 } else {
                     playlist.navidromeSongIds = playlist.navidromeSongIds.filter(s => s !== track.navidromeId);
                     playlist.navidromeSongs = playlist.navidromeSongs.filter(s => s.navidromeId !== track.navidromeId);
@@ -1082,6 +1401,27 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
             } else {
                 if (!isCurrentlyIncluded) {
                     playlist.songIds.push(songId);
+                    
+                    // Sync with server if authenticated
+                    if (isUserAuthenticated()) {
+                        try {
+                            const { addTrackToServerPlaylist } = await import('./modules/server-playlist-manager.js');
+                            // Get track details from library
+                            const trackData = {
+                                track_title: track?.title || 'Unknown',
+                                track_artist: track?.artist || 'Unknown',
+                                track_album: track?.album || 'Unknown',
+                                track_duration: track?.duration || 0,
+                                track_source: 'local',
+                                navidrome_id: null,
+                                cover_art_id: track?.cover || null
+                            };
+                            await addTrackToServerPlaylist(id, trackData);
+                            console.log('[SYNC] Added local track to server playlist');
+                        } catch (error) {
+                            console.error('[SYNC] Failed to add track to server playlist:', error);
+                        }
+                    }
                 } else {
                     playlist.songIds = playlist.songIds.filter(s => s !== songId);
                 }
@@ -1092,6 +1432,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
                 navidromeSongIds: playlist.navidromeSongIds,
                 navidromeSongs: playlist.navidromeSongs
             });
+            console.log('[PLAYLIST] Updated playlist', id, '- navidromeSongs:', playlist.navidromeSongs?.length || 0);
             await loadPlaylistsFromDB();
             
             // Если пользователь находится в этом плейлисте, обновить отображение
@@ -1139,21 +1480,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 };
 
 window.removeSongFromPlaylist = async (playlistId, songId, source = 'local') => {
-    const pl = await db.playlists.get(playlistId);
-    if (!pl) return;
-    
-    if (source === 'navidrome') {
-        pl.navidromeSongIds = Array.isArray(pl.navidromeSongIds) ? pl.navidromeSongIds.filter(id => id !== songId) : [];
-        pl.navidromeSongs = Array.isArray(pl.navidromeSongs) ? pl.navidromeSongs.filter(s => s.navidromeId !== songId) : [];
-    } else {
-        pl.songIds = Array.isArray(pl.songIds) ? pl.songIds.filter(id => id !== songId) : [];
-    }
-    
-    await db.playlists.update(playlistId, { 
-        songIds: pl.songIds,
-        navidromeSongIds: pl.navidromeSongIds,
-        navidromeSongs: pl.navidromeSongs
-    });
+    await removeSongFromPlaylist(playlistId, songId, source);
     showToast(I18N[state.lang].removed || 'Removed');
     if (state.currentTab === playlistId) renderLibrary();
     await loadPlaylistsFromDB();
@@ -1302,6 +1629,7 @@ document.getElementById('fileInput').onchange = async (e) => {
             artist: meta.artist, 
             cover: meta.cover, 
             isFavorite: false, 
+            source: 'local',  // ← Добавляем явно!
             fileBlob: file,
             order: currentCount + i
         });
@@ -1401,22 +1729,136 @@ window.toggleZen = (enable) => {
         dom.visualizer.style.opacity = '0.6';
         dom.visualizer.style.zIndex = '5005';
         setTimeout(() => dom.zenOverlay.classList.add('active'), 10);
+        
+        // Setup zen search with global search input
+        const globalSearch = document.getElementById('globalSearch');
+        const zenSearchResults = document.getElementById('zenSearchResults');
+        
+        if (globalSearch) {
+            globalSearch.placeholder = 'Search Music...';
+            globalSearch.value = '';
+            globalSearch.focus();
+            
+            // Remove existing listeners and add new zen search listener
+            const newGlobalSearch = globalSearch.cloneNode(true);
+            globalSearch.parentNode.replaceChild(newGlobalSearch, globalSearch);
+            
+            newGlobalSearch.addEventListener('input', async (e) => {
+                const query = e.target.value.trim();
+                
+                if (!query) {
+                    zenSearchResults.innerHTML = '';
+                    return;
+                }
+                
+                // Perform combined search
+                try {
+                    const results = await window.performCombinedSearch(query);
+                    renderZenSearchResults(results.slice(0, 7), zenSearchResults);
+                } catch (err) {
+                    console.error('[ZEN SEARCH] Error:', err);
+                    zenSearchResults.innerHTML = '<div class="zen-search-empty">Error searching</div>';
+                }
+            });
+        }
     } else {
         dom.mainContent.appendChild(dom.heroSlot);
         dom.zenOverlay.classList.remove('active');
         dom.visualizer.style.height = '40vh';
         dom.visualizer.style.opacity = '0.4';
         dom.visualizer.style.zIndex = '5';
+        
+        // Ensure hero-section has correct CSS class to apply styles
+        if (dom.heroSlot) {
+            dom.heroSlot.className = 'hero-section';
+        }
+        
         setTimeout(() => {
             dom.zenOverlay.style.display = 'none';
         }, 800);
+        
+        // Restore global search input
+        const globalSearch = document.getElementById('globalSearch');
+        if (globalSearch) {
+            globalSearch.placeholder = 'Search library...';
+            globalSearch.value = '';
+            
+            // Reset to normal search listener
+            const newGlobalSearch = globalSearch.cloneNode(true);
+            globalSearch.parentNode.replaceChild(newGlobalSearch, globalSearch);
+            
+            newGlobalSearch.addEventListener('input', async (e) => {
+                state.searchQuery = e.target.value || '';
+                
+                if (!state.searchQuery.trim()) {
+                    renderLibrary();
+                    return;
+                }
+
+                try {
+                    const results = await window.performCombinedSearch(state.searchQuery);
+                    window.currentSearchResults = results;
+                    renderSearchResults(results);
+                } catch (err) {
+                    console.error('[SEARCH] Error:', err);
+                    renderLibrary();
+                }
+            });
+        }
+        
+        // Clear zen search results
+        const zenSearchResults = document.getElementById('zenSearchResults');
+        if (zenSearchResults) zenSearchResults.innerHTML = '';
     }
 };
+
+// Render zen mode search results (7 items in inline format)
+function renderZenSearchResults(results, container) {
+    if (!results || results.length === 0) {
+        container.innerHTML = '<div class="zen-search-empty">No results found</div>';
+        return;
+    }
+    
+    container.innerHTML = results.map(track => {
+        const trackId = track.id || track.navidromeId;
+        const source = track.source || 'local';
+        const safeTitle = (track.title || '').replace(/'/g, "\\'");
+        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const safeAlbum = (track.album || '').replace(/'/g, "\\'");
+        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        
+        let onClickHandler;
+        if (source === 'navidrome') {
+            onClickHandler = `window.playNavidromeSong('${trackId}', '${safeTitle}', '${safeArtist}', '${safeAlbum}', '${safeCover}')`;
+        } else {
+            onClickHandler = `window.playTrack(${trackId})`;
+        }
+        
+        return `
+            <div class="zen-search-result-item" onclick="${onClickHandler}; window.toggleZen(false);">
+                <img 
+                    src="${track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" 
+                    class="zen-result-thumbnail"
+                    onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'"
+                >
+                <div class="zen-result-title">${track.title || 'Unknown'}</div>
+                <div class="zen-result-artist">${track.artist || 'Unknown Artist'}</div>
+            </div>
+        `;
+    }).join('');
+}
 
 // ============ КЛАВИАТУРНЫЕ СОКРАЩЕНИЯ ============
 function initKeybinds() {
     window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        // Разрешить ESC в zen search input
+        const isZenSearchInput = e.target.id === 'zenSearchInput';
+        
+        // Не обрабатывать клавиши когда в инпуте/текстареа/селекте (кроме zen search)
+        if ((e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') && !isZenSearchInput) return;
+        
+        // Не обрабатывать F когда в Navidrome контейнере
+        if (e.code === 'KeyF' && document.getElementById('navidromeContainer')?.style.display !== 'none') return;
         
         if (e.ctrlKey && e.code === 'ArrowRight') {
             e.preventDefault();
@@ -1465,6 +1907,20 @@ export async function initApp() {
     // Expose state and dom to window for access from non-module scripts
     window.state = state;
     window.dom = dom;
+    window.db = db;  // ← Экспортируем БД в глобальный scope
+    
+    // Restore Navidrome songs from localStorage cache if available
+    try {
+        const cached = localStorage.getItem('navidromeSongs');
+        if (cached) {
+            const cachedSongs = JSON.parse(cached);
+            window._navidromeSongsCache = cachedSongs;
+            window.state.navidromeSongs = cachedSongs;
+            console.log('[APP] Restored Navidrome songs from cache:', cachedSongs.length);
+        }
+    } catch (err) {
+        console.warn('[APP] Failed to restore Navidrome cache:', err);
+    }
     
     const setLoaderMsg = (msg) => {
         const lt = document.getElementById('loaderText');
@@ -1606,42 +2062,45 @@ export async function initApp() {
 
     // ============ BACKGROUND TASKS (non-blocking) ============
     
-    // Load settings in background
-    setTimeout(async () => {
+    // Initialize settings handlers first
+    initSettingsHandlers();
+    
+
+    // Sequentially load settings, library, and playlists, then set initial tab
+    (async () => {
         try {
-            console.log('[APP] Loading settings in background...');
+            console.log('[APP] Loading settings...');
             await loadSettings();
             console.log('[APP] Settings loaded');
         } catch (err) {
-            console.warn('[APP] Background settings load failed:', err);
+            console.warn('[APP] Settings load failed:', err);
         }
-    }, 300);
-
-    // Load library in background
-    setTimeout(async () => {
         try {
-            console.log('[APP] Loading library in background...');
+            console.log('[APP] Loading library...');
             await loadLibraryFromDB();
             console.log('[APP] Library loaded');
+            await restoreQueueState();
             updateShuffleUI();
             updateRepeatUI();
         } catch (err) {
-            console.warn('[APP] Background library load failed:', err);
+            console.warn('[APP] Library load failed:', err);
             state.library = [];
         }
-    }, 400);
-
-    // Load playlists in background
-    setTimeout(async () => {
         try {
-            console.log('[APP] Loading playlists in background...');
+            console.log('[APP] Loading playlists...');
             await loadPlaylistsFromDB();
             console.log('[APP] Playlists loaded');
         } catch (err) {
-            console.warn('[APP] Background playlists load failed:', err);
+            console.warn('[APP] Playlists load failed:', err);
             state.playlists = [];
         }
-    }, 500);
+        // Ensure currentTab is set and switchTab is called
+        if (!state.currentTab) {
+            state.currentTab = 'all';
+            localStorage.setItem('currentTab', JSON.stringify('all'));
+        }
+        window.switchTab(state.currentTab);
+    })();
 
     // Initialize auth in background
     setTimeout(() => {
@@ -1652,4 +2111,131 @@ export async function initApp() {
             console.error('[APP] Auth init failed:', err);
         }
     }, 600);
+
+    // Load Navidrome songs in background
+    setTimeout(async () => {
+        try {
+            console.log('[APP] Loading Navidrome songs in background...');
+            if (window.getAllNavidromeSongs) {
+                const songs = await window.getAllNavidromeSongs();
+                state.navidromeSongs = songs;
+                console.log('[APP] Navidrome songs loaded:', songs.length);
+            }
+        } catch (err) {
+            console.warn('[APP] Navidrome load failed:', err);
+            state.navidromeSongs = [];
+        }
+    }, 700);
 }
+
+// ============ МОБИЛЬНЫЙ ПЛЕЕР - SPOTIFY-LIKE ============
+window.showMobilePlayer = function() {
+    const mobilePlayer = document.getElementById('mobilePlayerView');
+    const mobileLib = document.getElementById('mobileLibraryView');
+    if (mobilePlayer) mobilePlayer.style.display = 'flex';
+    if (mobileLib) mobileLib.style.display = 'none';
+    updateMobilePlayer();
+};
+
+window.showMobileLibrary = function() {
+    const mobilePlayer = document.getElementById('mobilePlayerView');
+    const mobileLib = document.getElementById('mobileLibraryView');
+    if (mobilePlayer) mobilePlayer.style.display = 'none';
+    if (mobileLib) mobileLib.style.display = 'flex';
+};
+
+function updateMobilePlayer() {
+    const mobileTrack = document.getElementById('mobileTrackName');
+    const mobileArtist = document.getElementById('mobileArtistName');
+    const mobileCover = document.getElementById('mobileMainCover');
+    const mobilePlayIcon = document.getElementById('mobilePlayIcon');
+    const mobileTimeCur = document.getElementById('mobileTimeCur');
+    const mobileTimeDur = document.getElementById('mobileTimeDur');
+    const mobileProgFill = document.getElementById('mobileProgFill');
+    const mobileShuffle = document.getElementById('mobileShuffle');
+    const mobileRepeat = document.getElementById('mobileRepeat');
+    
+    if (state.currentIndex !== -1 && state.library[state.currentIndex]) {
+        const track = state.library[state.currentIndex];
+        if (mobileTrack) mobileTrack.innerText = track.title || 'Unknown';
+        if (mobileArtist) mobileArtist.innerText = track.artist || 'Unknown Artist';
+        if (mobileCover) mobileCover.src = track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300';
+    }
+    
+    if (mobilePlayIcon) {
+        const iconName = state.isPlaying ? 'pause' : 'play';
+        mobilePlayIcon.setAttribute('data-lucide', iconName);
+    }
+    
+    if (dom.audio && mobileTimeCur) {
+        mobileTimeCur.innerText = formatTime(dom.audio.currentTime);
+        mobileTimeDur.innerText = formatTime(dom.audio.duration);
+        const progress = (dom.audio.currentTime / dom.audio.duration) * 100 || 0;
+        if (mobileProgFill) mobileProgFill.style.width = progress + '%';
+    }
+    
+    if (mobileShuffle) {
+        if (state.shuffle) mobileShuffle.classList.add('active');
+        else mobileShuffle.classList.remove('active');
+    }
+    
+    if (mobileRepeat) {
+        if (state.repeat !== 'none') mobileRepeat.classList.add('active');
+        else mobileRepeat.classList.remove('active');
+    }
+    
+    if (window.lucide) window.lucide.createIcons();
+}
+
+// Обновление мобильного плеера при изменении трека
+const originalPlayTrack = window.playTrack;
+window.playTrack = function(id) {
+    originalPlayTrack(id);
+    if (window.innerWidth <= 1024) {
+        setTimeout(updateMobilePlayer, 100);
+    }
+};
+
+// Обновление при обновлении audio
+if (dom && dom.audio) {
+    dom.audio.addEventListener('timeupdate', () => {
+        if (window.innerWidth <= 1024) {
+            const mobileTimeCur = document.getElementById('mobileTimeCur');
+            const mobileTimeDur = document.getElementById('mobileTimeDur');
+            const mobileProgFill = document.getElementById('mobileProgFill');
+            
+            if (mobileTimeCur) mobileTimeCur.innerText = formatTime(dom.audio.currentTime);
+            if (mobileTimeDur) mobileTimeDur.innerText = formatTime(dom.audio.duration);
+            const progress = (dom.audio.currentTime / dom.audio.duration) * 100 || 0;
+            if (mobileProgFill) mobileProgFill.style.width = progress + '%';
+        }
+    });
+
+    // Обновление при play/pause
+    dom.audio.addEventListener('play', () => {
+        updateMobilePlayer();
+    });
+
+    dom.audio.addEventListener('pause', () => {
+        updateMobilePlayer();
+    });
+}
+
+// Обработчик клика на прогресс-бар мобильного плеера
+document.addEventListener('click', function(e) {
+    const mobileProgBar = document.getElementById('mobileProgBar');
+    if (mobileProgBar && mobileProgBar.contains(e.target)) {
+        if (dom.audio.duration) {
+            const rect = mobileProgBar.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percentage = x / rect.width;
+            dom.audio.currentTime = percentage * dom.audio.duration;
+            updateMobilePlayer();
+        }
+    }
+}, true);
+
+// Export helper functions to window
+window.saveQueueState = saveQueueState;
+window.restoreQueueState = restoreQueueState;
+

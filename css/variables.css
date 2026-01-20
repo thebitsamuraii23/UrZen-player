@@ -1,25 +1,41 @@
 /* CSS переменные цветов, размеров, шрифтов */
 :root {
-  /* Пример переменных */
-  --primary-color: #1db954;
-  --secondary-color: #191414;
-  --accent-color: #ffb300;
-  --text-color: #fff;
-  --background-color: #121212;
-  --sidebar-width: 260px;
-  --mobile-sidebar-width: 80vw;
-  --font-main: 'Inter', Arial, sans-serif;
+  /* Основные цвета */
+  --primary-color: #1a1a1a;
+  --secondary-color: #141414;
+  --accent: #ff3e00;
+  --accent-color: #ff3e00;
+  --text: #ffffff;
+  --text-dim: #a0a0a0;
+  --bg: #0a0a0a;
+  --surface: #1a1a1a;
+  --surface-bright: #2a2a2a;
+  --border: #333333;
+  
+  /* Размеры */
+  --sidebar-width: 240px;
+  --right-sidebar-width: 280px;
+  --mobile-sidebar-width: 280px;
+  
+  /* Шрифты */
+  --font-main: 'Inter', 'Segoe UI', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  
+  /* Переходы */
   --border-radius: 8px;
-  --transition-fast: 0.2s;
-  --transition-slow: 0.4s;
+  --transition-fast: 0.2s ease;
+  --transition-slow: 0.4s ease;
 }
 
 /* Темы (пример) */
 [data-theme="dark"] {
-  --background-color: #121212;
-  --text-color: #fff;
+  --bg: #0a0a0a;
+  --text: #ffffff;
+  --surface: #1a1a1a;
 }
+
 [data-theme="light"] {
-  --background-color: #fff;
-  --text-color: #222;
+  --bg: #ffffff;
+  --text: #000000;
+  --surface: #f5f5f5;
 }

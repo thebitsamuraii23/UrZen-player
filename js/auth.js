@@ -29,7 +29,7 @@ export function initAuth() {
     const username = getUsernameFromLocalStorage();
 
     if (token && username) {
-      console.log('[AUTH] Found token, updating UI...');
+      console.log('[AUTH] Found token, updating UI...'); // Log when token is found
       updateAuthNavItem(username);
     } else {
       console.log('[AUTH] No token found');
@@ -365,6 +365,41 @@ async function unstarSong(songId) {
 async function scrobbleSong(songId) {
   return navidromeRequest(`/api/songs/${songId}/scrobble`, { method: 'POST' });
 }
+
+/**
+ * Open auth modal with optional tab selection
+ */
+window.openAuthModal = function(tab = 'login') {
+  const modal = document.getElementById('authModal');
+  if (modal) {
+    modal.classList.add('active');
+    if (tab === 'register') {
+      window.switchAuthTab('register');
+    } else {
+      window.switchAuthTab('login');
+    }
+  }
+};
+
+/**
+ * Show music section restriction overlay
+ */
+window.showMusicRestrictionOverlay = function() {
+  const overlay = document.getElementById('musicRestrictionOverlay');
+  if (overlay) {
+    overlay.classList.add('active');
+  }
+};
+
+/**
+ * Close music section restriction overlay
+ */
+window.closeMusicRestrictionOverlay = function() {
+  const overlay = document.getElementById('musicRestrictionOverlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+  }
+};
 
 // Export for use in other modules
 export { getAuthHeaders, isAuthenticated, getCurrentUser, clearAuthData };

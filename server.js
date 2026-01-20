@@ -12,7 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 // Middleware
 const isDev = process.env.NODE_ENV !== 'production';
 app.use(cors({
-  origin: isDev ? ['http://localhost:3000', 'http://localhost:5500', 'http://localhost'] : true,
+  origin: isDev ? ['http://localhost:3000', 'http://localhost:5500', 'http://localhost:5501', 'http://127.0.0.1:5500', 'http://127.0.0.1:5501', 'http://127.0.0.1:3000'] : true,
   credentials: true
 }));
 app.use(express.json());
@@ -22,20 +22,66 @@ const dbPath = process.env.DB_PATH || './users.db';
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Database error:', err.message);
+    process.exit(1);
   } else {
-    console.log('Connected to SQLite database');
-    db.serialize(() => {
-      db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-    });
+    console.log('Connected to SQLite database at:', dbPath);
+    initializeDatabase();
   }
 });
+
+function initializeDatabase() {
+  db.serialize(() => {
+    // Create users table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `, (err) => {
+      if (err) console.error('[DB] Users table error:', err.message);
+      else console.log('[DB] Users table ready');
+    });
+    
+    // Create playlists table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS playlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, name)
+      )
+    `, (err) => {
+      if (err) console.error('[DB] Playlists table error:', err.message);
+      else console.log('[DB] Playlists table ready');
+    });
+    
+    // Create playlist_tracks table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS playlist_tracks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        playlist_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        track_title TEXT NOT NULL,
+        track_artist TEXT,
+        track_album TEXT,
+        track_duration INTEGER,
+        track_source TEXT DEFAULT 'local',
+        navidrome_id TEXT,
+        cover_art_id TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `, (err) => {
+      if (err) console.error('[DB] Playlist_tracks table error:', err.message);
+      else console.log('[DB] Playlist_tracks table ready');
+    });
+  });
+}
 
 // Utility function to validate input
 const validateInput = (username, password) => {
@@ -49,6 +95,29 @@ const validateInput = (username, password) => {
     return { valid: false, error: 'Password must be at least 6 characters' };
   }
   return { valid: true };
+};
+
+// Middleware to verify JWT token
+const verifyToken = (req, res, next) => {
+  console.log('[MIDDLEWARE] Verifying token - Headers:', Object.keys(req.headers));
+  const authHeader = req.headers.authorization;
+  console.log('[MIDDLEWARE] Auth header:', authHeader?.substring(0, 20) + '...');
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    console.log('[MIDDLEWARE] No token found');
+    return res.status(401).json({ error: 'Token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      console.log('[MIDDLEWARE] Token verification failed:', err.message);
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    console.log('[MIDDLEWARE] Token verified - User:', user.userId);
+    req.user = user;
+    next();
+  });
 };
 
 // Register endpoint
@@ -173,6 +242,271 @@ app.post('/verify-token', (req, res) => {
   }
 });
 
+// ============================================
+// PLAYLIST MANAGEMENT ENDPOINTS
+// ============================================
+
+console.log('[ROUTES] Registering playlist endpoints...');
+
+// GET user's playlists
+app.get('/api/playlists', verifyToken, (req, res) => {
+  console.log('[ROUTE] GET /api/playlists - User:', req.user?.userId);
+  const userId = req.user.userId;
+  
+  db.all(
+    'SELECT id, user_id, name, created_at FROM playlists WHERE user_id = ? ORDER BY created_at DESC',
+    [userId],
+    (err, rows) => {
+      if (err) {
+        console.error('[DB] Error fetching playlists:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      console.log('[ROUTE] Returning', rows?.length || 0, 'playlists');
+      res.json(rows || []);
+    }
+  );
+});
+
+// CREATE new playlist
+app.post('/api/playlists', verifyToken, (req, res) => {
+  console.log('[ROUTE] POST /api/playlists - User:', req.user?.userId, 'Body:', req.body);
+  const userId = req.user.userId;
+  const { name } = req.body;
+
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+
+  db.run(
+    'INSERT INTO playlists (user_id, name) VALUES (?, ?)',
+    [userId, name],
+    function(err) {
+      if (err) {
+        console.error('[DB] Insert error:', err);
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Playlist with this name already exists' });
+        }
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      console.log('[ROUTE] Created playlist with ID:', this.lastID);
+      res.status(201).json({
+        id: this.lastID,
+        user_id: userId,
+        name: name,
+        created_at: new Date().toISOString()
+      });
+    }
+  );
+});
+
+// GET playlist details with tracks
+app.get('/api/playlists/:playlistId', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const playlistId = req.params.playlistId;
+
+  db.get(
+    'SELECT id, user_id, name, created_at FROM playlists WHERE id = ? AND user_id = ?',
+    [playlistId, userId],
+    (err, playlist) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!playlist) {
+        return res.status(404).json({ error: 'Playlist not found' });
+      }
+
+      // Fetch tracks for this playlist
+      db.all(
+        'SELECT id, playlist_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY id',
+        [playlistId],
+        (err, tracks) => {
+          if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          res.json({
+            ...playlist,
+            tracks: tracks || []
+          });
+        }
+      );
+    }
+  );
+});
+
+// ADD track to playlist
+app.post('/api/playlists/:playlistId/tracks', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const playlistId = req.params.playlistId;
+  const {
+    track_title,
+    track_artist,
+    track_album,
+    track_duration,
+    track_source,
+    navidrome_id,
+    cover_art_id
+  } = req.body;
+
+  // Verify playlist belongs to user
+  db.get(
+    'SELECT user_id FROM playlists WHERE id = ?',
+    [playlistId],
+    (err, playlist) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!playlist || playlist.user_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      db.run(
+        `INSERT INTO playlist_tracks 
+         (playlist_id, user_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [playlistId, userId, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id],
+        function(err) {
+          if (err) {
+            console.error('Insert error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          res.status(201).json({
+            id: this.lastID,
+            playlist_id: playlistId,
+            track_title,
+            track_artist,
+            track_album,
+            track_duration,
+            track_source,
+            navidrome_id,
+            cover_art_id
+          });
+        }
+      );
+    }
+  );
+});
+
+// REMOVE track from playlist
+app.delete('/api/playlists/:playlistId/tracks/:trackId', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const playlistId = req.params.playlistId;
+  const trackId = req.params.trackId;
+
+  // Verify playlist belongs to user
+  db.get(
+    'SELECT user_id FROM playlists WHERE id = ?',
+    [playlistId],
+    (err, playlist) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!playlist || playlist.user_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      db.run(
+        'DELETE FROM playlist_tracks WHERE id = ? AND playlist_id = ?',
+        [trackId, playlistId],
+        function(err) {
+          if (err) {
+            console.error('Delete error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          res.json({ message: 'Track removed from playlist' });
+        }
+      );
+    }
+  );
+});
+
+// DELETE playlist
+app.delete('/api/playlists/:playlistId', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const playlistId = req.params.playlistId;
+
+  // Verify playlist belongs to user
+  db.get(
+    'SELECT user_id FROM playlists WHERE id = ?',
+    [playlistId],
+    (err, playlist) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!playlist || playlist.user_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      db.run(
+        'DELETE FROM playlists WHERE id = ?',
+        [playlistId],
+        function(err) {
+          if (err) {
+            console.error('Delete error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          res.json({ message: 'Playlist deleted' });
+        }
+      );
+    }
+  );
+});
+
+// RENAME playlist
+app.patch('/api/playlists/:playlistId', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const playlistId = req.params.playlistId;
+  const { name } = req.body;
+
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+
+  db.get(
+    'SELECT user_id FROM playlists WHERE id = ?',
+    [playlistId],
+    (err, playlist) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+
+      if (!playlist || playlist.user_id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      db.run(
+        'UPDATE playlists SET name = ? WHERE id = ?',
+        [name, playlistId],
+        function(err) {
+          if (err) {
+            if (err.message.includes('UNIQUE constraint failed')) {
+              return res.status(400).json({ error: 'Playlist with this name already exists' });
+            }
+            console.error('Update error:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          res.json({ id: playlistId, name: name, message: 'Playlist renamed' });
+        }
+      );
+    }
+  );
+});
+
 // Navidrome Search Proxy
 app.get('/api/navidrome/search', (req, res) => {
   const query = req.query.q;
@@ -210,10 +544,35 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Server is running' });
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname)));
+// Debug endpoint to check database tables
+app.get('/api/debug/tables', (req, res) => {
+  db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json({ tables: tables.map(t => t.name) });
+  });
+});
+
+// Serve static files (MUST be after API routes)
+app.use(express.static(path.join(__dirname), {
+  index: false,  // Don't serve index.html for unknown routes
+  setHeaders: (res, path) => {
+    // Cache static files appropriately
+    if (path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+  }
+}));
+
+// Fallback to index.html for SPA routing (must be last)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// 404 handler for API routes that weren't matched
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
 });
 
 app.listen(PORT, () => {

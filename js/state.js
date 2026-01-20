@@ -1,6 +1,7 @@
 // Global application state
 export const state = {
-    library: [],
+    library: [],  // Только локальные песни + сыгранные Navidrome
+    navidromeSongs: [],  // ВСЕ Navidrome песни для отображения в меню
     playlists: [],
     currentTab: 'all',
     currentIndex: -1,
@@ -11,13 +12,14 @@ export const state = {
     lang: 'en',
     pendingSongId: null,
     bassEnabled: true,
-    bassGain: 15,
+    bassGain: 3,
     isZen: false,
     draggedItem: null,
     shuffle: false,
     repeat: 'none',
     selectedTracks: new Set(),
     searchQuery: '',
+    navidromeSearchQuery: '',  // Отдельный поиск для Navidrome
     shuffledOrder: [],  // Массив индексов в перемешанном порядке
     shufflePosition: 0  // Текущая позиция в перемешанном порядке
 };
@@ -78,7 +80,7 @@ export function initDOM() {
     dom.bassValText = document.getElementById('bassGainVal');
     dom.mainApp = document.getElementById('mainApp');
     dom.zenOverlay = document.getElementById('zenOverlay');
-    dom.heroSlot = document.getElementById('heroSlot');
+    dom.heroSlot = document.getElementById('heroSection');
     dom.mainContent = document.getElementById('mainContent');
     dom.visualizer = document.getElementById('visualizerCanvas');
     dom.shuffleBtn = document.getElementById('shuffleBtn');

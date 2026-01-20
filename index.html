@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Z BETA | Pure Audio Experience</title>
+    <title>Z Testing | Pure Audio Experience</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
@@ -20,54 +20,63 @@
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
     <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/mobile-player-center.css" />
 </head>
 <body class="lang-ru">
 
-<button class="mobile-menu-trigger" aria-label="Open menu">
+<button class="mobile-menu-trigger" aria-label="Open menu" title="Menu">
     <i data-lucide="menu"></i>
 </button>
-<div class="mobile-sidebar-overlay"></div>
 <nav class="mobile-sidebar">
-    <button class="mobile-sidebar-close">
+    <button class="mobile-sidebar-close" title="Close menu">
         <i data-lucide="x"></i>
     </button>
     <div class="nav-brand">
-        <i data-lucide="zap" style="color: var(--accent); margin-right: 8px;"></i>
-        <span class="brand-z">Z</span><span class="brand-beta">BETA</span>
+        <i data-lucide="zap" style="color: var(--accent);"></i>
+        <div style="display: flex; flex-direction: column;">
+            <span class="brand-z" style="font-size: 16px;">Z</span>
+            <span class="brand-beta" style="font-size: 10px;">Testing</span>
+        </div>
     </div>
     <nav class="sidebar-section">
-        <span class="section-label" data-t="navigation">Разделы</span>
-        <div class="nav-item active" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();">
-            <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
+        <span class="section-label">Разделы</span>
+        <div class="nav-item" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();" title="Library">
+            <i data-lucide="layout-grid"></i> <span>Фонотека</span>
         </div>
-        <div class="nav-item" id="nav-fav-mobile" onclick="window.switchTab('fav'); window.closeMobileMenu();">
-            <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
+        <div class="nav-item" id="nav-fav-mobile" onclick="window.switchTab('fav'); window.closeMobileMenu();" title="Favorites">
+            <i data-lucide="heart"></i> <span>Любимое</span>
+        </div>
+        <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music">
+            <i data-lucide="music"></i> <span>Music</span>
         </div>
     </nav>
     <nav class="sidebar-section">
-        <span class="section-label">
-            <span data-t="playlists">Коллекции</span>
-            <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()"></i>
+        <span class="section-label" style="display: flex; justify-content: space-between; align-items: center; padding-right: 8px;">
+            <span>Коллекции</span>
+            <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()" title="New playlist"></i>
         </span>
         <div id="playlistNav-mobile"></div>
     </nav>
     <nav class="sidebar-section">
-        <span class="section-label">Queue</span>
-        <div class="list-container" id="sidebarQueueList-mobile" style="max-height:200px; margin-top:6px; overflow-y:auto; overflow-x:hidden;"></div>
+        <span class="section-label">Очередь</span>
+        <div class="list-container" id="sidebarQueueList-mobile"></div>
     </nav>
-    <div class="nav-item" onclick="document.getElementById('fileInput').click()" style="margin-top:auto;">
-        <i data-lucide="upload-cloud"></i> <span data-t="add_files">Загрузить треки</span>
-    </div>
-    <div class="nav-item" onclick="window.toggleSettings()">
-        <i data-lucide="sliders"></i> <span data-t="settings">Настройки</span>
+    <div style="padding: 0 8px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <div class="nav-item" onclick="document.getElementById('fileInput').click()" title="Import tracks">
+            <i data-lucide="upload-cloud"></i> <span>Загрузить</span>
+        </div>
+        <div class="nav-item" onclick="window.toggleSettings()" title="Settings">
+            <i data-lucide="sliders"></i> <span>Настройки</span>
+        </div>
     </div>
     <div class="credits-footer">
         Made by <span class="credits-name">thebitsamurai</span>
     </div>
 </nav>
+<div class="mobile-sidebar-overlay" onclick="window.closeMobileMenu()"></div>
 
 <div class="loader-overlay" id="appLoader">
-    <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">Z BETA</h2>
+    <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">Z Testing</h2>
     <div style="width: 200px; height: 2px; background: var(--surface-bright); position: relative; overflow: hidden;">
         <div style="width: 50%; height: 100%; background: var(--accent); position: absolute; animation: loadMove 1.5s infinite;"></div>
     </div>
@@ -76,6 +85,12 @@
 
 <div id="zenOverlay">
     <div class="zen-hint" data-t="zen_exit_hint">Нажмите ESC, чтобы выйти из Zen Mode</div>
+    
+    <!-- Zen Mode Search -->
+    <div class="zen-search-container">
+        <!-- Zen mode uses the global search input from top -->
+        <div id="zenSearchResults" class="zen-search-results"></div>
+    </div>
 </div>
 
 <div class="top-search" id="topSearch">
@@ -130,6 +145,18 @@
     </div>
 </div>
 
+<!-- Music Section Restriction Overlay -->
+<div class="modal-overlay" id="musicRestrictionOverlay">
+    <div class="modal-content" style="width: 380px; text-align: center; animation: slideInCenter 0.4s ease-out;">
+        <h3 id="restrictionTitle" data-t="music_restricted_title" style="margin-bottom: 16px; font-size: 22px; font-weight: 700;">Доступ ограничен</h3>
+        <p id="restrictionMessage" data-t="music_restricted_message" style="margin-bottom: 32px; color: var(--text-dim); font-size: 14px; line-height: 1.6;">Зарегистрируйтесь, чтобы использовать раздел Музыка</p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button id="musicRegisterBtn" data-t="music_restricted_button" onclick="window.openAuthModal('register')" style="flex: 1; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s;">Зарегистрироваться</button>
+            <button onclick="window.closeMusicRestrictionOverlay()" style="flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s;">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <!-- Rename Playlist Modal -->
 <div class="modal-overlay" id="renamePlaylistModal">
     <div class="modal-content" style="width: 380px;">
@@ -148,8 +175,20 @@
         <h3 style="margin-bottom: 25px; color: #ff3e00;" data-t="delete_playlist">Delete Playlist?</h3>
         <p style="color: var(--text-dim); margin-bottom: 30px;" data-t="delete_playlist_confirm">This action cannot be undone.</p>
         <div style="display: flex; gap: 15px;">
-            <button onclick="window.confirmDeletePlaylist()" style="flex: 1; background: #ff3e00; color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700; transition: 0.3s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-t="delete">Delete</button>
-            <button onclick="window.toggleModal('deletePlaylistModal')" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.background='var(--surface-bright)'" onmouseout="this.style.background='var(--surface)'" data-t="cancel">Cancel</button>
+            <button onclick="window.confirmDeletePlaylist()" class="btn-animated" style="flex: 1; background: #ff3e00; color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700; transition: 0.3s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-t="delete">Delete</button>
+            <button onclick="window.toggleModal('deletePlaylistModal')" class="btn-animated" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.background='var(--surface-bright)'" onmouseout="this.style.background='var(--surface)'" data-t="cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Clear Queue Confirmation Modal -->
+<div class="modal-overlay" id="clearQueueModal">
+    <div class="modal-content" style="width: 380px;">
+        <h3 style="margin-bottom: 25px; color: #ff9500;" data-t="clear_queue">Clear Queue?</h3>
+        <p style="color: var(--text-dim); margin-bottom: 30px;" data-t="clear_queue_confirm">All tracks in the queue will be deleted. This action cannot be undone.</p>
+        <div style="display: flex; gap: 15px;">
+            <button onclick="window.confirmClearQueue()" class="btn-animated btn-animated-danger" style="flex: 1; background: #ff9500; color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700; transition: 0.3s;" data-t="clear_queue">Clear Queue</button>
+            <button onclick="window.toggleModal('clearQueueModal')" class="btn-animated" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.background='var(--surface-bright)'" onmouseout="this.style.background='var(--surface)'" data-t="cancel">Cancel</button>
         </div>
     </div>
 </div>
@@ -165,6 +204,9 @@
                 <select id="langSelect" onchange="window.changeLanguage(this.value)">
                     <option value="en">🇺🇸 English</option>
                     <option value="ru">🇷🇺 Русский</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="fr">🇫🇷 Français</option>
                 </select>
             </div>
         </div>
@@ -185,7 +227,7 @@
         </button>
 
         <button class="settings-btn" onclick="window.open('https://musicjacker-site.onrender.com', '_blank')" style="width:100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: 1px solid var(--border); padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <img src="assets/musicjacker.png" style="width:18px; height:18px;">
+            <img src="assets/musicjacker.jpg" style="width:18px; height:18px;">
             <span>Music Jacker</span>
         </button>
 
@@ -219,7 +261,7 @@
     <aside>
         <div class="nav-brand">
             <i data-lucide="zap" style="color: var(--accent); margin-right: 8px;"></i>
-            <span class="brand-z">Z</span><span class="brand-beta">BETA</span>
+            <span class="brand-z">Z</span><span class="brand-beta">Testing</span>
         </div>
         
         <nav class="sidebar-section">
@@ -229,6 +271,9 @@
             </div>
             <div class="nav-item" id="nav-fav" onclick="window.switchTab('fav')">
                 <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
+            </div>
+            <div class="nav-item" id="nav-navidrome" onclick="window.switchTab('navidrome')">
+                <i data-lucide="music"></i> <span>Music</span>
             </div>
         </nav>
 
@@ -282,17 +327,88 @@
     </aside>
 
     <main id="mainContent">
-        <section class="hero-section" id="heroSlot">
-            <div class="vinyl-container" id="vinylContainer">
-                <div class="vinyl">
-                    <img id="mainCover" src="" alt="Cover">
+        <!-- Мобильный полноэкранный плеер -->
+        <div id="mobilePlayerView" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--surface-bright) 0%, var(--bg) 100%); z-index: 150; overflow-y: auto; padding-bottom: 100px; flex-direction: column; justify-content: center; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; width: 100%; padding: 0 16px; position: absolute; top: 0; left: 0; right: 0;">
+                <button onclick="window.showMobileLibrary()" style="background: transparent; border: none; color: var(--text); cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="chevron-down"></i>
+                </button>
+                <span style="font-size: 12px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Now Playing</span>
+                <button onclick="window.toggleSettings()" style="background: transparent; border: none; color: var(--text); cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="sliders"></i>
+                </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; align-items: center; padding: 0 16px; max-width: 400px; margin-top: 60px;">
+                <!-- Обложка альбома -->
+                <div style="display: flex; justify-content: center; margin-bottom: 40px;">
+                    <div id="mobileVinylContainer" style="width: 240px; height: 240px; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(255, 62, 0, 0.2); background: var(--surface);">
+                        <img id="mobileMainCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                </div>
+
+                <!-- Информация о треке -->
+                <div style="text-align: center; margin-bottom: 32px; width: 100%;">
+                    <h2 id="mobileTrackName" style="margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; margin-bottom: 8px;">Select Media</h2>
+                    <p id="mobileArtistName" style="margin: 0; font-size: 14px; color: var(--text-dim); font-weight: 500;">Unknown Artist</p>
+                </div>
+
+                <!-- Прогресс трека -->
+                <div style="margin-bottom: 32px; width: 100%;">
+                    <div class="progress-bar" id="mobileProgBar" style="margin-bottom: 12px; cursor: pointer;">
+                        <div class="progress-fill" id="mobileProgFill"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);">
+                        <span id="mobileTimeCur">00:00</span>
+                        <span id="mobileTimeDur">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Кнопки управления -->
+                <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 32px; align-items: center;">
+                    <button class="mini-btn" id="mobileShuffle" onclick="window.toggleShuffle()" style="width: 44px; height: 44px;" title="Shuffle">
+                        <i data-lucide="shuffle"></i>
+                    </button>
+                    <button class="mini-btn" onclick="window.prevTrack()" style="width: 48px; height: 48px;" title="Previous">
+                        <i data-lucide="skip-back"></i>
+                    </button>
+                    <button class="play-main" id="mobilePlayBtn" onclick="window.togglePlayback()" style="width: 64px; height: 64px;" title="Play/Pause">
+                        <i data-lucide="play" id="mobilePlayIcon"></i>
+                    </button>
+                    <button class="mini-btn" onclick="window.nextTrack()" style="width: 48px; height: 48px;" title="Next">
+                        <i data-lucide="skip-forward"></i>
+                    </button>
+                    <button class="mini-btn" id="mobileRepeat" onclick="window.toggleRepeat()" style="width: 44px; height: 44px;" title="Repeat">
+                        <i data-lucide="repeat"></i>
+                    </button>
+                </div>
+
+                <!-- Быстрые действия -->
+                <div style="display: flex; gap: 12px; margin-bottom: 20px; width: 100%;">
+                    <button onclick="if (state.library[state.currentIndex]) window.toggleFav(state.library[state.currentIndex].id || state.library[state.currentIndex].navidromeId, state.library[state.currentIndex].source || 'local')" style="flex: 1; padding: 12px; background: var(--secondary-color); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="heart" style="width: 18px;"></i> Favorite
+                    </button>
+                    <button onclick="window.toggleModal('playlistPickerOverlay')" style="flex: 1; padding: 12px; background: var(--secondary-color); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="plus" style="width: 18px;"></i> Playlist
+                    </button>
                 </div>
             </div>
-            <div class="track-meta">
-                <p id="artistName"></p>
-                <h1 id="trackName" data-t="ready">Select Media</h1>
-            </div>
-        </section>
+        </div>
+
+        <!-- Мобильная библиотека -->
+        <div id="mobileLibraryView" style="display: flex; flex-direction: column;">
+            <section class="hero-section" id="heroSection">
+                <div class="vinyl-container" id="vinylContainer">
+                    <div class="vinyl">
+                        <img id="mainCover" src="" alt="Cover">
+                    </div>
+                </div>
+                <div class="track-meta">
+                    <p id="artistName"></p>
+                    <h1 id="trackName" data-t="ready">Select Media</h1>
+                </div>
+            </section>
+        </div>
     </main>
 
     <aside class="right">
@@ -304,10 +420,10 @@
                 <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Bass Boost</span>
                 <i data-lucide="waves" size="16"></i>
             </div>
-            <input type="range" class="slider-control" id="bassGainSlider" min="0" max="25" value="15" oninput="window.updateBassGain(this.value)">
+            <input type="range" class="slider-control" id="bassGainSlider" min="0" max="25" value="3" oninput="window.updateBassGain(this.value)">
             <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 8px;">
                 <span>Clean</span>
-                <span id="bassGainVal">15dB</span>
+                <span id="bassGainVal">3dB</span>
             </div>
         </div>
     </aside>
@@ -366,25 +482,48 @@
 </script>
 
 <script>
-// Мобильное меню без зависимостей
+// Мобильное меню - улучшено
 const menuBtn = document.querySelector('.mobile-menu-trigger');
 const sidebar = document.querySelector('.mobile-sidebar');
 const overlay = document.querySelector('.mobile-sidebar-overlay');
 const closeBtn = document.querySelector('.mobile-sidebar-close');
 
 window.openMobileMenu = function() {
-    if (sidebar) sidebar.classList.add('active');
-    if (overlay) overlay.classList.add('active');
+    if (sidebar) {
+        sidebar.classList.add('active');
+    }
 }
 
 window.closeMobileMenu = function() {
-    if (sidebar) sidebar.classList.remove('active');
-    if (overlay) overlay.classList.remove('active');
+    if (sidebar) {
+        sidebar.classList.remove('active');
+    }
 }
 
-menuBtn?.addEventListener('click', window.openMobileMenu);
+// Event listeners
+menuBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.openMobileMenu();
+});
+
 overlay?.addEventListener('click', window.closeMobileMenu);
 closeBtn?.addEventListener('click', window.closeMobileMenu);
+
+// Close menu when clicking on nav items
+document.querySelectorAll('.mobile-sidebar .nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+        setTimeout(window.closeMobileMenu, 200);
+    });
+});
+
+// Prevent menu from closing when clicking on buttons inside menu
+document.querySelectorAll('.mobile-sidebar button').forEach(btn => {
+    if (!btn.classList.contains('mobile-sidebar-close')) {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+});
 </script>
 
 </body>

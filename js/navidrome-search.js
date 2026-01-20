@@ -8,7 +8,7 @@ const NAVIDROME_URL = 'https://music.youtubemusicdownloader.life';
 const NAVIDROME_USER = 'guest';
 const NAVIDROME_PASS = 'guest';
 const API_VERSION = '1.16.1';
-const APP_NAME = 'Z-BETA';
+const APP_NAME = 'Z-Testing';
 
 /**
  * Build Navidrome API URL with auth params
@@ -118,9 +118,12 @@ const getSongDetails = async function(songId) {
  * Get streaming URL for a song
  */
 const getNavidromeStreamUrl = function(songId) {
-  return buildNavidromeUrl('stream.view', {
+  console.log('[NAVIDROME_URL] Generating stream URL for ID:', songId, 'type:', typeof songId);
+  const url = buildNavidromeUrl('stream.view', {
     id: songId
   });
+  console.log('[NAVIDROME_URL] Generated URL:', url);
+  return url;
 };
 
 /**
@@ -252,16 +255,38 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     if (window.state?.library) {
       const exists = window.state.library.some(s => s.navidromeId === songId);
       if (!exists) {
-        window.state.library.unshift(song);
+        window.state.library.push(song);  // Добавляем в конец очереди, не в начало!
+        
+        // Сохраняем в IndexedDB для персистентности (используем глобальный db)
+        try {
+          if (window.db && window.db.songs) {
+            // Используем существующую БД из app.js
+            window.db.songs.add({
+              title: finalTitle,
+              artist: finalArtist,
+              album: finalAlbum,
+              duration: songDetails?.duration || 0,
+              url: streamUrl,
+              cover: finalCoverUrl,
+              source: 'navidrome',
+              navidromeId: songId,
+              isFavorite: false,
+              order: 999999 + Math.random() // Высокий порядок чтобы был в конце
+            }).catch(err => console.warn('[NAVIDROME] DB save error:', err));
+          }
+        } catch (err) {
+          console.warn('[NAVIDROME] Failed to save to DB:', err);
+        }
       }
       
-      // Save Navidrome songs to localStorage for persistence
-      const navidromeSongs = window.state.library.filter(s => s.source === 'navidrome');
-      localStorage.setItem('navidromeSongs', JSON.stringify(navidromeSongs));
-      console.log('[NAVIDROME] Saved', navidromeSongs.length, 'Navidrome songs to localStorage');
+      // Update current index to this song
+      const idx = window.state.library.findIndex(s => s.navidromeId === songId);
+      if (idx !== -1) {
+        window.state.currentIndex = idx;
+      }
     }
 
-    // Update player UI (similar to playTrack)
+    // Update player UI
     const dom = window.dom;
     if (dom && dom.audio) {
       console.log('[NAVIDROME] Setting audio source to:', streamUrl);
@@ -286,22 +311,124 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
       }
     }
 
-    // Update current index to this song (if it exists in library)
-    if (window.state?.library) {
-      const idx = window.state.library.findIndex(s => s.navidromeId === songId);
-      if (idx !== -1) {
-        window.state.currentIndex = idx;
-      }
-    }
-
     console.log('[NAVIDROME] Playing:', finalTitle, 'by', finalArtist);
     
-    // Render library to show as active
+    // Сохраняем состояние очереди
+    if (window.saveQueueState) {
+      window.saveQueueState();
+    }
+    
+    // Refresh UI immediately to show new song in queue
     if (window.renderLibrary) {
       window.renderLibrary();
     }
+    if (window.renderSidebarQueue) {
+      window.renderSidebarQueue();
+    }
+    
+    // Close Navidrome UI and go back to library
+    if (window.switchTab) {
+      setTimeout(() => {
+        window.switchTab('all');
+      }, 500);
+    }
   } catch (error) {
     console.error('[NAVIDROME] Play error:', error);
+  }
+};
+
+/**
+ * Get random songs from Navidrome
+ */
+const getAllNavidromeSongs = async function() {
+  try {
+    // Return cached songs if available
+    if (window._navidromeSongsCache && window._navidromeSongsCache.length > 0) {
+      console.log('[NAVIDROME] Returning cached songs:', window._navidromeSongsCache.length);
+      return window._navidromeSongsCache;
+    }
+    
+    console.log('[NAVIDROME] Fetching random songs from Navidrome...');
+    
+    const url = buildNavidromeUrl('getRandomSongs.view', {
+      size: 200
+    });
+
+    console.log('[NAVIDROME] Request URL:', url);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('[NAVIDROME] HTTP Error:', response.status, response.statusText);
+      // Try to load from cache if API fails
+      const cached = localStorage.getItem('navidromeSongs');
+      if (cached) {
+        try {
+          const cachedSongs = JSON.parse(cached);
+          console.log('[NAVIDROME] Using cached songs:', cachedSongs.length);
+          if (window.state) {
+            window.state.navidromeSongs = cachedSongs;
+          }
+          return cachedSongs;
+        } catch (e) {
+          console.error('[NAVIDROME] Cache parse error:', e);
+        }
+      }
+      return [];
+    }
+
+    const data = await response.json();
+    const songs = (data['subsonic-response']?.randomSongs?.song || []).map(song => ({
+      id: song.id,
+      navidromeId: song.id,
+      title: song.title || 'Unknown',
+      artist: song.artist || 'Unknown Artist',
+      album: song.album || '',
+      duration: song.duration || 0,
+      cover: song.coverArt ? buildNavidromeUrl('getCoverArt.view', {
+        id: song.coverArt,
+        size: 200
+      }) : 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100',
+      source: 'navidrome'
+    }));
+
+    console.log('[NAVIDROME] Successfully fetched:', songs.length, 'songs');
+    
+    // Save to localStorage for caching
+    try {
+      localStorage.setItem('navidromeSongs', JSON.stringify(songs));
+      localStorage.setItem('navidromeSongsLastUpdate', new Date().toISOString());
+      console.log('[NAVIDROME] Cached to localStorage');
+    } catch (e) {
+      console.warn('[NAVIDROME] localStorage save error:', e);
+    }
+    
+    // Cache in memory
+    window._navidromeSongsCache = songs;
+    
+    // Store in state.navidromeSongs (NOT in state.library)
+    if (window.state) {
+      window.state.navidromeSongs = songs;
+      console.log('[NAVIDROME] Stored in state.navidromeSongs');
+    }
+
+    return songs;
+  } catch (error) {
+    console.error('[NAVIDROME] Fetch error:', error);
+    // Try to load from cache on error
+    const cached = localStorage.getItem('navidromeSongs');
+    if (cached) {
+      try {
+        const cachedSongs = JSON.parse(cached);
+        console.log('[NAVIDROME] Using cached songs due to error:', cachedSongs.length);
+        if (window.state) {
+          window.state.navidromeSongs = cachedSongs;
+        }
+        return cachedSongs;
+      } catch (e) {
+        console.error('[NAVIDROME] Cache parse error:', e);
+      }
+    }
+    return [];
   }
 };
 
@@ -311,5 +438,7 @@ window.getNavidromeStreamUrl = getNavidromeStreamUrl;
 window.getSongDetails = getSongDetails;
 window.performCombinedSearch = performCombinedSearch;
 window.playNavidromeSong = playNavidromeSong;
+window.getAllNavidromeSongs = getAllNavidromeSongs;
+window.searchNavidrome = searchNavidrome;
 
-export { searchLocalLibrary, searchNavidrome, getNavidromeStreamUrl, getSongDetails, performCombinedSearch, playNavidromeSong };
+export { searchLocalLibrary, searchNavidrome, getNavidromeStreamUrl, getSongDetails, performCombinedSearch, playNavidromeSong, getAllNavidromeSongs };
