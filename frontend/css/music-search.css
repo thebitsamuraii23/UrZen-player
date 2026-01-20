@@ -1,0 +1,135 @@
+/* ============================================
+   MUSIC SEARCH - NAVIDROME INTEGRATION
+   ============================================ */
+
+.music-search-modal {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#musicSearchInput {
+  background: var(--surface) !important;
+  border: 2px solid transparent !important;
+  color: white !important;
+  padding: 12px 16px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  transition: all 0.3s ease !important;
+}
+
+#musicSearchInput:focus {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  background: var(--surface-bright) !important;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.3) !important;
+}
+
+#musicSearchInput::placeholder {
+  color: var(--text-dim) !important;
+}
+
+/* Search result item */
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.search-result-item:hover {
+  background: var(--surface-bright);
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(var(--accent-rgb), 0.2);
+  transform: translateX(4px);
+}
+
+.search-result-item:active {
+  transform: translateX(2px);
+}
+
+#musicSearchStatus {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Scrollbar styling for search results */
+#musicSearchResults::-webkit-scrollbar {
+  width: 6px;
+}
+
+#musicSearchResults::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#musicSearchResults::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+#musicSearchResults::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
+/* Auth required section */
+#musicSearchNotAuth {
+  animation: slideInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal animations */
+.modal-overlay.active {
+  display: flex;
+  animation: fadeInOverlay 0.3s ease;
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .music-search-modal {
+    width: 90% !important;
+    max-height: 70vh !important;
+  }
+
+  .search-result-item {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  #musicSearchInput {
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+}

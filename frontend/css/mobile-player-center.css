@@ -1,0 +1,15 @@
+/* Центрирование мобильного плеера по вертикали и горизонтали */
+@media (max-width: 1024px) {
+  #mobilePlayerView {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+  #mobilePlayerView > div {
+    width: 100%;
+    max-width: 400px;
+  }
+}

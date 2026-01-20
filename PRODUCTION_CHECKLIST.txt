@@ -1,0 +1,81 @@
+PRODUCTION DEPLOYMENT CHECKLIST
+================================
+
+CRITICAL ERRORS - DO NOT DEPLOY IF ANY OF THESE ARE TRUE:
+❌ JWT_SECRET is default/empty or < 32 characters
+❌ TUNNEL_TOKEN is not set or invalid
+❌ Backend cannot connect to database
+❌ Nginx responds with 502/503
+❌ Backend healthcheck fails
+❌ Cloudflare tunnel not connected
+❌ Frontend assets return 404
+❌ API calls timeout or fail
+❌ Direct port access (3001) works (security breach!)
+❌ Container logs show secrets/tokens
+❌ Database file has wrong permissions
+
+PRE-DEPLOYMENT:
+✅ Generate JWT_SECRET: openssl rand -base64 32
+✅ Get TUNNEL_TOKEN from Cloudflare Zero Trust dashboard
+✅ Test locally: docker-compose -f docker-compose.yml up -d
+✅ Check health: curl -v http://127.0.0.1:8080/health
+✅ Test API: curl -v http://127.0.0.1:8080/api/health
+✅ Review logs: docker-compose logs -f
+✅ Verify no hardcoded secrets in code
+✅ Confirm database encryption/backups
+✅ Test failover: kill -9 container_id && watch docker-compose ps
+
+DEPLOYMENT COMMANDS:
+1. SSH to production server:
+   ssh user@server.ip
+
+2. Clone repo:
+   git clone -b tests/updates https://github.com/thebitsamuraii23/z-player.git
+   cd z-player
+
+3. Create .env.production with real values:
+   JWT_SECRET=<generated-value>
+   TUNNEL_TOKEN=<from-cloudflare>
+
+4. Deploy:
+   chmod +x deploy.sh
+   ./deploy.sh
+
+5. Monitor:
+   docker-compose logs -f
+   docker stats
+
+CRITICAL MONITORING:
+- Backend health: curl -f http://127.0.0.1:8080/api/health
+- Check disk space: df -h /data
+- Monitor memory: docker stats
+- Check Cloudflare tunnel status in dashboard
+- Verify logs rotate: ls -lh backend_logs/
+
+ROLLBACK:
+docker-compose down
+docker-compose up -d --force-recreate
+
+BACKUP DATABASE:
+docker-compose exec backend cp /data/users.db /data/users.db.backup.$(date +%s)
+
+COMMON ISSUES:
+- "address already in use" → change port in docker-compose.yml
+- "cannot connect to backend" → use service name, not localhost
+- "502 Bad Gateway" → backend not healthy, check logs
+- "403 Forbidden" → check nginx permissions on volumes
+- "database locked" → kill container, let it recreate
+
+SECURITY NOTES:
+✅ Nginx only binds 127.0.0.1:8080 (cloudflared tunnels it)
+✅ No secrets in docker-compose.yml (use .env.production)
+✅ Database permissions 700 (owner read/write only)
+✅ Containers run as non-root
+✅ Health checks enabled
+✅ Logs rotated automatically
+✅ HTTPS via Cloudflare (no self-signed certs needed)
+
+LOG ANALYSIS:
+docker-compose logs backend | grep -i error
+docker-compose logs nginx | grep -i upstream
+docker-compose logs cloudflared | grep -i connected
