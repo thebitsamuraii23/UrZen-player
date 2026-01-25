@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Z Testing | Pure Audio Experience</title>
+    <title>UrZen | Pure Audio Experience</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
@@ -34,8 +34,7 @@
     <div class="nav-brand">
         <i data-lucide="zap" style="color: var(--accent);"></i>
         <div style="display: flex; flex-direction: column;">
-            <span class="brand-z" style="font-size: 16px;">Z</span>
-            <span class="brand-beta" style="font-size: 10px;">Testing</span>
+            <span class="brand-z" style="font-size: 16px;">UrZen</span>
         </div>
     </div>
     <nav class="sidebar-section">
@@ -76,7 +75,7 @@
 <div class="mobile-sidebar-overlay" onclick="window.closeMobileMenu()"></div>
 
 <div class="loader-overlay" id="appLoader">
-    <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">Z Testing</h2>
+    <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">UrZen</h2>
     <div style="width: 200px; height: 2px; background: var(--surface-bright); position: relative; overflow: hidden;">
         <div style="width: 50%; height: 100%; background: var(--accent); position: absolute; animation: loadMove 1.5s infinite;"></div>
     </div>
@@ -223,7 +222,7 @@
 
         <button class="settings-btn" onclick="window.open('https://github.com/thebitsamuraii23', '_blank')" style="width:100%; background: #24292e; color: white; border: 1px solid var(--border); padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px;">
             <i data-lucide="github" style="width:18px;"></i>
-            <span>thebitsamuraii23</span>
+            <span>thebitsamuraii23</span> // GitHub profile
         </button>
 
         <button class="settings-btn" onclick="window.open('https://musicjacker-site.onrender.com', '_blank')" style="width:100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: 1px solid var(--border); padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px;">
@@ -244,8 +243,8 @@
 </div>
 
 <div class="modal-overlay" id="playlistModal">
-    <div class="modal-content" style="width: 380px;">
-        <h3 style="margin-bottom: 25px;" data-t="create_playlist">Новая коллекция</h3>
+    <div class="modal-content" style="width: 380px;"> // Модальное окно создания плейлиста
+        <h3 style="margin-bottom: 25px;" data-t="create_playlist">Новая коллекция</h3> // Создание плейлиста
         <input type="text" id="playlistNameInp" placeholder="Название плейлиста..." style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
         <div style="display: flex; gap: 15px; margin-top: 25px;">
             <button onclick="window.saveNewPlaylist()" style="flex: 1; background: var(--accent); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700;" data-t="save">Создать</button>
@@ -261,7 +260,7 @@
     <aside>
         <div class="nav-brand">
             <i data-lucide="zap" style="color: var(--accent); margin-right: 8px;"></i>
-            <span class="brand-z">Z</span><span class="brand-beta">Testing</span>
+            <span class="brand-z">UrZen</span>
         </div>
         
         <nav class="sidebar-section">
@@ -287,7 +286,7 @@
 
         <nav class="sidebar-section">
             <span class="section-label">Queue</span>
-            <button class="queue-clear-btn" onclick="window.clearQueue()" style="width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-size: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Clear all tracks from queue">
+            <button class="queue-clear-btn" onclick="window.clearQueue()" style="width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-sibitche: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Clear all tracks from queue">
                 <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                 <span data-t="clear_queue">Clear Queue</span>
             </button>
@@ -482,7 +481,7 @@
 </script>
 
 <script>
-// Мобильное меню - улучшено
+// Мобильное меню - улучшено для предотвращения случайного закрытия
 const menuBtn = document.querySelector('.mobile-menu-trigger');
 const sidebar = document.querySelector('.mobile-sidebar');
 const overlay = document.querySelector('.mobile-sidebar-overlay');
