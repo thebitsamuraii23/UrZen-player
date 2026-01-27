@@ -881,11 +881,33 @@ window.playTrack = (id) => {
     // Update browser title and Media Session API
     document.title = `${track.title} - ${track.artist} | UrZen`;
     if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
+        const metadata = {
             title: track.title,
             artist: track.artist,
-            album: track.album || 'Unknown Album',
-            artwork: track.cover ? [{ src: track.cover, sizes: '256x256', type: 'image/png' }] : []
+            album: track.album || 'Unknown Album'
+        };
+        if (track.cover) {
+            metadata.artwork = [
+                { src: track.cover, sizes: '96x96', type: 'image/png' },
+                { src: track.cover, sizes: '128x128', type: 'image/png' },
+                { src: track.cover, sizes: '192x192', type: 'image/png' },
+                { src: track.cover, sizes: '256x256', type: 'image/png' }
+            ];
+        }
+        navigator.mediaSession.metadata = new MediaMetadata(metadata);
+        
+        // Set up action handlers for media controls
+        navigator.mediaSession.setActionHandler('play', () => {
+            dom.audio.play().catch(e => console.error('Play action error:', e));
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+            dom.audio.pause();
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+            window.nextTrack();
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+            window.prevTrack();
         });
     }
     
