@@ -554,7 +554,18 @@ app.get('/api/debug/tables', (req, res) => {
   });
 });
 
-// Serve static files from root directory (BEFORE app.get('*'))
+// Serve static files from root directory (BEFORE app.get('*'))У меня есть HTML файл (index.html). Мне нужно заменить **только ссылки на urzenscaled.png**.
+
+Новый базовый URL: https://thebitsamuraii23.github.io/urzen-sitefaviconpage/
+
+Требования:
+1. Заменить только строки, где встречается "urzenscaled.png" в атрибутах src или href.
+2. Не трогать другие PNG, CSS, JS, JPG, SVG и т.д.
+3. Если ссылка уже абсолютная (начинается с http:// или https://), оставь её как есть.
+4. Для относительных ссылок на urzenscaled.png сделать абсолютную ссылку:
+   https://thebitsamuraii23.github.io/urzen-sitefaviconpage/urzenscaled.png
+5. Верни только обновлённый HTML-код, без объяснений.
+
 app.use(express.static(path.join(__dirname), {
   index: false,
   setHeaders: (res, filepath) => {
