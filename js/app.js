@@ -878,6 +878,17 @@ window.playTrack = (id) => {
         dom.vinylContainer.classList.remove('visible');
     }
     
+    // Update browser title and Media Session API
+    document.title = `${track.title} - ${track.artist} | UrZen`;
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.title,
+            artist: track.artist,
+            album: track.album || 'Unknown Album',
+            artwork: track.cover ? [{ src: track.cover, sizes: '256x256', type: 'image/png' }] : []
+        });
+    }
+    
     // Сохраняем состояние очереди
     if (window.saveQueueState) window.saveQueueState();
     
