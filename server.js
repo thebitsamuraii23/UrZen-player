@@ -554,25 +554,35 @@ app.get('/api/debug/tables', (req, res) => {
   });
 });
 
-// Serve static files (MUST be after API routes)
+// Serve static files from root directory (BEFORE app.get('*'))
 app.use(express.static(path.join(__dirname), {
-  index: false,  // Don't serve index.html for unknown routes
-  setHeaders: (res, path) => {
-    // Cache static files appropriately
-    if (path.endsWith('.js') || path.endsWith('.css')) {
+  index: false,
+  setHeaders: (res, filepath) => {
+    // Set correct Content-Type for files
+    if (filepath.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (filepath.endsWith('.jpg') || filepath.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (filepath.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    } else if (filepath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    } else if (filepath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
       res.setHeader('Cache-Control', 'public, max-age=3600');
     }
   }
 }));
 
-// Fallback to index.html for SPA routing (must be last)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
 // 404 handler for API routes that weren't matched
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });
+});
+
+// Fallback to index.html for SPA routing (MUST be last)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => {
