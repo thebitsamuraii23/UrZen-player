@@ -3,11 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UrZen | Pure Audio Experience</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>UrZen | Nothing But Ur Audio </title>
+    <link rel="icon" type="image/png" href="favicon.png?v=20260126-1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <script>
+        // Pre-define toggleSettingsInfo before module loads
+        window.toggleSettingsInfo = () => {
+            const info = document.getElementById('settingsInfoPage');
+            if (!info) return;
+            info.style.display = (info.style.display === 'none' || !info.style.display) ? 'block' : 'none';
+        };
+        
         const lucideLoadTimeout = setTimeout(() => {
             console.warn('Lucide icons failed to load; using fallback SVG placeholders.');
             window.lucide = { createIcons: () => {} };
@@ -19,8 +26,8 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/mobile-player-center.css" />
+    <link rel="stylesheet" href="css/main.css?v=20260126-2">
+    <link rel="stylesheet" href="css/mobile-player-center.css?v=20260126-2" />
 </head>
 <body class="lang-ru">
 
@@ -32,10 +39,7 @@
         <i data-lucide="x"></i>
     </button>
     <div class="nav-brand">
-        <i data-lucide="zap" style="color: var(--accent);"></i>
-        <div style="display: flex; flex-direction: column;">
-            <span class="brand-z" style="font-size: 16px;">UrZen</span>
-        </div>
+        <img src="urzenscaled.png" alt="UrZen" style="height: 40px; width: auto;">
     </div>
     <nav class="sidebar-section">
         <span class="section-label">Разделы</span>
@@ -75,7 +79,7 @@
 <div class="mobile-sidebar-overlay" onclick="window.closeMobileMenu()"></div>
 
 <div class="loader-overlay" id="appLoader">
-    <h2 style="letter-spacing: 8px; margin-bottom: 25px; font-weight: 800;">UrZen</h2>
+    <img src="urzenscaled.png" alt="UrZen" style="width: 100%; height: auto; max-width: 250px; margin-bottom: 25px;">
     <div style="width: 200px; height: 2px; background: var(--surface-bright); position: relative; overflow: hidden;">
         <div style="width: 50%; height: 100%; background: var(--accent); position: absolute; animation: loadMove 1.5s infinite;"></div>
     </div>
@@ -195,7 +199,11 @@
 <div class="modal-overlay" id="settingsModal">
     <div class="modal-content">
         <div class="modal-close" onclick="window.toggleSettings()"><i data-lucide="x"></i></div>
-        <h3 style="margin-bottom: 25px;" data-t="settings">Конфигурация системы</h3>
+        <h3 style="margin-bottom: 20px;" data-t="settings">Конфигурация системы</h3>
+        
+        <button class="settings-btn" onclick="window.switchTab('about'); window.toggleSettings();" style="width:100%; background: linear-gradient(135deg, var(--accent) 0%, #ff6f91 100%); color: var(--text); border: none; padding: 14px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2); transition: all 0.3s ease;" onmouseover="this.style.boxShadow='0 8px 24px rgba(255, 107, 107, 0.3)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.boxShadow='0 4px 12px rgba(255, 107, 107, 0.2)'; this.style.transform='translateY(0)';">
+            <i data-lucide="info" style="width: 18px; height: 18px;"></i> <span data-t="about">О сайте</span>
+        </button>
         
         <div class="setting-group">
             <div class="setting-row">
@@ -222,7 +230,7 @@
 
         <button class="settings-btn" onclick="window.open('https://github.com/thebitsamuraii23', '_blank')" style="width:100%; background: #24292e; color: white; border: 1px solid var(--border); padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px;">
             <i data-lucide="github" style="width:18px;"></i>
-            <span>thebitsamuraii23</span> // GitHub profile
+            <span>thebitsamuraii23</span>
         </button>
 
         <button class="settings-btn" onclick="window.open('https://musicjacker-site.onrender.com', '_blank')" style="width:100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: 1px solid var(--border); padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 10px;">
@@ -243,8 +251,8 @@
 </div>
 
 <div class="modal-overlay" id="playlistModal">
-    <div class="modal-content" style="width: 380px;"> // Модальное окно создания плейлиста
-        <h3 style="margin-bottom: 25px;" data-t="create_playlist">Новая коллекция</h3> // Создание плейлиста
+    <div class="modal-content" style="width: 380px;">
+        <h3 style="margin-bottom: 25px;" data-t="create_playlist">Новая коллекция</h3>
         <input type="text" id="playlistNameInp" placeholder="Название плейлиста..." style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
         <div style="display: flex; gap: 15px; margin-top: 25px;">
             <button onclick="window.saveNewPlaylist()" style="flex: 1; background: var(--accent); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700;" data-t="save">Создать</button>
@@ -259,8 +267,7 @@
 <div class="app-container" id="mainApp">
     <aside>
         <div class="nav-brand">
-            <i data-lucide="zap" style="color: var(--accent); margin-right: 8px;"></i>
-            <span class="brand-z">UrZen</span>
+            <img src="urzenscaled.png" alt="UrZen" style="width: 100%; height: auto; max-width: 200px;">
         </div>
         
         <nav class="sidebar-section">
@@ -410,6 +417,111 @@
         </div>
     </main>
 
+    <!-- About Page -->
+    <div id="aboutContainer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow-y: auto; padding: 40px 60px; background: var(--bg); z-index: 1000; flex-direction: column;">
+        <div style="max-width: 900px; margin: 0 auto;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 60px; padding-bottom: 30px; border-bottom: 2px solid var(--accent);">
+                <img src="urzenscaled.png" alt="UrZen" style="height: 60px; width: auto; margin-bottom: 20px;">
+                <h1 style="font-size: 48px; font-weight: 900; margin: 0; color: var(--accent); letter-spacing: 3px;">UrZen</h1>
+                <p style="font-size: 16px; color: var(--text-dim); margin: 10px 0 0 0; letter-spacing: 2px;" data-t="about_tagline">Modern Audio Player with Navidrome Integration</p>
+            </div>
+
+            <!-- Main content -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 60px;">
+                <!-- Left column -->
+                <div>
+                    <div style="margin-bottom: 40px;">
+                        <h2 style="color: #ffb347; font-size: 18px; font-weight: 700; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                            <i data-lucide="info" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                            <span data-t="about_title">О плеере</span>
+                        </h2>
+                        <p style="color: #d0d0d0; line-height: 1.8; margin: 0;" data-t="about_description">UrZen - это современный минималистичный веб-плеер для управления вашей музыкальной библиотекой. Он поддерживает локальную загрузку треков, создание плейлистов, управление избранным и потоковую передачу музыки через Navidrome сервер.</p>
+                    </div>
+
+                    <div style="margin-bottom: 40px;">
+                        <h2 style="color: #7ed957; font-size: 18px; font-weight: 700; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                            <i data-lucide="zap" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                            <span data-t="how_it_works">Основные возможности</span>
+                        </h2>
+                        <div style="color: #d0d0d0; line-height: 1.9; margin: 0;">
+                            <div style="margin-bottom: 8px;">🎯 <span data-t="feature_playlists">Управление плейлистами - создавайте и организуйте свою музыку</span></div>
+                            <div style="margin-bottom: 8px;">🔊 <span data-t="feature_bass">Bass Boost - контроль баса от 0 до 25 дБ</span></div>
+                            <div style="margin-bottom: 8px;">🔀 <span data-t="feature_shuffle">Перемешивание и повтор</span></div>
+                            <div style="margin-bottom: 8px;">❤️ <span data-t="feature_favorites">Избранное - сохраняйте любимые треки</span></div>
+                            <div style="margin-bottom: 8px;">🌙 <span data-t="feature_zen">Zen Mode - погружение в музыку на полный экран</span></div>
+                            <div>⌨️ <span data-t="feature_shortcuts">Горячие клавиши для удобства</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right column -->
+                <div>
+                    <div style="margin-bottom: 40px;">
+                        <h2 style="color: #6ec6ff; font-size: 18px; font-weight: 700; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                            <i data-lucide="music" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                            <span data-t="music_sources">Источники музыки</span>
+                        </h2>
+                        <div style="color: #d0d0d0; line-height: 1.9; margin: 0;">
+                            <div style="margin-bottom: 10px;">• <span style="color: #ff6f91; font-weight: 600;" data-t="local_library">Локальная библиотека</span> - <span data-t="local_library_desc">загружайте свои треки</span></div>
+                            <div style="margin-bottom: 10px;">• <span style="color: #ff6f91; font-weight: 600;" data-t="navidrome">Navidrome</span> - <span data-t="navidrome_desc">личный музыкальный сервер</span></div>
+                            <div style="margin-bottom: 10px;">• <span style="color: #ff6f91; font-weight: 600;" data-t="built_in_search">Встроенный поиск</span> - <span data-t="search_desc">ищите во всех источниках одновременно</span></div>
+                            <div>• <span style="color: #ff6f91; font-weight: 600;" data-t="indexeddb">IndexedDB</span> - <span data-t="privacy">полная приватность ваших данных</span></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 40px;">
+                        <h2 style="color: #ff9f43; font-size: 18px; font-weight: 700; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                            <i data-lucide="code" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                            <span data-t="technologies">Технологии</span>
+                        </h2>
+                        <div style="color: #d0d0d0; margin: 0; font-size: 14px; line-height: 1.9;">
+                            <div style="margin-bottom: 8px;"><span style="color: #ffb347; font-weight: 600;" data-t="backend">Backend:</span> <span data-t="backend_tech">Node.js + Express</span></div>
+                            <div style="margin-bottom: 8px;"><span style="color: #ffb347; font-weight: 600;" data-t="frontend">Frontend:</span> <span data-t="frontend_tech">Vanilla JavaScript (ES6+), HTML5, CSS3</span></div>
+                            <div style="margin-bottom: 8px;"><span style="color: #ffb347; font-weight: 600;" data-t="database">Database:</span> <span data-t="database_tech">IndexedDB</span> (<span data-t="local_storage">локальное хранилище</span>)</div>
+                            <div><span style="color: #ffb347; font-weight: 600;" data-t="api_label">API:</span> <span data-t="api_tech">Subsonic API, JWT Authentication</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keyboard Shortcuts section -->
+            <div style="background: linear-gradient(135deg, rgba(122, 219, 219, 0.1) 0%, rgba(67, 233, 123, 0.1) 100%); border-radius: 16px; padding: 30px; margin-bottom: 40px; border: 1px solid var(--border);">
+                <h2 style="color: #7ed957; font-size: 18px; font-weight: 700; margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 1px;">
+                    <i data-lucide="keyboard" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                    <span data-t="keybinds_title">Горячие клавиши</span>
+                </h2>
+                <p style="color: #d0d0d0; font-size: 14px; margin: 0 0 20px 0;" data-t="keybinds_desc">Используйте эти сочетания клавиш для удобного управления плеером</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div style="color: #d0d0d0; line-height: 1.9;">
+                        <div style="margin-bottom: 12px;"><span style="color: #6ec6ff; font-weight: 600; background: rgba(110, 198, 255, 0.2); padding: 3px 8px; border-radius: 4px;">SPACE</span> - <span data-t="kb_space">Пауза/Воспроизведение</span></div>
+                        <div style="margin-bottom: 12px;"><span style="color: #6ec6ff; font-weight: 600; background: rgba(110, 198, 255, 0.2); padding: 3px 8px; border-radius: 4px;">← →</span> - <span data-t="kb_arrows">Перемотка ±10 секунд</span></div>
+                        <div style="margin-bottom: 12px;"><span style="color: #6ec6ff; font-weight: 600; background: rgba(110, 198, 255, 0.2); padding: 3px 8px; border-radius: 4px;">↑ ↓</span> - <span data-t="kb_volume">Громкость ±10%</span></div>
+                        <div><span style="color: #6ec6ff; font-weight: 600; background: rgba(110, 198, 255, 0.2); padding: 3px 8px; border-radius: 4px;">F</span> - <span data-t="kb_f">Zen Mode</span></div>
+                    </div>
+                    <div style="color: #d0d0d0; line-height: 1.9;">
+                        <div style="margin-bottom: 12px;"><span style="color: #ff6f91; font-weight: 600; background: rgba(255, 111, 145, 0.2); padding: 3px 8px; border-radius: 4px;">ESC</span> - <span data-t="kb_esc">Выход из Zen / Закрыть справку</span></div>
+                        <div style="margin-bottom: 12px;"><span style="color: #ff6f91; font-weight: 600; background: rgba(255, 111, 145, 0.2); padding: 3px 8px; border-radius: 4px;">Ctrl →</span> - <span data-t="kb_ctrl_next">Следующий трек</span></div>
+                        <div><span style="color: #ff6f91; font-weight: 600; background: rgba(255, 111, 145, 0.2); padding: 3px 8px; border-radius: 4px;">Ctrl ←</span> - <span data-t="kb_ctrl_prev">Предыдущий трек</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Developer section -->
+            <div style="background: linear-gradient(135deg, rgba(255, 62, 0, 0.1) 0%, rgba(255, 107, 107, 0.1) 100%); border-radius: 16px; padding: 30px; text-align: center; border: 1px solid var(--border);">
+                <h2 style="color: #f9f871; font-size: 18px; font-weight: 700; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                    <i data-lucide="user" style="width: 20px; height: 20px; display: inline; margin-right: 8px; vertical-align: middle;"></i>
+                    <span data-t="developer">Разработчик</span>
+                </h2>
+                <p style="color: #d0d0d0; font-size: 16px; margin: 0 0 5px 0; line-height: 1.6;">
+                    <span data-t="created_by">Создано</span> <span style="color: #ff6f91;">❤</span> <span data-t="created_by_for">для любителей музыки</span>
+                </p>
+                <p style="color: #ffb347; font-weight: 600; font-size: 16px; margin: 10px 0 0 0;">thebitsamurai</p>
+                <p style="color: #888; font-size: 12px; margin: 12px 0 0 0; text-transform: uppercase; letter-spacing: 1px;">© 2026 UrZen • <span data-t="open_source">Проект с открытым исходным кодом</span></p>
+            </div>
+        </div>
+    </div>
+
     <aside class="right">
         <span class="section-label" data-t="queue">Очередь</span>
         <div class="list-container" id="playlist"></div>
@@ -454,7 +566,7 @@
 
 <!-- Модульная загрузка JavaScript -->
 <script type="module">
-    import { initApp } from './js/app.js';
+    import { initApp } from './js/app.js?v=20260126-2';
     window.addEventListener('DOMContentLoaded', initApp);
     
     window.addEventListener('error', (e) => {

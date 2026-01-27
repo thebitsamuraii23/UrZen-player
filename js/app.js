@@ -5,7 +5,7 @@ import { searchLocalLibrary } from './navidrome-search.js';
 import { loadLibraryFromDB, getCurrentListView, deleteTrack, saveQueueState, restoreQueueState } from './modules/library-manager.js';
 import { addSongToPlaylist, removeSongFromPlaylist, createPlaylist, deletePlaylist, renamePlaylist } from './modules/playlist-manager.js';
 import { isUserAuthenticated, syncPlaylistsWithServer } from './modules/server-playlist-manager.js';
-import { I18N } from './i18n.js';
+import { I18N } from './i18n.js?v=20260126-2';
 import { formatTime, showToast, refreshIcons } from './helpers.js';
 import { loadSettings, applyLanguage, initSettingsHandlers } from './settings.js';
 
@@ -28,6 +28,13 @@ window.toggleModal = (id) => {
 window.toggleSettings = () => { window.toggleModal('settingsModal'); };
 window.togglePlaylistModal = () => { window.toggleModal('playlistModal'); };
 window.closePlaylistPicker = () => { window.toggleModal('playlistPickerOverlay'); };
+
+// INFO PAGE (Settings)
+window.toggleSettingsInfo = () => {
+    const info = document.getElementById('settingsInfoPage');
+    if (!info) return;
+    info.style.display = (info.style.display === 'none' || !info.style.display) ? 'block' : 'none';
+};
 
 // ============ БАС И ЗВУК ============
 window.toggleBassBoost = (enabled) => {
@@ -1058,6 +1065,12 @@ window.switchTab = (tab) => {
     state.currentTab = tab;
     state.searchQuery = '';  // Clear search when switching tabs
     state.navidromeSearchQuery = '';  // Clear Navidrome search
+
+    // Hide left About close button when switching away from About
+    try {
+        const aboutCloseBtn = document.getElementById('aboutCloseBtn');
+        if (tab !== 'about' && aboutCloseBtn) aboutCloseBtn.style.display = 'none';
+    } catch (e) {}
     
     // Сбросить shuffle порядок при переключении табов/плейлистов
     state.shuffledOrder = [];
@@ -1081,13 +1094,15 @@ window.switchTab = (tab) => {
         document.getElementById('nav-all-mobile')?.classList.add('active');
         console.log('[TAB] Switched to All Library');
         
-        // Скрываем Navidrome, показываем остальное
+        // Скрываем Navidrome и About, показываем остальное
         const navidromeContainer = document.getElementById('navidromeContainer');
+        const aboutContainer = document.getElementById('aboutContainer');
         const mainContent = document.getElementById('mainContent');
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
         if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
@@ -1100,13 +1115,15 @@ window.switchTab = (tab) => {
         document.getElementById('nav-fav-mobile')?.classList.add('active');
         console.log('[TAB] Switched to Favorites');
         
-        // Скрываем Navidrome, показываем остальное
+        // Скрываем Navidrome и About, показываем остальное
         const navidromeContainer = document.getElementById('navidromeContainer');
+        const aboutContainer = document.getElementById('aboutContainer');
         const mainContent = document.getElementById('mainContent');
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
         if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
@@ -1120,11 +1137,13 @@ window.switchTab = (tab) => {
         
         // ПЕРВЫЙ показываем контейнер
         const navidromeContainer = document.getElementById('navidromeContainer');
+        const aboutContainer = document.getElementById('aboutContainer');
         const mainContent = document.getElementById('mainContent');
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
         if (navidromeContainer) navidromeContainer.style.display = 'flex';
+        if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'none';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
@@ -1147,6 +1166,46 @@ window.switchTab = (tab) => {
         }
         // Always refresh Navidrome grid when entering the tab
         renderNavidromeInterface();
+    } else if (tab === 'about') {
+        document.getElementById('nav-about')?.classList.add('active');
+        document.getElementById('nav-about-mobile')?.classList.add('active');
+        console.log('[TAB] Switched to About');
+        
+        // Показываем about контейнер, скрываем остальное
+        const aboutContainer = document.getElementById('aboutContainer');
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        
+        if (aboutContainer) aboutContainer.style.display = 'flex';
+        // Ensure left-side close button exists and is visible only for About
+        try {
+            let btn = document.getElementById('aboutCloseBtn');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = 'aboutCloseBtn';
+                btn.className = 'about-close';
+                btn.innerHTML = '✕';
+                btn.style.cssText = 'position: fixed; left: 18px; top: 18px; z-index: 1101; width: 40px; height: 40px; padding: 0; border-radius: 8px; background: rgba(255, 107, 145, 0.1); color: #ff6f91; border: 1px solid rgba(255, 107, 145, 0.3); cursor: pointer; font-size: 24px; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; line-height: 1; margin: 0;';
+                btn.onmouseover = function() { this.style.background = 'rgba(255, 107, 145, 0.2)'; this.style.borderColor = 'rgba(255, 107, 145, 0.5)'; this.style.transform = 'scale(1.1) rotate(90deg)'; };
+                btn.onmouseout = function() { this.style.background = 'rgba(255, 107, 145, 0.1)'; this.style.borderColor = 'rgba(255, 107, 145, 0.3)'; this.style.transform = 'scale(1) rotate(0deg)'; };
+                btn.onclick = () => { window.switchTab('all'); };
+                document.body.appendChild(btn);
+            }
+            btn.style.display = 'block';
+        } catch (e) {}
+        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'none';
+        if (rightPanel) rightPanel.style.display = 'none';
+        if (playerControls) playerControls.style.display = 'none';
+        if (topSearch) topSearch.style.display = 'none';
+        
+        // Локализуем страницу
+        if (window.localizePageContent) {
+            window.localizePageContent();
+        }
     } else {
         // Playlist tab
         console.log('[TAB] Switched to playlist:', tab);
@@ -1275,6 +1334,16 @@ window.toggleFavSearchResult = (trackId, source) => {
 };
 
 window.openPlaylistPickerMulti = (songId, source = 'local') => {
+    console.log('[PLAYLIST PICKER] Opened for songId:', songId, 'type:', typeof songId, 'source:', source);
+    
+    // Normalize songId type for local items: prefer Number when possible
+    if (source !== 'navidrome') {
+        const n = Number(songId);
+        if (!Number.isNaN(n)) songId = n;
+    }
+    
+    console.log('[PLAYLIST PICKER] After normalization - songId:', songId, 'type:', typeof songId);
+    
     state.pendingSongId = songId;
     state.pendingSongSource = source;
     const container = document.getElementById('pickerContainer');
@@ -1352,6 +1421,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
         
         btn.onclick = async (e) => {
             e.stopPropagation();
+            console.log('[PLAYLIST PICKER] Button clicked for playlist:', id, 'songId:', songId, 'source:', source);
             const playlist = await db.playlists.get(id);
             if (!playlist) return;
             
@@ -1432,7 +1502,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
                 navidromeSongIds: playlist.navidromeSongIds,
                 navidromeSongs: playlist.navidromeSongs
             });
-            console.log('[PLAYLIST] Updated playlist', id, '- navidromeSongs:', playlist.navidromeSongs?.length || 0);
+            console.log('[PLAYLIST] Updated playlist', id, 'songIds:', playlist.songIds, 'navidromeSongIds:', playlist.navidromeSongIds);
             await loadPlaylistsFromDB();
             
             // Если пользователь находится в этом плейлисте, обновить отображение
@@ -1877,7 +1947,13 @@ function initKeybinds() {
             case 'ArrowLeft': dom.audio.currentTime -= 10; break;
             case 'ArrowUp': e.preventDefault(); dom.audio.volume = Math.min(1, dom.audio.volume + 0.1); updateVolumeUI(); break;
             case 'ArrowDown': e.preventDefault(); dom.audio.volume = Math.max(0, dom.audio.volume - 0.1); updateVolumeUI(); break;
-            case 'Escape': if (state.isZen) window.toggleZen(false); break;
+            case 'Escape':
+                if (state.isZen) {
+                    window.toggleZen(false);
+                } else if (state.currentTab === 'about') {
+                    window.switchTab('all');
+                }
+                break;
             case 'KeyF': window.toggleZen(!state.isZen); break;
         }
     });

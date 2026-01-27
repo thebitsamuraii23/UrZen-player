@@ -1,6 +1,6 @@
 // Настройки приложения
 import { state, dom } from './state.js';
-import { I18N } from './i18n.js';
+import { I18N } from './i18n.js?v=20260126-2';
 import { refreshIcons } from './helpers.js';
 
 // Определяет язык браузера и возвращает поддерживаемый язык

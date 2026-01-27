@@ -100,12 +100,21 @@ export function getCurrentListView() {
     }
     else if (typeof state.currentTab === 'number') {
         const pl = state.playlists.find(p => p.id === state.currentTab);
+        console.log('[PLAYLIST VIEW] Getting list for playlist id:', state.currentTab, 'playlist:', pl);
         if (pl) {
+            console.log('[PLAYLIST VIEW] songIds:', pl.songIds, 'navidromeSongs count:', pl.navidromeSongs?.length || 0);
             // Объединяем локальные и Navidrome песни из плейлиста
-            const localSongs = state.library.filter(t => pl.songIds && pl.songIds.includes(t.id));
+            // Нормализуем songIds - сравниваем оба как Numbers
+            const normalizedSongIds = (pl.songIds || []).map(id => Number(id));
+            const localSongs = state.library.filter(t => {
+                const trackId = Number(t.id);
+                return normalizedSongIds.includes(trackId);
+            });
+            console.log('[PLAYLIST VIEW] Found local songs:', localSongs.length);
             // Используем сохранённые в БД Navidrome песни
             const navidromeSongs = pl.navidromeSongs || [];
             list = [...localSongs, ...navidromeSongs];
+            console.log('[PLAYLIST VIEW] Final list size:', list.length);
         }
     }
     // Apply search filter if present
