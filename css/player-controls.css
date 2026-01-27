@@ -78,6 +78,72 @@
   background: rgba(255, 62, 0, 0.1);
 }
 
+.queue-buttons {
+  display: flex;
+  gap: 0;
+}
+
+.queue-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--secondary-color);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  padding: 0;
+  font-size: 18px;
+}
+
+.queue-btn:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.queue-btn:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.queue-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.queue-btn i {
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.queue-btn .btn-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.queue-btn:hover .btn-label {
+  opacity: 1;
+}
+
+.queue-btn:hover i {
+  opacity: 0;
+  transform: scale(0);
+}
+
 .volume-controls {
   display: flex;
   align-items: center;

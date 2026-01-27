@@ -260,6 +260,16 @@ function renderLibrary() {
                 <p>${track.artist}</p>
             </div>
             <div class="song-actions">
+                <div class="queue-buttons">
+                    <button class="queue-btn play-next" onclick="event.stopPropagation(); window.addToQueueAndPlayNext('${trackId}', '${source}', true)">
+                        <i data-lucide="skip-forward"></i>
+                        <span class="btn-label">Play next</span>
+                    </button>
+                    <button class="queue-btn add-queue" onclick="event.stopPropagation(); window.addToQueueAndPlayNext('${trackId}', '${source}', false)">
+                        <i data-lucide="list-plus"></i>
+                        <span class="btn-label">Add to queue</span>
+                    </button>
+                </div>
                 <button class="mini-btn" onclick="event.stopPropagation(); window.openPlaylistPickerMulti('${trackId}', '${source}')"><i data-lucide="plus"></i></button>
                 <button class="mini-btn" onclick="event.stopPropagation(); window.toggleFav('${trackId}', '${source}')"><i data-lucide="heart" style="fill: ${track.isFavorite?'var(--accent)':'none'}; color: ${track.isFavorite?'var(--accent)':'currentColor'}"></i></button>
                 ${removeFromPlaylistBtn}
@@ -1102,6 +1112,48 @@ window.togglePlayback = () => {
         if (dom.audio.paused) dom.audio.play();
         else dom.audio.pause();
     }
+};
+
+// Add song to queue and optionally play it next
+window.addToQueueAndPlayNext = (id, source, playNext = false) => {
+    let track = null;
+    
+    if (source === 'navidrome') {
+        track = state.library.find(t => t.navidromeId === id);
+    } else {
+        track = state.library.find(t => t.id === Number(id));
+    }
+    
+    if (!track) {
+        console.error('Track not found:', id);
+        showToast('Трек не найден');
+        return;
+    }
+    
+    if (playNext) {
+        // Insert after current track
+        const insertIndex = state.currentIndex + 1;
+        state.library.splice(insertIndex, 0, track);
+        console.log('[QUEUE] Playing next: inserted at index', insertIndex);
+        showToast(`${track.title} будет следующей`);
+        
+        // Play it immediately
+        state.currentIndex = insertIndex;
+        if (source === 'navidrome') {
+            window.playNavidromeSong(track.navidromeId, track.title, track.artist, track.album, track.cover);
+        } else {
+            window.playTrack(track.id);
+        }
+    } else {
+        // Just add to end of queue
+        state.library.push(track);
+        console.log('[QUEUE] Added to queue at the end');
+        showToast(`${track.title} добавлена в очередь`);
+    }
+    
+    if (window.saveQueueState) window.saveQueueState();
+    renderLibrary();
+    renderSidebarQueue();
 };
 
 window.switchTab = (tab) => {
@@ -2394,4 +2446,26 @@ document.addEventListener('click', function(e) {
 // Export helper functions to window
 window.saveQueueState = saveQueueState;
 window.restoreQueueState = restoreQueueState;
+
+// Space bar: Hold for 2x speed, release for 1x speed
+let spacebarPressed = false;
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !spacebarPressed && document.activeElement === document.body) {
+        spacebarPressed = true;
+        if (dom.audio && !dom.audio.paused) {
+            dom.audio.playbackRate = 2.0;
+            console.log('[PLAYBACK] Speed: 2x');
+        }
+    }
+}, true);
+
+document.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && spacebarPressed) {
+        spacebarPressed = false;
+        if (dom.audio) {
+            dom.audio.playbackRate = 1.0;
+            console.log('[PLAYBACK] Speed: 1x');
+        }
+    }
+}, true);
 

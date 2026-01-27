@@ -65,6 +65,7 @@ export const I18N = {
         kb_esc: "Выход из Zen / Закрыть справку",
         kb_ctrl_next: "Следующий трек",
         kb_ctrl_prev: "Предыдущий трек",
+        kb_space_2x: "2x Скорость",
     },
     en: {
         library: "Library", favorites: "Favorites", playlists: "Playlists",
@@ -131,6 +132,7 @@ export const I18N = {
         kb_esc: "Exit Zen / Close Help",
         kb_ctrl_next: "Next Track",
         kb_ctrl_prev: "Previous Track",
+        kb_space_2x: "2x Speed",
     },
     es: {
         library: "Biblioteca", favorites: "Favoritos", playlists: "Listas de reproducción",
@@ -263,6 +265,7 @@ export const I18N = {
         kb_esc: "Zen beenden / Hilfe schließen",
         kb_ctrl_next: "Nächster Titel",
         kb_ctrl_prev: "Vorheriger Titel",
+        kb_space_2x: "2x Geschwindigkeit",
     },
     fr: {
         library: "Bibliothèque", favorites: "Favoris", playlists: "Listes de lecture",
@@ -404,5 +407,6 @@ export const I18N = {
         kb_esc: "Quitter Zen / Fermer l'aide",
         kb_ctrl_next: "Piste suivante",
         kb_ctrl_prev: "Piste précédente",
+        kb_space_2x: "2x Vitesse",
     }
 };
