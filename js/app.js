@@ -887,14 +887,22 @@ window.playTrack = (id) => {
             album: track.album || 'Unknown Album'
         };
         if (track.cover) {
-            metadata.artwork = [
-                { src: track.cover, sizes: '96x96', type: 'image/png' },
-                { src: track.cover, sizes: '128x128', type: 'image/png' },
-                { src: track.cover, sizes: '192x192', type: 'image/png' },
-                { src: track.cover, sizes: '256x256', type: 'image/png' }
-            ];
+            // Support both data URLs and regular image URLs
+            const artwork = [];
+            const coverUrl = track.cover;
+            artwork.push(
+                { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '256x256', type: 'image/jpeg' }
+            );
+            metadata.artwork = artwork;
+            console.log('[MEDIA SESSION] Artwork set:', artwork.length, 'sizes');
+        } else {
+            console.log('[MEDIA SESSION] No cover for track:', track.title);
         }
         navigator.mediaSession.metadata = new MediaMetadata(metadata);
+        console.log('[MEDIA SESSION] Metadata updated:', metadata.title, metadata.artist);
         
         // Set up action handlers for media controls
         navigator.mediaSession.setActionHandler('play', () => {
@@ -909,6 +917,8 @@ window.playTrack = (id) => {
         navigator.mediaSession.setActionHandler('previoustrack', () => {
             window.prevTrack();
         });
+    } else {
+        console.log('[MEDIA SESSION] Not supported in this browser');
     }
     
     // Сохраняем состояние очереди
