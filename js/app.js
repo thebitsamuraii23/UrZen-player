@@ -831,7 +831,9 @@ window.removeFromQueue = (trackId) => {
 
 // ============ ПЛЕЕР ============
 window.playTrack = (id) => {
+    console.log('🎵 [PLAYTRACK] Called with id:', id);
     const track = state.library.find(t => t.id === id || t.navidromeId === id);
+    console.log('🎵 [PLAYTRACK] Found track:', track?.title, track?.artist);
     if (!track) {
         console.error('Track not found:', id);
         return;
@@ -881,44 +883,53 @@ window.playTrack = (id) => {
     // Update browser title and Media Session API
     document.title = `${track.title} - ${track.artist} | UrZen`;
     if ('mediaSession' in navigator) {
-        const metadata = {
-            title: track.title,
-            artist: track.artist,
-            album: track.album || 'Unknown Album'
-        };
-        if (track.cover) {
-            // Support both data URLs and regular image URLs
-            const artwork = [];
-            const coverUrl = track.cover;
-            artwork.push(
-                { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
-                { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
-                { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
-                { src: coverUrl, sizes: '256x256', type: 'image/jpeg' }
-            );
-            metadata.artwork = artwork;
-            console.log('[MEDIA SESSION] Artwork set:', artwork.length, 'sizes');
-        } else {
-            console.log('[MEDIA SESSION] No cover for track:', track.title);
+        try {
+            const metadata = {
+                title: String(track.title || 'Unknown Title'),
+                artist: String(track.artist || 'Unknown Artist'),
+                album: String(track.album || 'UrZen Player')
+            };
+            
+            if (track.cover) {
+                const coverUrl = track.cover;
+                metadata.artwork = [
+                    { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
+                    { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
+                    { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
+                    { src: coverUrl, sizes: '256x256', type: 'image/jpeg' }
+                ];
+                console.log('[MEDIA SESSION] Artwork set with cover');
+            }
+            
+            navigator.mediaSession.metadata = new MediaMetadata(metadata);
+            console.log('[MEDIA SESSION] Metadata set:', metadata);
+            
+            // Update playback state
+            navigator.mediaSession.playbackState = 'playing';
+            
+            // Set position state for progress bar
+            navigator.mediaSession.setPositionState({
+                duration: dom.audio.duration || 0,
+                playbackRate: 1.0,
+                position: 0
+            });
+            
+            // Set up action handlers
+            navigator.mediaSession.setActionHandler('play', () => {
+                dom.audio.play().catch(e => console.error('Play action error:', e));
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                dom.audio.pause();
+            });
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                window.nextTrack();
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                window.prevTrack();
+            });
+        } catch (e) {
+            console.error('[MEDIA SESSION] Error:', e);
         }
-        navigator.mediaSession.metadata = new MediaMetadata(metadata);
-        console.log('[MEDIA SESSION] Metadata updated:', metadata.title, metadata.artist);
-        
-        // Set up action handlers for media controls
-        navigator.mediaSession.setActionHandler('play', () => {
-            dom.audio.play().catch(e => console.error('Play action error:', e));
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-            dom.audio.pause();
-        });
-        navigator.mediaSession.setActionHandler('nexttrack', () => {
-            window.nextTrack();
-        });
-        navigator.mediaSession.setActionHandler('previoustrack', () => {
-            window.prevTrack();
-        });
-    } else {
-        console.log('[MEDIA SESSION] Not supported in this browser');
     }
     
     // Сохраняем состояние очереди
@@ -1812,12 +1823,38 @@ function startVisualizer() {
 
 // ============ СОБЫТИЯ АУДИО ============
 function initAudioEvents() {
-    dom.audio.onplay = () => { state.isPlaying = true; document.body.classList.add('playing'); updatePlayIcon(true); };
-    dom.audio.onpause = () => { state.isPlaying = false; document.body.classList.remove('playing'); updatePlayIcon(false); };
+    dom.audio.onplay = () => { 
+        state.isPlaying = true; 
+        document.body.classList.add('playing'); 
+        updatePlayIcon(true);
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+        }
+    };
+    dom.audio.onpause = () => { 
+        state.isPlaying = false; 
+        document.body.classList.remove('playing'); 
+        updatePlayIcon(false);
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'paused';
+        }
+    };
     dom.audio.ontimeupdate = () => {
         const p = (dom.audio.currentTime / dom.audio.duration) * 100 || 0;
         dom.progFill.style.width = p + "%";
         dom.timeCur.innerText = formatTime(dom.audio.currentTime);
+        // Update media session position state
+        if ('mediaSession' in navigator && dom.audio.duration) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: dom.audio.duration,
+                    playbackRate: 1.0,
+                    position: dom.audio.currentTime
+                });
+            } catch (e) {
+                // Ignore errors from setPositionState
+            }
+        }
     };
     dom.audio.onended = () => window.nextTrack();
     dom.audio.onloadedmetadata = () => dom.timeDur.innerText = formatTime(dom.audio.duration);

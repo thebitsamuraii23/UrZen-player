@@ -226,17 +226,20 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     
     const streamUrl = getNavidromeStreamUrl(songId);
     console.log('[NAVIDROME] Stream URL:', streamUrl);
+    console.log('🎬 LOG_1: After streamUrl');
     
     // If we don't have metadata, fetch it
     let songDetails = null;
     if (!coverUrl || !title) {
       songDetails = await getSongDetails(songId);
     }
+    console.log('🎬 LOG_2: After getSongDetails, songDetails =', songDetails);
 
     const finalTitle = title || songDetails?.title || 'Unknown';
     const finalArtist = artist || songDetails?.artist || 'Unknown Artist';
     const finalAlbum = album || songDetails?.album || '';
     const finalCoverUrl = coverUrl || songDetails?.coverUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100';
+    console.log('🎬 LOG_3: Final metadata =', { finalTitle, finalArtist, finalAlbum });
 
     // Create song object with complete metadata
     const song = {
@@ -290,16 +293,19 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     const dom = window.dom;
     if (dom && dom.audio) {
       console.log('[NAVIDROME] Setting audio source to:', streamUrl);
+      console.log('🎬 LOG_4: dom and dom.audio exist');
       dom.audio.src = streamUrl;
       dom.audio.crossOrigin = 'anonymous';
       dom.audio.play().catch(err => console.error('[NAVIDROME] Play error:', err));
     } else {
       console.error('[NAVIDROME] DOM or audio element not found');
+      console.log('🎬 LOG_4_ERROR: dom =', dom, 'dom.audio =', dom?.audio);
       return;
     }
 
     // Update track info display with final metadata
     if (dom) {
+      console.log('🎬 LOG_5: Updating DOM text');
       dom.trackName.innerText = finalTitle;
       dom.artistName.innerText = finalArtist;
       
@@ -312,11 +318,77 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     }
 
     console.log('[NAVIDROME] Playing:', finalTitle, 'by', finalArtist);
+    console.log('🎬 LOG_6: Before Media Session API');
+    
+    // Update browser title and Media Session API
+    document.title = `${finalTitle} - ${finalArtist} | UrZen`;
+    console.log('🎬 LOG_7: document.title set');
+    
+    if ('mediaSession' in navigator) {
+      console.log('🎬 LOG_8: mediaSession exists in navigator');
+      try {
+        const metadata = {
+          title: String(finalTitle || 'Unknown Title'),
+          artist: String(finalArtist || 'Unknown Artist'),
+          album: String(finalAlbum || 'UrZen Player')
+        };
+        console.log('🎬 LOG_9: metadata object created =', metadata);
+        
+        if (finalCoverUrl) {
+          metadata.artwork = [
+            { src: finalCoverUrl, sizes: '96x96', type: 'image/jpeg' },
+            { src: finalCoverUrl, sizes: '128x128', type: 'image/jpeg' },
+            { src: finalCoverUrl, sizes: '192x192', type: 'image/jpeg' },
+            { src: finalCoverUrl, sizes: '256x256', type: 'image/jpeg' }
+          ];
+          console.log('🎬 LOG_10: artwork added to metadata');
+        }
+        
+        console.log('🎬 LOG_11: About to call navigator.mediaSession.metadata =');
+        navigator.mediaSession.metadata = new MediaMetadata(metadata);
+        console.log('🎬 LOG_12: navigator.mediaSession.metadata SET SUCCESS');
+        
+        navigator.mediaSession.playbackState = 'playing';
+        console.log('🎬 LOG_13: playbackState set to playing');
+        
+        // Set position state for progress bar
+        navigator.mediaSession.setPositionState({
+          duration: song.duration || 0,
+          playbackRate: 1.0,
+          position: 0
+        });
+        console.log('🎬 LOG_14: setPositionState called');
+        
+        // Set up action handlers
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (dom && dom.audio) dom.audio.play().catch(e => console.error('Play action error:', e));
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (dom && dom.audio) dom.audio.pause();
+        });
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          if (window.nextTrack) window.nextTrack();
+        });
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          if (window.prevTrack) window.prevTrack();
+        });
+        console.log('🎬 LOG_15: All action handlers set');
+        
+        console.log('[NAVIDROME] Media Session: Metadata updated', metadata);
+      } catch (e) {
+        console.error('[NAVIDROME] Media Session error:', e);
+        console.error('🎬 ERROR in Media Session:', e.message);
+      }
+    } else {
+      console.log('🎬 LOG_8_FAIL: mediaSession NOT in navigator');
+    }
+    console.log('🎬 LOG_16: End of Media Session code');
     
     // Сохраняем состояние очереди
     if (window.saveQueueState) {
       window.saveQueueState();
     }
+    console.log('🎬 LOG_17: Queue saved');
     
     // Refresh UI immediately to show new song in queue
     if (window.renderLibrary) {
