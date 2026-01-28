@@ -23,14 +23,14 @@ jobs:
           echo "${{ secrets.SSH_KEY }}" > "$SSH_DIR/id_ed25519"
           chmod 600 "$SSH_DIR/id_ed25519"
 
-          # Берём IP из секретов и чистим от лишних символов
+          # Берём hostname из секретов
           HOST=$(echo "${{ secrets.SERVER_HOST }}" | tr -d '\r\n ')
           if [ -z "$HOST" ]; then
             echo "SERVER_HOST is empty, exiting"
             exit 1
           fi
 
-          # Проверяем, доступен ли сервер по IP
+          # Проверяем доступность сервера
           ping -c 2 "$HOST" || { echo "Server $HOST is unreachable"; exit 1; }
 
           # Добавляем в known_hosts
