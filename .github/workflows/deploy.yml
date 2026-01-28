@@ -18,11 +18,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          # Clean host from trailing newlines or spaces
+          HOST=$(echo "${{ secrets.SSH_HOST }}" | tr -d '\r\n')
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy on server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
 
             echo "➡️ Go to project"
@@ -32,9 +34,11 @@ jobs:
             git fetch origin
             git reset --hard origin/tests/updates
 
-            echo "➡️ Rebuild docker image"
+            echo "➡️ Stop old container if exists"
             docker stop z-player || true
             docker rm z-player || true
+
+            echo "➡️ Build docker image"
             docker build -t z-player .
 
             echo "➡️ Run container"
