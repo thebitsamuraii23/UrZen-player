@@ -15,30 +15,14 @@ jobs:
 
       - name: Setup SSH
         run: |
-          SSH_DIR="${HOME}/.ssh"
-          mkdir -p "$SSH_DIR"
-          chmod 700 "$SSH_DIR"
-
-          # Добавляем приватный ключ
-          echo "${{ secrets.SSH_KEY }}" > "$SSH_DIR/id_ed25519"
-          chmod 600 "$SSH_DIR/id_ed25519"
-
-          # Берём hostname из секретов
-          HOST=$(echo "${{ secrets.SERVER_HOST }}" | tr -d '\r\n ')
-          if [ -z "$HOST" ]; then
-            echo "SERVER_HOST is empty, exiting"
-            exit 1
-          fi
-
-          # Проверяем доступность сервера
-          ping -c 2 "$HOST" || { echo "Server $HOST is unreachable"; exit 1; }
-
-          # Добавляем в known_hosts
-          ssh-keyscan -H "$HOST" >> "$SSH_DIR/known_hosts"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
 
             echo "➡️ Go to project"
@@ -48,11 +32,9 @@ jobs:
             git fetch origin
             git reset --hard origin/tests/updates
 
-            echo "➡️ Stop old container if exists"
+            echo "➡️ Rebuild docker image"
             docker stop z-player || true
             docker rm z-player || true
-
-            echo "➡️ Build docker image"
             docker build -t z-player .
 
             echo "➡️ Run container"
