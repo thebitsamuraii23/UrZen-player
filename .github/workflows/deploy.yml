@@ -15,19 +15,18 @@ jobs:
 
       - name: Setup SSH
         run: |
-          # Надежная настройка SSH директории
           SSH_DIR="${HOME}/.ssh"
           mkdir -p "$SSH_DIR"
           chmod 700 "$SSH_DIR"
 
           # Добавляем приватный ключ
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > "$SSH_DIR/id_ed25519"
+          echo "${{ secrets.SSH_KEY }}" > "$SSH_DIR/id_ed25519"
           chmod 600 "$SSH_DIR/id_ed25519"
 
-          # Проверяем и чистим хост
-          HOST=$(echo "${{ secrets.SSH_HOST }}" | tr -d '\r\n')
+          # Берём хост и чистим его
+          HOST=$(echo "${{ secrets.SERVER_HOST }}" | tr -d '\r\n')
           if [ -z "$HOST" ]; then
-            echo "SSH_HOST is empty, exiting"
+            echo "SERVER_HOST is empty, exiting"
             exit 1
           fi
 
@@ -36,7 +35,7 @@ jobs:
 
       - name: Deploy on server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
 
             echo "➡️ Go to project"
