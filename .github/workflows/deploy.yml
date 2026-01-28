@@ -1,22 +1,22 @@
-name: Deploy to EC2
+name: Deploy z-player to EC2
 
 on:
   push:
     branches:
-      - main
+      - tests/updates
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
@@ -24,12 +24,25 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
+
+            echo "➡️ Go to project"
             cd /root/z-player
 
-            git pull origin main
+            echo "➡️ Pull latest code"
+            git fetch origin
+            git reset --hard origin/tests/updates
 
+            echo "➡️ Rebuild docker image"
             docker stop z-player || true
             docker rm z-player || true
             docker build -t z-player .
-            docker run -d --name z-player -p 3001:3001 z-player
+
+            echo "➡️ Run container"
+            docker run -d \
+              --restart unless-stopped \
+              --name z-player \
+              -p 3001:3001 \
+              z-player
+
+            echo "✅ Deploy finished"
           EOF
