@@ -18,19 +18,41 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Проверка, что хост не пустой
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "❌ SSH_HOST secret is empty"
+            exit 1
+          fi
+          echo "➡️ Adding host ${{ secrets.SSH_HOST }} to known_hosts"
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Debug connection
+        run: |
+          echo "➡️ Trying to connect to ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo ✅ Connected as \$(whoami) on \$(hostname)"
 
       - name: Deploy on server
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
 
             echo "➡️ Go to project"
+            mkdir -p /root/z-player
             cd /root/z-player
 
             echo "➡️ Pull latest code"
+            if [ ! -d ".git" ]; then
+              git init
+              git remote add origin git@github.com:YOUR_USERNAME/z-player.git
+            fi
             git fetch origin
             git reset --hard origin/tests/updates
+
+            echo "➡️ Check Docker"
+            if ! command -v docker &> /dev/null; then
+              echo "❌ Docker not found, installing..."
+              apt-get update && apt-get install -y docker.io
+            fi
 
             echo "➡️ Rebuild docker image"
             docker stop z-player || true
