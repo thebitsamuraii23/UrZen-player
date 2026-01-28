@@ -27,7 +27,7 @@ jobs:
             echo "❌ SSH_PRIVATE_KEY secret is empty"
             exit 1
           fi
-          echo "✅ Secrets look fine"
+          echo "✅ Repository secrets look fine"
 
       - name: Setup SSH
         run: |
