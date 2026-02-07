@@ -268,3 +268,7 @@ MIT License © 2026 - Feel free to use, modify, and distribute
 **Made with ❤️ by [thebitsamuraii23](https://github.com/thebitsamuraii23)**
 
 **Enjoy your music! 🎧**
+
+
+**Website is still in development and many features can be buggy or some features may be added.**
+**Thanks for your understanding!**
