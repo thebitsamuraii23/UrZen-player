@@ -24,43 +24,36 @@ jobs:
 
       - name: Deployment Execution
         run: |
-          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -v -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} << 'EOF'
             # Включаем режим отладки (вывод всех команд в консоль GitHub)
             set -ex 
 
             PROJECT_DIR="/root/z-player"
             
-            echo "➡️ Подготовка директории..."
+            echo "➡️ Зачистка территории..."
+            # Если папка существует, мы её сносим, чтобы не было проблем с правами и конфликтами git
+            rm -rf "$PROJECT_DIR"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            echo "➡️ Обновление исходного кода..."
-            if [ ! -d ".git" ]; then
-              # Если папки нет - клонируем с нуля
-              git clone -b tests/updates https://github.com/${{ github.repository }}.git .
-            else
-              # Если папка есть - вычищаем всё и принудительно обновляем
-              git remote set-url origin https://github.com/${{ github.repository }}.git
-              git fetch origin tests/updates
-              git reset --hard FETCH_HEAD
-              git clean -fd
-            fi
+            echo "➡️ Свежий клон репозитория..."
+            git clone -b tests/updates https://github.com/${{ github.repository }}.git .
 
-            echo "➡️ Пересборка Docker контейнера..."
-            # Останавливаем старый хлам, если он запущен
+            echo "➡️ Пересборка Docker..."
+            # Останавливаем всё, что связано с z-player
             docker stop z-player || true
             docker rm z-player || true
             
-            # Чистим кэш сборки, чтобы не было "ой, я ничего не обновил"
+            # Сборка БЕЗ кэша, чтобы твои изменения точно попали внутрь
             docker build --no-cache -t z-player .
 
-            echo "➡️ Запуск нового контейнера..."
+            echo "➡️ Запуск контейнера..."
             docker run -d \
               --restart unless-stopped \
               --name z-player \
               -p 3001:3001 \
               z-player
 
-            echo "✅ Статус контейнера:"
-            docker ps -a | grep z-player
+            echo "✅ Проверка работы:"
+            docker ps | grep z-player
           EOF
