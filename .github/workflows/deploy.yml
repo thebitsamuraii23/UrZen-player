@@ -13,7 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Настройка SSH ключа через проверенный экшен
       - name: Install SSH Key
         uses: shimataro/ssh-key-action@v2
         with:
@@ -23,52 +22,43 @@ jobs:
 
       - name: Execute Remote Deployment
         run: |
-          # Используем xargs для безопасной очистки от пробелов (без риска побить строку)
+          # Очищаем хост и юзера от пробелов
           CLEAN_HOST=$(echo "${{ secrets.SSH_HOST }}" | xargs)
           CLEAN_USER=$(echo "${{ secrets.SSH_USER }}" | xargs)
           
-          echo "➡️ Подготовка подключения к $CLEAN_HOST..."
+          echo "➡️ Попытка подключения к $CLEAN_HOST под юзером $CLEAN_USER..."
           
-          # Сканируем ключи хоста, чтобы SSH не ругался на проверку подлинности
+          # Сканируем ключи хоста
           ssh-keyscan -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
           
-          # Основной скрипт деплоя
+          # Команда SSH с защитой от зависания
           ssh -o StrictHostKeyChecking=no "$CLEAN_USER@$CLEAN_HOST" << 'EOF'
             set -e
 
-            # Определяем папку проекта в домашней директории (не в root!)
+            # Используем домашнюю папку текущего пользователя
             PROJECT_DIR="$HOME/z-player"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            echo "➡️ Обновление кода проекта..."
+            echo "➡️ Обновление кода..."
             if [ ! -d ".git" ]; then
-              # Если папки нет, клонируем репозиторий
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
-              # Если папка есть, сбрасываем состояние до актуального из ветки
               git fetch origin tests/updates
               git reset --hard FETCH_HEAD
             fi
 
-            echo "➡️ Проверка Docker..."
-            if ! command -v docker &> /dev/null; then
-              echo "❌ Ошибка: Docker не установлен на сервере!"
-              exit 1
-            fi
-
-            echo "➡️ Пересборка и запуск контейнера..."
-            # Останавливаем старый контейнер, если он существует
+            echo "➡️ Сборка Docker..."
             docker stop z-player || true
             docker rm z-player || true
-            
-            # Собираем образ и запускаем
             docker build -t z-player .
+
+            echo "➡️ Запуск..."
             docker run -d \
               --restart unless-stopped \
               --name z-player \
               -p 3001:3001 \
               z-player
 
-            echo "✅ Деплой успешно завершен, пупсяндра!"
+            echo "✅ Готово!"
           EOF
