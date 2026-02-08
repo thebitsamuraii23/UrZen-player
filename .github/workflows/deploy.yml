@@ -9,32 +9,29 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Prepare SSH
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          # Записываем ключ и ГАРАНТИРУЕМ пустую строку в конце
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_root
-          chmod 600 ~/.ssh/id_root
-          
-          # Убираем проверку хоста, чтобы не тратить время на keyscan, раз ты так уверен
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Игнорируем проверку хоста, чтобы не возиться с keyscan
           echo "Host *" > ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
-          echo "    UserKnownHostsFile /dev/null" >> ~/.ssh/config
 
-      - name: Bruteforce Root Deploy
+      - name: Deployment
         run: |
-          ssh -i ~/.ssh/id_root root@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
-            echo "🚨 Зашел под root. Надеюсь, ты знаешь, что делаешь."
+            echo "🔥 Внутри! Если упадет — значит ты не сделал restart ssh на сервере."
             
             PROJECT_DIR="/root/z-player"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            # Обновление кода
+            # Чистый деплой
             if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
@@ -42,11 +39,11 @@ jobs:
               git reset --hard FETCH_HEAD
             fi
 
-            # Docker (под рутом sudo не нужен)
+            # Пересборка
             docker stop z-player || true
             docker rm z-player || true
             docker build -t z-player .
             docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
             
-            echo "✅ Готово. Теперь можешь гордиться своим рут-доступом."
+            echo "🚀 Всё взлетело, можешь отдыхать."
           EOF
