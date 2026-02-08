@@ -8,39 +8,37 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # Важно: Host Verification мы проходим через ssh-keyscan ниже
-          known_hosts: "unnecessary"
-          if_key_exists: replace
-
-      - name: Execute Remote Deployment
+      - name: Manual SSH Setup
         run: |
-          # 1. Очистка переменных (защита от твоих пробелов)
-          CLEAN_HOST=$(echo "${{ secrets.SSH_HOST }}" | xargs)
-          CLEAN_USER=$(echo "${{ secrets.SSH_USER }}" | xargs)
+          # Создаем директорию для SSH
+          mkdir -p ~/.ssh
           
-          echo "➡️ Пробуем пробиться на $CLEAN_HOST под именем $CLEAN_USER"
+          # Записываем ключ напрямую из секрета
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           
-          # 2. Добавляем сервер в доверенные
-          ssh-keyscan -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
+          # Выставляем жесткие права (SSH не примет ключ с правами 644)
+          chmod 600 ~/.ssh/id_rsa
           
-          # 3. Деплой. Добавил -v для подробного лога, если опять упадет
-          ssh -v -o StrictHostKeyChecking=no "$CLEAN_USER@$CLEAN_HOST" << 'EOF'
+          # Сканируем хост, чтобы не было интерактивного вопроса про trust
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Run Deploy Script
+        run: |
+          # Коннектимся и выполняем деплой одной командой
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
             set -e
             
-            # Работаем в домашней папке юзера
+            # Определяем путь
             PROJECT_DIR="$HOME/z-player"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            echo "➡️ Обновляем код..."
+            echo "➡️ Обновление кода..."
             if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
@@ -48,11 +46,18 @@ jobs:
               git reset --hard FETCH_HEAD
             fi
 
-            echo "➡️ Перезапуск контейнера..."
+            echo "➡️ Docker rebuild..."
+            # Если docker не в sudo группе, здесь всё упадет. Но ты же "всё настроил правильно".
             docker stop z-player || true
             docker rm z-player || true
             docker build -t z-player .
-            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
             
-            echo "✅ Победа, пупсяндра!"
+            echo "➡️ Docker run..."
+            docker run -d \
+              --restart unless-stopped \
+              --name z-player \
+              -p 3001:3001 \
+              z-player
+
+            echo "✅ Деплой окончен."
           EOF
