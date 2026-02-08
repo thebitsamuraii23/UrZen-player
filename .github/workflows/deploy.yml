@@ -8,12 +8,12 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Автоматизируем настройку SSH, чтобы ты ничего не сломал руками
+      # Настройка SSH ключа через проверенный экшен
       - name: Install SSH Key
         uses: shimataro/ssh-key-action@v2
         with:
@@ -23,50 +23,52 @@ jobs:
 
       - name: Execute Remote Deployment
         run: |
-          # 1. Очищаем секреты от пробелов и прочей нечисти
-          HOST=$(echo "${{ secrets.SSH_HOST }}" | tr -d '[:space:')
-          USER=$(echo "${{ secrets.SSH_USER }}" | tr -d '[:space:')
+          # Используем xargs для безопасной очистки от пробелов (без риска побить строку)
+          CLEAN_HOST=$(echo "${{ secrets.SSH_HOST }}" | xargs)
+          CLEAN_USER=$(echo "${{ secrets.SSH_USER }}" | xargs)
           
-          # 2. Добавляем сервер в известные хосты
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          echo "➡️ Подготовка подключения к $CLEAN_HOST..."
           
-          # 3. Запускаем деплой через SSH
-          ssh -o StrictHostKeyChecking=no "$USER@$HOST" << 'EOF'
+          # Сканируем ключи хоста, чтобы SSH не ругался на проверку подлинности
+          ssh-keyscan -H "$CLEAN_HOST" >> ~/.ssh/known_hosts
+          
+          # Основной скрипт деплоя
+          ssh -o StrictHostKeyChecking=no "$CLEAN_USER@$CLEAN_HOST" << 'EOF'
             set -e
 
-            # Уходим из-под root в нормальную домашнюю директорию
-            TARGET_DIR="/home/$(whoami)/z-player"
-            mkdir -p $TARGET_DIR
-            cd $TARGET_DIR
+            # Определяем папку проекта в домашней директории (не в root!)
+            PROJECT_DIR="$HOME/z-player"
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
 
-            echo "➡️ Обновляем исходники..."
+            echo "➡️ Обновление кода проекта..."
             if [ ! -d ".git" ]; then
+              # Если папки нет, клонируем репозиторий
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
+              # Если папка есть, сбрасываем состояние до актуального из ветки
               git fetch origin tests/updates
               git reset --hard FETCH_HEAD
             fi
 
-            echo "➡️ Проверяем Docker..."
+            echo "➡️ Проверка Docker..."
             if ! command -v docker &> /dev/null; then
               echo "❌ Ошибка: Docker не установлен на сервере!"
               exit 1
             fi
 
-            echo "➡️ Пересборка контейнера..."
-            # Останавливаем старье, если оно есть
+            echo "➡️ Пересборка и запуск контейнера..."
+            # Останавливаем старый контейнер, если он существует
             docker stop z-player || true
             docker rm z-player || true
             
-            # Собираем новый образ
+            # Собираем образ и запускаем
             docker build -t z-player .
-
-            echo "➡️ Запуск приложения..."
             docker run -d \
               --restart unless-stopped \
               --name z-player \
               -p 3001:3001 \
               z-player
 
-            echo "✅ Деплой успешно завершен!"
+            echo "✅ Деплой успешно завершен, пупсяндра!"
           EOF
