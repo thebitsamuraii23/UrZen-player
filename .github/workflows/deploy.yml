@@ -8,31 +8,38 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Автоматизируем настройку SSH, чтобы ты ничего не сломал руками
       - name: Install SSH Key
         uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: unnecessary # Мы отключим проверку ниже для простоты
+          known_hosts: "unnecessary"
           if_key_exists: replace
 
-      - name: Deploy via SSH
+      - name: Execute Remote Deployment
         run: |
-          # Используем ssh-keyscan, чтобы не ловить ошибки Host Verification
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          # 1. Очищаем секреты от пробелов и прочей нечисти
+          HOST=$(echo "${{ secrets.SSH_HOST }}" | tr -d '[:space:')
+          USER=$(echo "${{ secrets.SSH_USER }}" | tr -d '[:space:')
           
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          # 2. Добавляем сервер в известные хосты
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          
+          # 3. Запускаем деплой через SSH
+          ssh -o StrictHostKeyChecking=no "$USER@$HOST" << 'EOF'
             set -e
-            
-            # Определяем рабочую директорию (лучше не в /root, если ты не маньяк)
-            TARGET_DIR="/home/${{ secrets.SSH_USER }}/z-player"
+
+            # Уходим из-под root в нормальную домашнюю директорию
+            TARGET_DIR="/home/$(whoami)/z-player"
             mkdir -p $TARGET_DIR
             cd $TARGET_DIR
 
-            echo "➡️ Updating code..."
+            echo "➡️ Обновляем исходники..."
             if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
@@ -40,26 +47,26 @@ jobs:
               git reset --hard FETCH_HEAD
             fi
 
-            echo "➡️ Preparing Docker..."
-            # Проверяем наличие docker, а не пытаемся его судорожно ставить
+            echo "➡️ Проверяем Docker..."
             if ! command -v docker &> /dev/null; then
-                echo "Error: Docker is not installed on the server!"
-                exit 1
+              echo "❌ Ошибка: Docker не установлен на сервере!"
+              exit 1
             fi
 
-            echo "➡️ Rebuilding container..."
+            echo "➡️ Пересборка контейнера..."
+            # Останавливаем старье, если оно есть
             docker stop z-player || true
             docker rm z-player || true
             
-            # Собираем образ. Если есть Dockerfile в корне — всё взлетит.
+            # Собираем новый образ
             docker build -t z-player .
 
-            echo "➡️ Starting container..."
+            echo "➡️ Запуск приложения..."
             docker run -d \
               --restart unless-stopped \
               --name z-player \
               -p 3001:3001 \
               z-player
 
-            echo "✅ Deploy successful!"
+            echo "✅ Деплой успешно завершен!"
           EOF
