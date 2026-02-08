@@ -17,43 +17,30 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          # Настраиваем конфиг, чтобы не было тупых вопросов про проверку хоста
           echo "Host *" > ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
           echo "    UserKnownHostsFile /dev/null" >> ~/.ssh/config
 
       - name: Deployment Execution
         run: |
-          ssh -v -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} << 'EOF'
-            # Включаем режим отладки (вывод всех команд в консоль GitHub)
-            set -ex 
-
-            PROJECT_DIR="/root/z-player"
-            
-            echo "➡️ Зачистка территории..."
-            # Если папка существует, мы её сносим, чтобы не было проблем с правами и конфликтами git
-            rm -rf "$PROJECT_DIR"
-            mkdir -p "$PROJECT_DIR"
-            cd "$PROJECT_DIR"
-
-            echo "➡️ Свежий клон репозитория..."
-            git clone -b tests/updates https://github.com/${{ github.repository }}.git .
-
-            echo "➡️ Пересборка Docker..."
-            # Останавливаем всё, что связано с z-player
-            docker stop z-player || true
-            docker rm z-player || true
-            
-            # Сборка БЕЗ кэша, чтобы твои изменения точно попали внутрь
-            docker build --no-cache -t z-player .
-
-            echo "➡️ Запуск контейнера..."
-            docker run -d \
-              --restart unless-stopped \
-              --name z-player \
-              -p 3001:3001 \
-              z-player
-
-            echo "✅ Проверка работы:"
-            docker ps | grep z-player
-          EOF
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} "set -ex && \
+            PROJECT_DIR='/root/z-player' && \
+            mkdir -p \$PROJECT_DIR && \
+            cd \$PROJECT_DIR && \
+            echo '➡️ Обновление кода...' && \
+            if [ ! -d '.git' ]; then \
+              git clone -b tests/updates https://github.com/${{ github.repository }}.git . ; \
+            else \
+              git fetch origin tests/updates && \
+              git reset --hard FETCH_HEAD && \
+              git clean -fd ; \
+            fi && \
+            echo '➡️ Пересборка Docker...' && \
+            docker stop z-player || true && \
+            docker rm z-player || true && \
+            docker rmi z-player || true && \
+            docker build --no-cache -t z-player . && \
+            echo '➡️ Запуск...' && \
+            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player && \
+            echo '✅ Статус:' && \
+            docker ps | grep z-player"
