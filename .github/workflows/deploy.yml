@@ -23,24 +23,32 @@ jobs:
 
       - name: Deployment Execution
         run: |
-          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} "set -ex && \
-            PROJECT_DIR='/root/z-player' && \
-            mkdir -p \$PROJECT_DIR && \
-            cd \$PROJECT_DIR && \
-            echo '➡️ Обновление кода...' && \
-            if [ ! -d '.git' ]; then \
-              git clone -b tests/updates https://github.com/${{ github.repository }}.git . ; \
-            else \
-              git fetch origin tests/updates && \
-              git reset --hard FETCH_HEAD && \
-              git clean -fd ; \
-            fi && \
-            echo '➡️ Пересборка Docker...' && \
-            docker stop z-player || true && \
-            docker rm z-player || true && \
-            docker rmi z-player || true && \
-            docker build --no-cache -t z-player . && \
-            echo '➡️ Запуск...' && \
-            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player && \
-            echo '✅ Статус:' && \
-            docker ps | grep z-player"
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} "bash -s" << 'INNER_EOF'
+            set -ex
+            PROJECT_DIR="/root/z-player"
+            
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+            
+            echo "➡️ Обновление кода..."
+            if [ ! -d ".git" ]; then
+              git clone -b tests/updates https://github.com/${{ github.repository }}.git .
+            else
+              git fetch origin tests/updates
+              git reset --hard FETCH_HEAD
+              git clean -fd
+            fi
+            
+            echo "➡️ Работа с Docker..."
+            docker stop z-player || true
+            docker rm z-player || true
+            docker rmi z-player || true
+            
+            docker build --no-cache -t z-player .
+            
+            echo "➡️ Запуск..."
+            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
+            
+            echo "✅ Статус:"
+            docker ps | grep z-player
+          INNER_EOF
