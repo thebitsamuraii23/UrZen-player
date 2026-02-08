@@ -1,4 +1,4 @@
-name: Deploy z-player to EC2
+name: Deploy z-player to EC2 Root
 
 on:
   push:
@@ -8,37 +8,33 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Manual SSH Setup
+      - name: Prepare SSH
         run: |
-          # Создаем директорию для SSH
           mkdir -p ~/.ssh
+          # Записываем ключ и ГАРАНТИРУЕМ пустую строку в конце
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_root
+          chmod 600 ~/.ssh/id_root
           
-          # Записываем ключ напрямую из секрета
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          
-          # Выставляем жесткие права (SSH не примет ключ с правами 644)
-          chmod 600 ~/.ssh/id_rsa
-          
-          # Сканируем хост, чтобы не было интерактивного вопроса про trust
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          # Убираем проверку хоста, чтобы не тратить время на keyscan, раз ты так уверен
+          echo "Host *" > ~/.ssh/config
+          echo "    StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "    UserKnownHostsFile /dev/null" >> ~/.ssh/config
 
-      - name: Run Deploy Script
+      - name: Bruteforce Root Deploy
         run: |
-          # Коннектимся и выполняем деплой одной командой
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
+          ssh -i ~/.ssh/id_root root@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
+            echo "🚨 Зашел под root. Надеюсь, ты знаешь, что делаешь."
             
-            # Определяем путь
-            PROJECT_DIR="$HOME/z-player"
+            PROJECT_DIR="/root/z-player"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            echo "➡️ Обновление кода..."
+            # Обновление кода
             if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
@@ -46,18 +42,11 @@ jobs:
               git reset --hard FETCH_HEAD
             fi
 
-            echo "➡️ Docker rebuild..."
-            # Если docker не в sudo группе, здесь всё упадет. Но ты же "всё настроил правильно".
+            # Docker (под рутом sudo не нужен)
             docker stop z-player || true
             docker rm z-player || true
             docker build -t z-player .
+            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
             
-            echo "➡️ Docker run..."
-            docker run -d \
-              --restart unless-stopped \
-              --name z-player \
-              -p 3001:3001 \
-              z-player
-
-            echo "✅ Деплой окончен."
+            echo "✅ Готово. Теперь можешь гордиться своим рут-доступом."
           EOF
