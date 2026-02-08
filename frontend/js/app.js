@@ -483,7 +483,10 @@ function renderNavidromeTiles(list, grid) {
             transition: transform 0.3s ease;
         `;
         imgContainer.appendChild(img);
-        
+
+        // Store track for quick access (queue add button)
+        if (!window.tempNavidromeTracks) window.tempNavidromeTracks = {};
+
         // Overlay для артиста (появляется при наведении)
         const overlay = document.createElement('div');
         overlay.style.cssText = `
@@ -531,6 +534,20 @@ function renderNavidromeTiles(list, grid) {
         const safeArtist = (track.artist || '').replace(/'/g, "\\'");
         const safeAlbum = (track.album || '').replace(/'/g, "\\'");
         const safeCover = (track.cover || '').replace(/'/g, "\\'");
+
+        window.tempNavidromeTracks[String(trackId)] = track;
+
+        const queueBtn = document.createElement('button');
+        queueBtn.className = 'navidrome-queue-btn';
+        queueBtn.title = t('add_to_queue_next', 'Add to queue (play next)');
+        queueBtn.innerHTML = '<i data-lucide="plus"></i>';
+        queueBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (window.addToQueueNextNavidrome) {
+                window.addToQueueNextNavidrome(trackId);
+            }
+        };
+        imgContainer.appendChild(queueBtn);
         
         tile.onclick = () => {
             // Animate tile and open player
@@ -558,6 +575,8 @@ function renderNavidromeTiles(list, grid) {
         
         grid.appendChild(tile);
     });
+
+    refreshIcons();
 }
 
 function renderNavidromeInterface() {
@@ -831,6 +850,68 @@ window.removeFromQueue = (trackId) => {
     }
 };
 
+// Add a Navidrome track to queue and make it play next
+window.addToQueueNextNavidrome = (trackId) => {
+    const id = String(trackId);
+    const tempMap = window.tempNavidromeTracks || {};
+    let track = tempMap[id];
+    if (!track && Array.isArray(state.navidromeSongs)) {
+        track = state.navidromeSongs.find(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    }
+    if (!track) {
+        track = state.library.find(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    }
+    if (!track) {
+        showToast(t('track_data_unavailable', 'Error: Track data not available'));
+        return;
+    }
+    
+    const queuedTrack = {
+        id: track.id || track.navidromeId || id,
+        title: track.title || t('unknown_title', 'Unknown'),
+        artist: track.artist || t('unknown_artist', 'Unknown Artist'),
+        album: track.album || '',
+        duration: track.duration || 0,
+        url: window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(id) : track.url,
+        cover: track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100',
+        source: 'navidrome',
+        navidromeId: id
+    };
+    
+    let insertIdx = state.currentIndex >= 0 ? state.currentIndex + 1 : state.library.length;
+    const existingIdx = state.library.findIndex(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    
+    if (existingIdx !== -1) {
+        const [existing] = state.library.splice(existingIdx, 1);
+        if (existingIdx < insertIdx) insertIdx--;
+        state.library.splice(insertIdx, 0, existing);
+    } else {
+        state.library.splice(insertIdx, 0, queuedTrack);
+    }
+    
+    if (state.currentIndex === -1) {
+        if (queuedTrack.source === 'navidrome') {
+            window.playNavidromeSong(id, queuedTrack.title, queuedTrack.artist, queuedTrack.album, queuedTrack.cover);
+        } else {
+            window.playTrack(queuedTrack.id);
+        }
+        return;
+    }
+    
+    if (existingIdx !== -1 && existingIdx < state.currentIndex) {
+        state.currentIndex--;
+    }
+    if (insertIdx <= state.currentIndex) {
+        state.currentIndex++;
+    }
+    
+    state.nextOverrideId = id;
+    if (typeof saveQueueState === 'function') saveQueueState();
+    renderLibrary();
+    renderSidebarQueue();
+    showToast(t('added_to_queue_next', 'Added to queue (play next)'));
+};
+
 // ============ ПЛЕЕР ============
 window.playTrack = (id) => {
     console.log('🎵 [PLAYTRACK] Called with id:', id);
@@ -842,10 +923,12 @@ window.playTrack = (id) => {
     }
     state.currentIndex = state.library.findIndex(t => t.id === id || t.navidromeId === id);
     
-    // Если shuffle включен, пересоздать порядок начиная с этого трека
+    // Если shuffle включен, синхронизировать позицию с выбранным треком
     if (state.shuffle) {
-        generateShuffleOrder();
-        state.shufflePosition = 0;
+        const trackId = track.navidromeId || track.id;
+        if (typeof syncShufflePositionWithTrackId === 'function') {
+            syncShufflePositionWithTrackId(trackId);
+        }
     }
     
     // Для Navidrome песен: ВСЕГДА генерируем свежий URL, так как токены истекают
@@ -962,6 +1045,34 @@ function generateShuffleOrder() {
     console.log('[SHUFFLE] Generated shuffle order:', state.shuffledOrder);
 }
 
+// Align shuffle position with a specific track id so prev/next follow history
+function syncShufflePositionWithTrackId(trackId) {
+    if (!state.shuffle) return;
+    const view = getCurrentListView();
+    if (view.length === 0) return;
+    
+    const id = String(trackId);
+    const viewIndex = view.findIndex(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    if (viewIndex === -1) return;
+    
+    if (!Array.isArray(state.shuffledOrder) || state.shuffledOrder.length !== view.length) {
+        generateShuffleOrder();
+    }
+    
+    let pos = state.shuffledOrder.indexOf(viewIndex);
+    if (pos === -1) {
+        generateShuffleOrder();
+        pos = state.shuffledOrder.indexOf(viewIndex);
+    }
+    
+    if (pos !== -1) {
+        state.shufflePosition = pos + 1;
+        console.log('[SHUFFLE] Synced position to', state.shufflePosition, 'for index', viewIndex);
+    }
+}
+
+window.syncShufflePositionWithTrackId = syncShufflePositionWithTrackId;
+
 window.nextTrack = () => {
     const view = getCurrentListView();
     if (view.length === 0) return;
@@ -974,7 +1085,20 @@ window.nextTrack = () => {
 
     let nextTrack;
 
-    if (state.shuffle) {
+    if (state.nextOverrideId) {
+        const overrideId = String(state.nextOverrideId);
+        state.nextOverrideId = null;
+        
+        nextTrack = view.find(t => String(t.id || t.navidromeId) === overrideId || String(t.navidromeId) === overrideId);
+        if (!nextTrack) {
+            nextTrack = state.library.find(t => String(t.id || t.navidromeId) === overrideId || String(t.navidromeId) === overrideId);
+        }
+        if (nextTrack && state.shuffle) {
+            syncShufflePositionWithTrackId(overrideId);
+        }
+    }
+
+    if (!nextTrack && state.shuffle) {
         // Если shuffle порядок не создан или не совпадает с текущей очередью, создать его
         if (state.shuffledOrder.length !== view.length || state.shufflePosition === state.shuffledOrder.length) {
             if (state.repeat === 'all' && state.shufflePosition === state.shuffledOrder.length) {
@@ -995,7 +1119,7 @@ window.nextTrack = () => {
         } else {
             return;
         }
-    } else {
+    } else if (!nextTrack) {
         // Обычное воспроизведение в порядке
         const currentTrack = state.library[state.currentIndex];
         const currentTrackId = currentTrack?.id || currentTrack?.navidromeId;
@@ -1292,6 +1416,11 @@ window.toggleShuffle = () => {
     // Если shuffle включен, создать перемешанный порядок
     if (state.shuffle) {
         generateShuffleOrder();
+        if (state.currentIndex !== -1) {
+            const currentTrack = state.library[state.currentIndex];
+            const currentId = currentTrack?.navidromeId || currentTrack?.id;
+            if (currentId !== undefined) syncShufflePositionWithTrackId(currentId);
+        }
         console.log('[SHUFFLE] Shuffle enabled, order generated');
     } else {
         // Если shuffle отключен, очистить порядок
@@ -2056,7 +2185,10 @@ function initKeybinds() {
 
 // ============ ОЧИСТКА БД ============
 window.clearFullDatabase = async () => {
-    if (!confirm(t('wipe_db_confirm', 'Are you sure? All data will be deleted.'))) return;
+    window.toggleModal('wipeDataModal');
+};
+
+window.confirmWipeData = async () => {
     await db.songs.clear();
     await db.playlists.clear();
     await db.settings.clear();
@@ -2069,6 +2201,7 @@ window.clearFullDatabase = async () => {
     renderLibrary();
     await loadPlaylistsFromDB();
     showToast(t('database_cleared', 'Database cleared'));
+    window.toggleModal('wipeDataModal');
 };
 
 // ============ ИНИЦИАЛИЗАЦИЯ ============

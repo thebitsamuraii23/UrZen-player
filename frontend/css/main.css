@@ -264,6 +264,20 @@ aside.right {
     box-shadow: 0 30px 60px rgba(0,0,0,0.8);
 }
 .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
+.modal-overlay.active .modal-content.wipe-animate { animation: wipePulse 520ms ease-out both; }
+.modal-overlay.active .modal-content.modal-animate { animation: modalReveal 520ms ease-out both; }
+
+@keyframes wipePulse {
+    0% { transform: scale(0.96) translateY(20px); opacity: 0.6; }
+    60% { transform: scale(1.02) translateY(0); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes modalReveal {
+    0% { transform: scale(0.95) translateY(24px); opacity: 0.5; }
+    70% { transform: scale(1.01) translateY(0); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
 
 .modal-close { position: absolute; top: 25px; right: 25px; cursor: pointer; color: var(--text-dim); transition: 0.3s; }
 .modal-close:hover { color: var(--accent); transform: rotate(90deg); }
@@ -1069,3 +1083,32 @@ input:checked + .slider-toggle {
     font-size: 14px;
 }
 
+.navidrome-queue-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(10, 10, 10, 0.6);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    z-index: 20;
+}
+
+.navidrome-queue-btn:hover {
+    transform: scale(1.08);
+    background: rgba(10, 10, 10, 0.8);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.navidrome-queue-btn i {
+    width: 18px;
+    height: 18px;
+}

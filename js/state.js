@@ -21,7 +21,8 @@ export const state = {
     searchQuery: '',
     navidromeSearchQuery: '',  // Отдельный поиск для Navidrome
     shuffledOrder: [],  // Массив индексов в перемешанном порядке
-    shufflePosition: 0  // Текущая позиция в перемешанном порядке
+    shufflePosition: 0,  // Текущая позиция в перемешанном порядке
+    nextOverrideId: null
 };
 
 // DOM elements

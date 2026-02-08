@@ -109,7 +109,7 @@
 </button>
 
 <div class="modal-overlay" id="playlistPickerOverlay">
-    <div class="modal-content">
+    <div class="modal-content modal-animate">
         <div class="modal-close" onclick="window.closePlaylistPicker()"><i data-lucide="x"></i></div>
         <h3 data-t="choose_playlist">Добавить в плейлист</h3>
         <div class="list-container playlist-picker-list" id="pickerContainer" style="margin-top:20px; max-height: 300px;"></div>
@@ -118,7 +118,7 @@
 
 <!-- Auth Modal -->
 <div class="modal-overlay" id="authModal">
-    <div class="modal-content" style="width: 400px;">
+    <div class="modal-content modal-animate" style="width: 400px;">
         <div class="modal-close" onclick="window.toggleAuthModal()"><i data-lucide="x"></i></div>
         
         <!-- Login Tab -->
@@ -152,7 +152,7 @@
 
 <!-- Music Section Restriction Overlay -->
 <div class="modal-overlay" id="musicRestrictionOverlay">
-    <div class="modal-content" style="width: 380px; text-align: center; animation: slideInCenter 0.4s ease-out;">
+    <div class="modal-content modal-animate" style="width: 380px; text-align: center; animation: slideInCenter 0.4s ease-out;">
         <h3 id="restrictionTitle" data-t="music_restricted_title" style="margin-bottom: 16px; font-size: 22px; font-weight: 700;">Доступ ограничен</h3>
         <p id="restrictionMessage" data-t="music_restricted_message" style="margin-bottom: 32px; color: var(--text-dim); font-size: 14px; line-height: 1.6;">Зарегистрируйтесь, чтобы использовать раздел Музыка</p>
         <div style="display: flex; gap: 12px; justify-content: center;">
@@ -164,7 +164,7 @@
 
 <!-- Rename Playlist Modal -->
 <div class="modal-overlay" id="renamePlaylistModal">
-    <div class="modal-content" style="width: 380px;">
+    <div class="modal-content modal-animate" style="width: 380px;">
         <h3 style="margin-bottom: 25px;" data-t="rename_playlist">Rename Playlist</h3>
         <input type="text" id="renamePlaylistInput" placeholder="New name..." data-t-placeholder="rename_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white; margin-bottom: 25px;">
         <div style="display: flex; gap: 15px;">
@@ -176,7 +176,7 @@
 
 <!-- Delete Playlist Confirmation Modal -->
 <div class="modal-overlay" id="deletePlaylistModal">
-    <div class="modal-content" style="width: 380px;">
+    <div class="modal-content modal-animate" style="width: 380px;">
         <h3 style="margin-bottom: 25px; color: #ff3e00;" data-t="delete_playlist">Delete Playlist?</h3>
         <p style="color: var(--text-dim); margin-bottom: 30px;" data-t="delete_playlist_confirm">This action cannot be undone.</p>
         <div style="display: flex; gap: 15px;">
@@ -188,7 +188,7 @@
 
 <!-- Clear Queue Confirmation Modal -->
 <div class="modal-overlay" id="clearQueueModal">
-    <div class="modal-content" style="width: 380px;">
+    <div class="modal-content modal-animate" style="width: 380px;">
         <h3 style="margin-bottom: 25px; color: #ff9500;" data-t="clear_queue">Clear Queue?</h3>
         <p style="color: var(--text-dim); margin-bottom: 30px;" data-t="clear_queue_confirm">All tracks in the queue will be deleted. This action cannot be undone.</p>
         <div style="display: flex; gap: 15px;">
@@ -198,8 +198,20 @@
     </div>
 </div>
 
+<!-- Wipe Data Confirmation Modal -->
+<div class="modal-overlay" id="wipeDataModal" style="z-index: 4000;">
+    <div class="modal-content wipe-animate" style="width: 380px;">
+        <h3 style="margin-bottom: 25px; color: #ff3e00;" data-t="wipe_db_title">Wipe All Data?</h3>
+        <p style="color: var(--text-dim); margin-bottom: 30px;" data-t="wipe_db_confirm">This action cannot be undone.</p>
+        <div style="display: flex; gap: 15px;">
+            <button onclick="window.confirmWipeData()" class="btn-animated" style="flex: 1; background: #ff3e00; color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700; transition: 0.3s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-t="wipe_db_action">Wipe Data</button>
+            <button onclick="window.toggleModal('wipeDataModal')" class="btn-animated" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.background='var(--surface-bright)'" onmouseout="this.style.background='var(--surface)'" data-t="cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="settingsModal">
-    <div class="modal-content">
+    <div class="modal-content modal-animate">
         <div class="modal-close" onclick="window.toggleSettings()"><i data-lucide="x"></i></div>
         <h3 style="margin-bottom: 20px;" data-t="settings">Конфигурация системы</h3>
         
@@ -219,6 +231,23 @@
                     <option value="fr">🇫🇷 Français</option>
                 </select>
             </div>
+        </div>
+
+        <div class="setting-group" style="gap:12px;">
+            <button onclick="window.changeMediaServer()" data-t="change_media_server"
+                style="width:100%; background: #15161a; color: #f2f2f2; border: 1px solid var(--border); padding: 14px 16px; border-radius: 14px; cursor: pointer; font-weight: 800; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease;"
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 28px rgba(0,0,0,0.45)'; this.style.borderColor='var(--accent)'; this.style.background='#1b1c21';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.35)'; this.style.borderColor='var(--border)'; this.style.background='#15161a';">
+                <i data-lucide="server" style="width:18px; height:18px;"></i>
+                <span data-t="change_media_server">Поменять медиасервер</span>
+            </button>
+            <button onclick="window.resetMediaServer()" data-t="reset_media_server"
+                style="width:100%; margin-top:10px; background: #0f1013; color: #c9c9c9; border: 1px solid rgba(255,255,255,0.08); padding: 12px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;"
+                onmouseover="this.style.transform='translateY(-1px)'; this.style.borderColor='rgba(255,255,255,0.18)'; this.style.background='#14151a';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.borderColor='rgba(255,255,255,0.08)'; this.style.background='#0f1013';">
+                <i data-lucide="refresh-ccw" style="width:16px; height:16px;"></i>
+                <span data-t="reset_media_server">Сбросить медиасервер</span>
+            </button>
         </div>
         
         <div class="setting-group">
@@ -246,10 +275,35 @@
             <span>Music Jacker Bot</span>
         </button>
 
-        <button class="settings-btn" onclick="window.clearFullDatabase()" style="width:100%; background: transparent; color: #ff3e00; border: 1px solid #ff3e00; padding: 14px; border-radius: 12px; cursor: pointer; font-weight: 700; transition: 0.3s;">
+        <button class="settings-btn" onclick="window.clearFullDatabase()"
+            style="width:100%; background:#0f1013; color:#ffb3b3; border:1px solid rgba(255,62,0,0.45); padding:14px; border-radius:12px; cursor:pointer; font-weight:600; letter-spacing:0.2px; transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease;"
+            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 10px 24px rgba(255,62,0,0.25)'; this.style.borderColor='#ff3e00'; this.style.background='#14151a';"
+            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'; this.style.borderColor='rgba(255,62,0,0.45)'; this.style.background='#0f1013';">
             <i data-lucide="trash-2" style="width:16px; display:inline; vertical-align:middle; margin-right:8px;"></i>
             <span data-t="reset_db">Wipe All Data</span>
         </button>
+    </div>
+</div>
+
+<!-- Media Server Settings Modal -->
+<div class="modal-overlay" id="mediaServerModal">
+    <div class="modal-content modal-animate" style="width: 420px;">
+        <div class="modal-close" onclick="window.closeMediaServerModal()"><i data-lucide="x"></i></div>
+        <h3 style="margin-bottom: 20px;" data-t="media_server_title">Media Server</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <label style="color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;" data-t="server_url_label">Server URL</label>
+            <input type="text" id="mediaServerUrl" placeholder="https://example.com" data-t-placeholder="server_url_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
+
+            <label style="color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;" data-t="server_user_label">User</label>
+            <input type="text" id="mediaServerUser" placeholder="guest" data-t-placeholder="server_user_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
+
+            <label style="color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;" data-t="server_pass_label">Password</label>
+            <input type="password" id="mediaServerPass" placeholder="guest" data-t-placeholder="server_pass_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
+        </div>
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+            <button onclick="window.saveMediaServerSettings()" style="flex: 1; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 10px; cursor:pointer; font-weight: 700;" data-t="save">Save</button>
+            <button onclick="window.closeMediaServerModal()" style="flex: 1; background: var(--surface); color: white; border: none; padding: 14px; border-radius: 10px; cursor:pointer;" data-t="cancel">Cancel</button>
+        </div>
     </div>
 </div>
 

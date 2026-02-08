@@ -1,7 +1,11 @@
 // Настройки приложения
 import { state, dom } from './state.js';
 import { I18N } from './i18n.js?v=20260126-2';
-import { refreshIcons } from './helpers.js';
+import { refreshIcons, showToast } from './helpers.js';
+
+const DEFAULT_NAVIDROME_SERVER = 'https://music.youtubemusicdownloader.life';
+const DEFAULT_NAVIDROME_USER = 'guest';
+const DEFAULT_NAVIDROME_PASS = 'guest';
 
 // Определяет язык браузера и возвращает поддерживаемый язык
 function detectBrowserLanguage() {
@@ -85,6 +89,40 @@ export async function loadSettings() {
             window.navidromeFavorites = [];
         }
     }
+
+    // Загружаем сохраненный медиасервер (если есть) в state для информативных целей
+    try {
+        const savedServer = await window.db.settings.get('navidromeServer');
+        if (savedServer?.value) {
+            state.navidromeServer = savedServer.value;
+        } else {
+            state.navidromeServer = localStorage.getItem('navidromeServer') || null;
+        }
+    } catch (e) {
+        state.navidromeServer = localStorage.getItem('navidromeServer') || null;
+    }
+
+    try {
+        const savedUser = await window.db.settings.get('navidromeUser');
+        if (savedUser?.value) {
+            state.navidromeUser = savedUser.value;
+        } else {
+            state.navidromeUser = localStorage.getItem('navidromeUser') || '';
+        }
+    } catch (e) {
+        state.navidromeUser = localStorage.getItem('navidromeUser') || '';
+    }
+
+    try {
+        const savedPass = await window.db.settings.get('navidromePass');
+        if (savedPass?.value) {
+            state.navidromePass = savedPass.value;
+        } else {
+            state.navidromePass = localStorage.getItem('navidromePass') || '';
+        }
+    } catch (e) {
+        state.navidromePass = localStorage.getItem('navidromePass') || '';
+    }
 }
 
 export function applyLanguage() {
@@ -147,6 +185,100 @@ export function initSettingsHandlers() {
         await window.db.settings.put({key: 'language', value: normalized});
         localStorage.setItem('language', normalized);
         applyLanguage();
+    };
+
+    window.changeMediaServer = async () => {
+        const modal = document.getElementById('mediaServerModal');
+        if (!modal) return;
+        const serverInput = document.getElementById('mediaServerUrl');
+        const userInput = document.getElementById('mediaServerUser');
+        const passInput = document.getElementById('mediaServerPass');
+
+        if (serverInput) {
+            serverInput.value = state.navidromeServer || localStorage.getItem('navidromeServer') || DEFAULT_NAVIDROME_SERVER;
+        }
+        if (userInput) {
+            userInput.value = state.navidromeUser || localStorage.getItem('navidromeUser') || DEFAULT_NAVIDROME_USER;
+        }
+        if (passInput) {
+            passInput.value = state.navidromePass || localStorage.getItem('navidromePass') || DEFAULT_NAVIDROME_PASS;
+        }
+
+        modal.classList.add('active');
+    };
+
+    window.closeMediaServerModal = () => {
+        const modal = document.getElementById('mediaServerModal');
+        if (modal) modal.classList.remove('active');
+    };
+
+    window.saveMediaServerSettings = async () => {
+        const serverInput = document.getElementById('mediaServerUrl');
+        const userInput = document.getElementById('mediaServerUser');
+        const passInput = document.getElementById('mediaServerPass');
+        if (!serverInput) return;
+
+        const trimmed = (serverInput.value || '').trim();
+        const isValid = /^https?:\/\//i.test(trimmed);
+        if (!isValid) {
+            showToast(t('invalid_server_url', 'Invalid server URL'));
+            return;
+        }
+
+        const normalized = trimmed.replace(/\/$/, '');
+        const user = (userInput?.value || '').trim() || DEFAULT_NAVIDROME_USER;
+        const pass = (passInput?.value || '').trim() || DEFAULT_NAVIDROME_PASS;
+
+        try {
+            await window.db.settings.put({ key: 'navidromeServer', value: normalized });
+            await window.db.settings.put({ key: 'navidromeUser', value: user });
+            await window.db.settings.put({ key: 'navidromePass', value: pass });
+        } catch (e) {
+            console.warn('[SETTINGS] Failed to save server to DB, falling back to localStorage:', e);
+        }
+        localStorage.setItem('navidromeServer', normalized);
+        localStorage.setItem('navidromeUser', user);
+        localStorage.setItem('navidromePass', pass);
+        state.navidromeServer = normalized;
+        state.navidromeUser = user;
+        state.navidromePass = pass;
+
+        // Clear navidrome caches to force reload from new server
+        localStorage.removeItem('navidromeSongs');
+        localStorage.removeItem('navidromeSongsLastUpdate');
+        window._navidromeSongsCache = [];
+        if (window.state) window.state.navidromeSongs = [];
+
+        showToast(t('server_saved', 'Media server updated'));
+        window.closeMediaServerModal();
+
+        if (window.state?.currentTab === 'navidrome' && window.switchTab) {
+            window.switchTab('navidrome');
+        }
+    };
+
+    window.resetMediaServer = async () => {
+        try {
+            await window.db.settings.delete('navidromeServer');
+            await window.db.settings.delete('navidromeUser');
+            await window.db.settings.delete('navidromePass');
+        } catch (e) {
+            console.warn('[SETTINGS] Failed to delete server from DB:', e);
+        }
+        localStorage.removeItem('navidromeServer');
+        localStorage.removeItem('navidromeUser');
+        localStorage.removeItem('navidromePass');
+        state.navidromeServer = null;
+        state.navidromeUser = '';
+        state.navidromePass = '';
+        localStorage.removeItem('navidromeSongs');
+        localStorage.removeItem('navidromeSongsLastUpdate');
+        window._navidromeSongsCache = [];
+        if (window.state) window.state.navidromeSongs = [];
+        showToast(t('server_reset', 'Media server reset to default'));
+        if (window.state?.currentTab === 'navidrome' && window.switchTab) {
+            window.switchTab('navidrome');
+        }
     };
 }
 

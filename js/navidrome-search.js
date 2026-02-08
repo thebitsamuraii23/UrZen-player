@@ -6,19 +6,45 @@ import { t } from './settings.js';
  * Works with guest account: guest / guest
  */
 
-const NAVIDROME_URL = 'https://music.youtubemusicdownloader.life';
-const NAVIDROME_USER = 'guest';
-const NAVIDROME_PASS = 'guest';
+const NAVIDROME_URL_DEFAULT = 'https://music.youtubemusicdownloader.life';
+const NAVIDROME_USER_DEFAULT = 'guest';
+const NAVIDROME_PASS_DEFAULT = 'guest';
 const API_VERSION = '1.16.1';
 const APP_NAME = 'Z-Testing';
+
+function getNavidromeBaseUrl() {
+  try {
+    const saved = localStorage.getItem('navidromeServer');
+    if (saved && typeof saved === 'string' && saved.trim().length > 0) {
+      return saved.replace(/\/+$/, '');
+    }
+  } catch (e) {
+    console.warn('[NAVIDROME] Failed to read saved server:', e);
+  }
+  return NAVIDROME_URL_DEFAULT;
+}
 
 /**
  * Build Navidrome API URL with auth params
  */
+function getNavidromeCredentials() {
+  try {
+    const savedUser = localStorage.getItem('navidromeUser');
+    const savedPass = localStorage.getItem('navidromePass');
+    const user = (savedUser && savedUser.trim().length > 0) ? savedUser.trim() : NAVIDROME_USER_DEFAULT;
+    const pass = (savedPass && savedPass.trim().length > 0) ? savedPass.trim() : NAVIDROME_PASS_DEFAULT;
+    return { user, pass };
+  } catch (e) {
+    return { user: NAVIDROME_USER_DEFAULT, pass: NAVIDROME_PASS_DEFAULT };
+  }
+}
+
 function buildNavidromeUrl(method, params = {}) {
+  const baseUrl = getNavidromeBaseUrl();
+  const { user, pass } = getNavidromeCredentials();
   const baseParams = {
-    u: NAVIDROME_USER,
-    p: NAVIDROME_PASS,
+    u: user,
+    p: pass,
     v: API_VERSION,
     c: APP_NAME,
     f: 'json'
@@ -27,7 +53,7 @@ function buildNavidromeUrl(method, params = {}) {
   const allParams = { ...baseParams, ...params };
   const queryString = new URLSearchParams(allParams).toString();
   
-  return `${NAVIDROME_URL}/rest/${method}?${queryString}`;
+  return `${baseUrl}/rest/${method}?${queryString}`;
 }
 
 /**
@@ -288,6 +314,9 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
       const idx = window.state.library.findIndex(s => s.navidromeId === songId);
       if (idx !== -1) {
         window.state.currentIndex = idx;
+      }
+      if (typeof window.syncShufflePositionWithTrackId === 'function') {
+        window.syncShufflePositionWithTrackId(songId);
       }
     }
 
