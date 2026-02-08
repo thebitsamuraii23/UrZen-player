@@ -17,33 +17,50 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          # Игнорируем проверку хоста, чтобы не возиться с keyscan
+          # Настраиваем конфиг, чтобы не было тупых вопросов про проверку хоста
           echo "Host *" > ~/.ssh/config
           echo "    StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "    UserKnownHostsFile /dev/null" >> ~/.ssh/config
 
-      - name: Deployment
+      - name: Deployment Execution
         run: |
           ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} << 'EOF'
-            set -e
-            echo "🔥 Внутри! Если упадет — значит ты не сделал restart ssh на сервере."
-            
+            # Включаем режим отладки (вывод всех команд в консоль GitHub)
+            set -ex 
+
             PROJECT_DIR="/root/z-player"
+            
+            echo "➡️ Подготовка директории..."
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
 
-            # Чистый деплой
+            echo "➡️ Обновление исходного кода..."
             if [ ! -d ".git" ]; then
+              # Если папки нет - клонируем с нуля
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
+              # Если папка есть - вычищаем всё и принудительно обновляем
+              git remote set-url origin https://github.com/${{ github.repository }}.git
               git fetch origin tests/updates
               git reset --hard FETCH_HEAD
+              git clean -fd
             fi
 
-            # Пересборка
+            echo "➡️ Пересборка Docker контейнера..."
+            # Останавливаем старый хлам, если он запущен
             docker stop z-player || true
             docker rm z-player || true
-            docker build -t z-player .
-            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
             
-            echo "🚀 Всё взлетело, можешь отдыхать."
+            # Чистим кэш сборки, чтобы не было "ой, я ничего не обновил"
+            docker build --no-cache -t z-player .
+
+            echo "➡️ Запуск нового контейнера..."
+            docker run -d \
+              --restart unless-stopped \
+              --name z-player \
+              -p 3001:3001 \
+              z-player
+
+            echo "✅ Статус контейнера:"
+            docker ps -a | grep z-player
           EOF
