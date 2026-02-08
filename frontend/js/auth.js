@@ -3,6 +3,8 @@
  * Handles login, registration, and JWT token management
  */
 
+import { t } from './settings.js';
+
 // Dynamic API URL - use same domain in production, localhost in development
 const AUTH_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? `http://localhost:3001`
@@ -81,11 +83,11 @@ window.handleLogin = async function() {
   const statusEl = document.getElementById('authLoginStatus');
 
   if (!username || !password) {
-    showAuthStatus(statusEl, 'Please fill in all fields', 'error');
+    showAuthStatus(statusEl, t('auth_fill_fields', 'Please fill in all fields'), 'error');
     return;
   }
 
-  showAuthStatus(statusEl, 'Signing in...', 'loading');
+  showAuthStatus(statusEl, t('auth_signing_in', 'Signing in...'), 'loading');
 
   try {
     const response = await fetch(`${AUTH_API_URL}/login`, {
@@ -102,7 +104,7 @@ window.handleLogin = async function() {
       saveTokenToLocalStorage(data.token);
       saveUsernameToLocalStorage(data.username);
 
-      showAuthStatus(statusEl, 'Login successful!', 'success');
+      showAuthStatus(statusEl, t('auth_login_success', 'Login successful!'), 'success');
       
       document.getElementById('loginUsername').value = '';
       document.getElementById('loginPassword').value = '';
@@ -112,11 +114,11 @@ window.handleLogin = async function() {
         updateAuthNavItem(data.username);
       }, 800);
     } else {
-      showAuthStatus(statusEl, data.error || 'Login failed', 'error');
+      showAuthStatus(statusEl, data.error || t('auth_login_failed', 'Login failed'), 'error');
     }
   } catch (error) {
     console.error('[AUTH] Login error:', error);
-    showAuthStatus(statusEl, 'Connection error. Is the server running?', 'error');
+    showAuthStatus(statusEl, t('auth_connection_error', 'Connection error. Is the server running?'), 'error');
   }
 };
 
@@ -129,21 +131,21 @@ window.handleRegister = async function() {
   const statusEl = document.getElementById('authRegisterStatus');
 
   if (!username || !password) {
-    showAuthStatus(statusEl, 'Please fill in all fields', 'error');
+    showAuthStatus(statusEl, t('auth_fill_fields', 'Please fill in all fields'), 'error');
     return;
   }
 
   if (username.length < 3) {
-    showAuthStatus(statusEl, 'Username must be at least 3 characters', 'error');
+    showAuthStatus(statusEl, t('auth_username_short', 'Username must be at least 3 characters'), 'error');
     return;
   }
 
   if (password.length < 6) {
-    showAuthStatus(statusEl, 'Password must be at least 6 characters', 'error');
+    showAuthStatus(statusEl, t('auth_password_short', 'Password must be at least 6 characters'), 'error');
     return;
   }
 
-  showAuthStatus(statusEl, 'Creating account...', 'loading');
+  showAuthStatus(statusEl, t('auth_registering', 'Creating account...'), 'loading');
 
   try {
     const response = await fetch(`${AUTH_API_URL}/register`, {
@@ -157,7 +159,7 @@ window.handleRegister = async function() {
     const data = await response.json();
 
     if (response.ok) {
-      showAuthStatus(statusEl, 'Account created! Signing in...', 'success');
+      showAuthStatus(statusEl, t('auth_register_success', 'Account created! Signing in...'), 'success');
       
       setTimeout(() => {
         saveTokenToLocalStorage(data.token);
@@ -168,11 +170,11 @@ window.handleRegister = async function() {
         updateAuthNavItem(data.username);
       }, 800);
     } else {
-      showAuthStatus(statusEl, data.error || 'Registration failed', 'error');
+      showAuthStatus(statusEl, data.error || t('auth_register_failed', 'Registration failed'), 'error');
     }
   } catch (error) {
     console.error('[AUTH] Register error:', error);
-    showAuthStatus(statusEl, 'Connection error. Is the server running?', 'error');
+    showAuthStatus(statusEl, t('auth_connection_error', 'Connection error. Is the server running?'), 'error');
   }
 };
 
@@ -186,7 +188,7 @@ window.handleLogout = function() {
   
   // Optional: Show a toast message
   if (typeof showToast === 'function') {
-    showToast('Logged out successfully');
+    showToast(t('auth_logged_out', 'Logged out successfully'));
   }
 };
 

@@ -11,11 +11,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 
 // Middleware
 const isDev = process.env.NODE_ENV !== 'production';
+app.disable('x-powered-by');
 app.use(cors({
-  origin: isDev ? ['http://localhost:3000', 'http://localhost:5500', 'http://localhost:5501', 'http://127.0.0.1:5500', 'http://127.0.0.1:5501', 'http://127.0.0.1:3000'] : true,
+  origin: isDev
+    ? ['http://localhost:3000', 'http://localhost:5500', 'http://localhost:5501', 'http://127.0.0.1:5500', 'http://127.0.0.1:5501', 'http://127.0.0.1:3000']
+    : (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean) : false),
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Database initialization
 const dbPath = process.env.DB_PATH || './users.db';
@@ -31,6 +34,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 function initializeDatabase() {
   db.serialize(() => {
+    db.run('PRAGMA foreign_keys = ON');
+
     // Create users table
     db.run(`
       CREATE TABLE IF NOT EXISTS users (
@@ -99,22 +104,24 @@ const validateInput = (username, password) => {
 
 // Middleware to verify JWT token
 const verifyToken = (req, res, next) => {
-  console.log('[MIDDLEWARE] Verifying token - Headers:', Object.keys(req.headers));
   const authHeader = req.headers.authorization;
-  console.log('[MIDDLEWARE] Auth header:', authHeader?.substring(0, 20) + '...');
+  if (isDev) {
+    console.log('[MIDDLEWARE] Verifying token - Headers:', Object.keys(req.headers));
+    console.log('[MIDDLEWARE] Auth header present:', Boolean(authHeader));
+  }
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    console.log('[MIDDLEWARE] No token found');
+    if (isDev) console.log('[MIDDLEWARE] No token found');
     return res.status(401).json({ error: 'Token required' });
   }
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      console.log('[MIDDLEWARE] Token verification failed:', err.message);
+      if (isDev) console.log('[MIDDLEWARE] Token verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    console.log('[MIDDLEWARE] Token verified - User:', user.userId);
+    if (isDev) console.log('[MIDDLEWARE] Token verified - User:', user.userId);
     req.user = user;
     next();
   });
@@ -156,9 +163,18 @@ app.post('/register', async (req, res) => {
               return res.status(400).json({ error: 'Username already taken' });
             }
 
+            // Generate JWT (match login behavior so frontend can auto-sign-in)
+            const token = jwt.sign(
+              { userId: this.lastID, username: username },
+              JWT_SECRET,
+              { expiresIn: '7d' }
+            );
+
             res.status(201).json({
               message: 'User registered successfully',
-              userId: this.lastID
+              userId: this.lastID,
+              token,
+              username
             });
           }
         );
@@ -517,12 +533,15 @@ app.get('/api/navidrome/search', (req, res) => {
 
   const navidromeUrl = `https://music.youtubemusicdownloader.life/api/search?q=${encodeURIComponent(query)}`;
   
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   // Proxy the request to Navidrome
   fetch(navidromeUrl, {
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
+      'Accept': 'application/json'
+    },
+    signal: controller.signal
   })
     .then(response => {
       if (!response.ok) {
@@ -536,6 +555,9 @@ app.get('/api/navidrome/search', (req, res) => {
     .catch(error => {
       console.error('[PROXY] Navidrome search error:', error);
       res.status(500).json({ error: 'Search failed', details: error.message });
+    })
+    .finally(() => {
+      clearTimeout(timeout);
     });
 });
 
@@ -544,36 +566,39 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Server is running' });
 });
 
-// Debug endpoint to check database tables
-app.get('/api/debug/tables', (req, res) => {
-  db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    res.json({ tables: tables.map(t => t.name) });
+// Debug endpoint to check database tables (dev only)
+if (isDev) {
+  app.get('/api/debug/tables', (req, res) => {
+    db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ tables: tables.map(t => t.name) });
+    });
   });
-});
+}
 
-// Serve static files from root directory (BEFORE app.get('*'))
-app.use(express.static(path.join(__dirname), {
-  index: false,
+// Serve static files (avoid exposing server/db/env files)
+const staticOptions = {
   setHeaders: (res, filepath) => {
-    // Set correct Content-Type for files
-    if (filepath.endsWith('.png')) {
-      res.setHeader('Content-Type', 'image/png');
-    } else if (filepath.endsWith('.jpg') || filepath.endsWith('.jpeg')) {
-      res.setHeader('Content-Type', 'image/jpeg');
-    } else if (filepath.endsWith('.svg')) {
-      res.setHeader('Content-Type', 'image/svg+xml');
-    } else if (filepath.endsWith('.css')) {
+    if (filepath.endsWith('.css')) {
       res.setHeader('Content-Type', 'text/css');
       res.setHeader('Cache-Control', 'public, max-age=3600');
     } else if (filepath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript');
       res.setHeader('Cache-Control', 'public, max-age=3600');
+    } else if (filepath.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (filepath.endsWith('.jpg') || filepath.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (filepath.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml');
     }
   }
-}));
+};
+app.use('/css', express.static(path.join(__dirname, 'css'), staticOptions));
+app.use('/js', express.static(path.join(__dirname, 'js'), staticOptions));
+app.use('/assets', express.static(path.join(__dirname, 'assets'), staticOptions));
 
 // 404 handler for API routes that weren't matched
 app.use('/api', (req, res) => {

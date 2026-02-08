@@ -1,3 +1,5 @@
+import { t } from './settings.js';
+
 /**
  * Navidrome API Integration
  * Uses Subsonic API (search3.view and stream.view)
@@ -62,8 +64,8 @@ const searchNavidrome = async function(query) {
       
       return {
         id: song.id,
-        title: song.title || 'Unknown',
-        artist: song.artist || 'Unknown Artist',
+        title: song.title || t('unknown_title', 'Unknown'),
+        artist: song.artist || t('unknown_artist', 'Unknown Artist'),
         album: song.album || '',
         duration: song.duration || 0,
         navidromeId: song.id,
@@ -99,8 +101,8 @@ const getSongDetails = async function(songId) {
 
     return {
       id: song.id,
-      title: song.title || 'Unknown',
-      artist: song.artist || 'Unknown Artist',
+      title: song.title || t('unknown_title', 'Unknown'),
+      artist: song.artist || t('unknown_artist', 'Unknown Artist'),
       album: song.album || '',
       duration: song.duration || 0,
       coverUrl: song.coverArt ? buildNavidromeUrl('getCoverArt.view', {
@@ -200,8 +202,8 @@ async function searchLocalLibrary(query) {
              album.includes(lowerQuery);
     }).slice(0, 50).map(song => ({
       id: song.id,
-      title: song.title || 'Unknown',
-      artist: song.artist || 'Unknown Artist',
+      title: song.title || t('unknown_title', 'Unknown'),
+      artist: song.artist || t('unknown_artist', 'Unknown Artist'),
       album: song.album || '',
       duration: song.duration || 0,
       cover: song.cover || '',
@@ -235,8 +237,8 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     }
     console.log('🎬 LOG_2: After getSongDetails, songDetails =', songDetails);
 
-    const finalTitle = title || songDetails?.title || 'Unknown';
-    const finalArtist = artist || songDetails?.artist || 'Unknown Artist';
+    const finalTitle = title || songDetails?.title || t('unknown_title', 'Unknown');
+    const finalArtist = artist || songDetails?.artist || t('unknown_artist', 'Unknown Artist');
     const finalAlbum = album || songDetails?.album || '';
     const finalCoverUrl = coverUrl || songDetails?.coverUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100';
     console.log('🎬 LOG_3: Final metadata =', { finalTitle, finalArtist, finalAlbum });
@@ -319,6 +321,7 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
 
     console.log('[NAVIDROME] Playing:', finalTitle, 'by', finalArtist);
     console.log('🎬 LOG_6: Before Media Session API');
+    
     // Update browser title and Media Session API
     document.title = `${finalTitle} - ${finalArtist} | UrZen`;
     console.log('🎬 LOG_7: document.title set');
@@ -327,8 +330,8 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
       console.log('🎬 LOG_8: mediaSession exists in navigator');
       try {
         const metadata = {
-          title: String(finalTitle || 'Unknown Title'),
-          artist: String(finalArtist || 'Unknown Artist'),
+          title: String(finalTitle || t('unknown_title', 'Unknown')),
+          artist: String(finalArtist || t('unknown_artist', 'Unknown Artist')),
           album: String(finalAlbum || 'UrZen Player')
         };
         console.log('🎬 LOG_9: metadata object created =', metadata);
@@ -451,8 +454,8 @@ const getAllNavidromeSongs = async function() {
     const songs = (data['subsonic-response']?.randomSongs?.song || []).map(song => ({
       id: song.id,
       navidromeId: song.id,
-      title: song.title || 'Unknown',
-      artist: song.artist || 'Unknown Artist',
+      title: song.title || t('unknown_title', 'Unknown'),
+      artist: song.artist || t('unknown_artist', 'Unknown Artist'),
       album: song.album || '',
       duration: song.duration || 0,
       cover: song.coverArt ? buildNavidromeUrl('getCoverArt.view', {

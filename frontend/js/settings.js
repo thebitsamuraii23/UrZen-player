@@ -6,7 +6,7 @@ import { refreshIcons } from './helpers.js';
 // Определяет язык браузера и возвращает поддерживаемый язык
 function detectBrowserLanguage() {
     const browserLang = navigator.language.split('-')[0].toLowerCase();
-    const supportedLanguages = ['en', 'ru', 'es', 'de', 'fr'];
+    const supportedLanguages = ['en', 'ru', 'es', 'de', 'fr', 'ua', 'uk'];
     
     if (supportedLanguages.includes(browserLang)) {
         return browserLang;
@@ -14,6 +14,20 @@ function detectBrowserLanguage() {
     
     // Если язык браузера не поддерживается, возвращаем английский по умолчанию
     return 'en';
+}
+
+export function normalizeLang(lang) {
+    if (!lang) return 'en';
+    const lower = String(lang).toLowerCase();
+    if (lower === 'uk') return 'ua';
+    if (lower === 'ua') return 'ua';
+    if (I18N[lower]) return lower;
+    return 'en';
+}
+
+export function t(key, fallback = '') {
+    const lang = normalizeLang(state.lang);
+    return I18N[lang]?.[key] ?? I18N.en?.[key] ?? fallback;
 }
 
 export async function loadSettings() {
@@ -24,9 +38,11 @@ export async function loadSettings() {
         state.lang = localStorage.getItem('language');
     } else {
         // Используем язык браузера по умолчанию
-        state.lang = detectBrowserLanguage();
+        state.lang = normalizeLang(detectBrowserLanguage());
         localStorage.setItem('language', state.lang);
     }
+    
+    state.lang = normalizeLang(state.lang);
     
     document.getElementById('langSelect').value = state.lang;
     
@@ -72,8 +88,9 @@ export async function loadSettings() {
 }
 
 export function applyLanguage() {
-    const t = I18N[state.lang];
-    if (!t) {
+    const lang = normalizeLang(state.lang);
+    const dict = I18N[lang] || I18N.en;
+    if (!dict) {
         console.warn('[SETTINGS] Language not found:', state.lang, 'falling back to English');
         state.lang = 'en';
         return applyLanguage();
@@ -81,25 +98,57 @@ export function applyLanguage() {
     
     document.querySelectorAll('[data-t]').forEach(el => {
         const key = el.getAttribute('data-t');
-        if (t[key]) el.innerText = t[key];
+        const value = dict[key] ?? I18N.en?.[key];
+        if (value !== undefined) el.innerText = value;
     });
     
+    document.querySelectorAll('[data-t-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-t-placeholder');
+        const value = dict[key] ?? I18N.en?.[key];
+        if (value !== undefined) el.setAttribute('placeholder', value);
+    });
+    
+    document.querySelectorAll('[data-t-title]').forEach(el => {
+        const key = el.getAttribute('data-t-title');
+        const value = dict[key] ?? I18N.en?.[key];
+        if (value !== undefined) el.setAttribute('title', value);
+    });
+    
+    document.querySelectorAll('[data-t-aria-label]').forEach(el => {
+        const key = el.getAttribute('data-t-aria-label');
+        const value = dict[key] ?? I18N.en?.[key];
+        if (value !== undefined) el.setAttribute('aria-label', value);
+    });
+
+    document.querySelectorAll('[data-t-alt]').forEach(el => {
+        const key = el.getAttribute('data-t-alt');
+        const value = dict[key] ?? I18N.en?.[key];
+        if (value !== undefined) el.setAttribute('alt', value);
+    });
+    
+    const pageTitle = dict.page_title ?? I18N.en?.page_title;
+    if (pageTitle) document.title = pageTitle;
+    
     // Обновляем атрибут lang для HTML документа
-    document.documentElement.lang = state.lang;
+    document.documentElement.lang = lang;
     
     refreshIcons();
 }
 
 export function initSettingsHandlers() {
     window.changeLanguage = async (val) => {
-        if (!I18N[val]) {
+        const normalized = normalizeLang(val);
+        if (!I18N[normalized]) {
             console.error('[SETTINGS] Invalid language:', val);
             return;
         }
         
-        state.lang = val;
-        await window.db.settings.put({key: 'language', value: val});
-        localStorage.setItem('language', val);
+        state.lang = normalized;
+        await window.db.settings.put({key: 'language', value: normalized});
+        localStorage.setItem('language', normalized);
         applyLanguage();
     };
 }
+
+// Expose translation helper for non-module scripts
+window.t = t;

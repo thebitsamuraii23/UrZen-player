@@ -7,7 +7,7 @@ import { addSongToPlaylist, removeSongFromPlaylist, createPlaylist, deletePlayli
 import { isUserAuthenticated, syncPlaylistsWithServer } from './modules/server-playlist-manager.js';
 import { I18N } from './i18n.js?v=20260126-2';
 import { formatTime, showToast, refreshIcons } from './helpers.js';
-import { loadSettings, applyLanguage, initSettingsHandlers } from './settings.js';
+import { loadSettings, applyLanguage, initSettingsHandlers, normalizeLang, t as translate } from './settings.js';
 
 // Инициализация БД
 const db = new Dexie("AetherProDB");
@@ -16,6 +16,8 @@ db.version(7).stores({
     playlists: "++id, name",
     settings: "key"
 });
+
+const t = (key, fallback = '') => translate(key, fallback);
 
 // ============ НАСТРОЙКИ ============
 // (Теперь в settings.js)
@@ -160,7 +162,7 @@ window.confirmDeletePlaylist = async () => {
     
     deleteData.playlistId = null;
     window.toggleModal('deletePlaylistModal');
-    showToast(I18N[state.lang].deleted || 'Deleted');
+    showToast(t('deleted', 'Deleted'));
 };
 
 window.cancelDeletePlaylist = () => {
@@ -203,7 +205,7 @@ window.confirmRenamePlaylist = async () => {
     renameData.playlistId = null;
     renameData.oldName = null;
     window.toggleModal('renamePlaylistModal');
-    showToast(I18N[state.lang].renamed || 'Renamed');
+    showToast(t('renamed', 'Renamed'));
 };
 
 window.cancelRenamePlaylist = () => {
@@ -238,7 +240,7 @@ function renderLibrary() {
         const source = track.source || 'local';
         
         const removeFromPlaylistBtn = (typeof state.currentTab === 'number') ?
-            `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="Remove from playlist"><i data-lucide="minus-square"></i></button>` : '';
+            `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="${t('remove_from_playlist', 'Remove from playlist')}"><i data-lucide="minus-square"></i></button>` : '';
 
         // Экранируем кавычки для безопасности
         const safeTitle = (track.title || '').replace(/'/g, "\\'");
@@ -320,14 +322,14 @@ function initNavidromeContainer() {
     `;
     
     const backBtn = document.createElement('button');
-    backBtn.innerText = '← Back';
+    backBtn.innerText = `← ${t('back', 'Back')}`;
     backBtn.style.cssText = 'background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;';
     backBtn.onclick = () => window.switchTab('all');
     
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.id = 'navidromeSearchInput';
-    searchInput.placeholder = 'Search Navidrome...';
+    searchInput.placeholder = t('search_navidrome_placeholder', 'Search Navidrome...');
     searchInput.value = state.searchQuery || '';
     searchInput.style.cssText = 'flex: 1; background: var(--surface-bright); border: 1px solid var(--border); padding: 10px 15px; border-radius: 8px; color: white; font-size: 14px;';
     
@@ -376,7 +378,7 @@ function updateNavidromeSongs() {
             grid.innerHTML = '';
             const loadingMsg = document.createElement('div');
             loadingMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-            loadingMsg.innerHTML = `<p>🌐 Loading Navidrome songs...</p>`;
+            loadingMsg.innerHTML = `<p>🌐 ${t('navidrome_loading', 'Loading Navidrome songs...')}</p>`;
             grid.appendChild(loadingMsg);
             window.getAllNavidromeSongs().then((songs) => {
                 state.navidromeSongs = songs;
@@ -384,7 +386,7 @@ function updateNavidromeSongs() {
                 if (songs.length === 0) {
                     const emptyMsg = document.createElement('div');
                     emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-                    emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+                    emptyMsg.innerHTML = `<p>🌐 ${t('no_songs_found', 'No songs found')}</p>`;
                     grid.appendChild(emptyMsg);
                 } else {
                     renderNavidromeTiles(songs, grid);
@@ -393,7 +395,7 @@ function updateNavidromeSongs() {
                 grid.innerHTML = '';
                 const errorMsg = document.createElement('div');
                 errorMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-                errorMsg.innerHTML = `<p>⚠️ Failed to load Navidrome songs</p>`;
+                errorMsg.innerHTML = `<p>⚠️ ${t('navidrome_load_failed', 'Failed to load Navidrome songs')}</p>`;
                 grid.appendChild(errorMsg);
             });
             return;
@@ -401,7 +403,7 @@ function updateNavidromeSongs() {
         if (list.length === 0) {
             const emptyMsg = document.createElement('div');
             emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-            emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+            emptyMsg.innerHTML = `<p>🌐 ${t('no_songs_found', 'No songs found')}</p>`;
             grid.appendChild(emptyMsg);
             return;
         }
@@ -412,7 +414,7 @@ function updateNavidromeSongs() {
     // If there's a search query, use API search
     const searchMsg = document.createElement('div');
     searchMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-    searchMsg.innerHTML = `<p>🔍 Searching...</p>`;
+    searchMsg.innerHTML = `<p>🔍 ${t('searching', 'Searching...')}</p>`;
     grid.appendChild(searchMsg);
     
     // Use the searchNavidrome function from navidrome-search.js
@@ -423,7 +425,7 @@ function updateNavidromeSongs() {
             if (results.length === 0) {
                 const emptyMsg = document.createElement('div');
                 emptyMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-                emptyMsg.innerHTML = `<p>🌐 No songs found</p>`;
+                emptyMsg.innerHTML = `<p>🌐 ${t('no_songs_found', 'No songs found')}</p>`;
                 grid.appendChild(emptyMsg);
                 return;
             }
@@ -434,7 +436,7 @@ function updateNavidromeSongs() {
             grid.innerHTML = '';
             const errorMsg = document.createElement('div');
             errorMsg.style.cssText = 'grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-dim);';
-            errorMsg.innerHTML = `<p>⚠️ Search error</p>`;
+            errorMsg.innerHTML = `<p>⚠️ ${t('search_error', 'Search error')}</p>`;
             grid.appendChild(errorMsg);
         });
     }
@@ -500,7 +502,7 @@ function renderNavidromeTiles(list, grid) {
         `;
         overlay.innerHTML = `
             <div style="color: white; text-align: center; padding: 20px; animation: fadeInScale 0.3s ease;">
-                <p style="margin: 0; font-size: 13px; color: var(--text-dim); margin-bottom: 8px;">Artist</p>
+                <p style="margin: 0; font-size: 13px; color: var(--text-dim); margin-bottom: 8px;">${t('artist', 'Artist')}</p>
                 <p style="margin: 0; font-size: 14px; font-weight: 600; word-break: break-word;">${track.artist}</p>
             </div>
         `;
@@ -606,7 +608,7 @@ function renderSearchResults(results) {
     dom.playlist.innerHTML = "";
     
     if (!results || results.length === 0) {
-        dom.playlist.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No results found</div>';
+        dom.playlist.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-secondary);">${t('no_results_found', 'No results found')}</div>`;
         return;
     }
 
@@ -655,10 +657,10 @@ function renderSearchResults(results) {
         }
 
         div.innerHTML = `
-            <img src="${coverImg}" alt="${track.title || 'Unknown'}" onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'">
+            <img src="${coverImg}" alt="${track.title || t('unknown_title', 'Unknown')}" onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'">
             <div class="song-item-info" title="${track.title}&#10;${track.artist}">
-                <h4>${track.title || 'Unknown'}${track.source === 'navidrome' ? ' 🌐' : ''}</h4>
-                <p>${track.artist || 'Unknown Artist'}</p>
+                <h4>${track.title || t('unknown_title', 'Unknown')}${track.source === 'navidrome' ? ' 🌐' : ''}</h4>
+                <p>${track.artist || t('unknown_artist', 'Unknown Artist')}</p>
             </div>
             <div class="song-actions">
                 <button class="mini-btn" onclick="event.stopPropagation(); window.addSearchResultToPlaylist('${trackId}', '${track.source}')"><i data-lucide="plus"></i></button>
@@ -681,7 +683,7 @@ window.deleteTrack = async (id, source = 'local') => {
 };
 
 function resetUI() {
-    dom.trackName.innerText = "Select Media";
+    dom.trackName.innerText = t('ready', 'Select Media');
     dom.artistName.innerText = "";
     dom.mainCover.src = "";
     dom.vinylContainer.classList.remove('visible');
@@ -722,7 +724,7 @@ function renderSidebarQueue() {
         const queue = getCurrentListView();
         
         if (queue.length === 0) {
-            container.innerHTML = '<div style="color:var(--text-dim); font-size:13px; padding:12px;">Queue is empty</div>';
+            container.innerHTML = `<div style="color:var(--text-dim); font-size:13px; padding:12px;">${t('queue_empty', 'Queue is empty')}</div>`;
             return;
         }
 
@@ -869,7 +871,7 @@ window.playTrack = (id) => {
     dom.audio.crossOrigin = 'anonymous';
     dom.audio.play().catch(err => {
         console.error('[PLAYBACK] Play error:', err);
-        showToast('Ошибка воспроизведения: ' + err.message);
+        showToast(`${t('playback_error', 'Playback error:')} ${err.message}`);
     });
     dom.trackName.innerText = track.title;
     dom.artistName.innerText = track.artist;
@@ -885,8 +887,8 @@ window.playTrack = (id) => {
     if ('mediaSession' in navigator) {
         try {
             const metadata = {
-                title: String(track.title || 'Unknown Title'),
-                artist: String(track.artist || 'Unknown Artist'),
+                title: String(track.title || t('unknown_title', 'Unknown')),
+                artist: String(track.artist || t('unknown_artist', 'Unknown Artist')),
                 album: String(track.album || 'UrZen Player')
             };
             
@@ -1058,8 +1060,7 @@ window.clearQueue = async () => {
 };
 
 window.confirmClearQueue = async () => {
-    const lang = state.lang;
-    const successMsg = lang === 'ru' ? 'Очередь очищена' : 'Queue cleared';
+    const successMsg = t('queue_cleared', 'Queue cleared');
     
     window.toggleModal('clearQueueModal');
     
@@ -1136,8 +1137,10 @@ window.switchTab = (tab) => {
     const searchInput = document.getElementById('globalSearch');
     if (searchInput) {
         searchInput.value = '';
-        // Use "Search Music..." only in zen mode, otherwise "Search library..."
-        searchInput.placeholder = state.isZen ? 'Search Music...' : 'Search library...';
+        // Use localized placeholders
+        searchInput.placeholder = state.isZen
+            ? t('search_music_placeholder', 'Search Music...')
+            : t('search_library_placeholder', 'Search library...');
     }
     
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -1334,7 +1337,7 @@ window.addSearchResultToPlaylist = (trackId, source) => {
     
     if (source === 'navidrome' && !track) {
         console.error('[SEARCH RESULT] Track not found in temp storage');
-        showToast('Error: Track data not available');
+        showToast(t('track_data_unavailable', 'Error: Track data not available'));
         return;
     }
     
@@ -1351,7 +1354,7 @@ window.toggleFavSearchResult = (trackId, source) => {
     
     if (source === 'navidrome' && !track) {
         console.error('[SEARCH RESULT] Track not found in temp storage');
-        showToast('Error: Track data not available');
+        showToast(t('track_data_unavailable', 'Error: Track data not available'));
         return;
     }
     
@@ -1369,10 +1372,10 @@ window.toggleFavSearchResult = (trackId, source) => {
                 cover: track.cover,
                 source: 'navidrome'
             });
-            showToast('Added to favorites!');
+            showToast(t('fav_added', 'Added to favorites!'));
         } else {
             navidromeFavs.splice(favIndex, 1);
-            showToast('Removed from favorites');
+            showToast(t('fav_removed', 'Removed from favorites'));
         }
         localStorage.setItem('navidromeFavorites', JSON.stringify(navidromeFavs));
     } else {
@@ -1411,13 +1414,24 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
     listWrap.style.overflow = 'auto';
 
     // Получить полную информацию о песне
-    // First try to find in library (for local songs)
+    // 1) локальная библиотека
     let track = state.library.find(t => t.id === songId || t.navidromeId === songId);
-    
-    // If not found and this is from search results, try temp storage
+
+    // 2) временное хранилище (Navidrome результаты поиска)
     if (!track && source === 'navidrome' && window.tempPendingTrack) {
         track = window.tempPendingTrack;
         console.log('[PLAYLIST PICKER] Using temp track from search:', track);
+    }
+
+    // 3) Navidrome вкладка: берём из загруженного списка, если ещё не нашли
+    if (!track && source === 'navidrome' && Array.isArray(state.navidromeSongs)) {
+        track = state.navidromeSongs.find(t => t.navidromeId === songId || t.id === songId);
+        if (track) {
+            // гарантируем наличие navidromeId
+            if (!track.navidromeId) track.navidromeId = track.id;
+            track.source = 'navidrome';
+            console.log('[PLAYLIST PICKER] Resolved track from navidromeSongs cache:', track);
+        }
     }
 
     state.playlists.forEach(pl => {
@@ -1532,9 +1546,9 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
                             const { addTrackToServerPlaylist } = await import('./modules/server-playlist-manager.js');
                             // Get track details from library
                             const trackData = {
-                                track_title: track?.title || 'Unknown',
-                                track_artist: track?.artist || 'Unknown',
-                                track_album: track?.album || 'Unknown',
+                                track_title: track?.title || t('unknown_title', 'Unknown'),
+                                track_artist: track?.artist || t('unknown_artist', 'Unknown Artist'),
+                                track_album: track?.album || t('unknown_title', 'Unknown'),
                                 track_duration: track?.duration || 0,
                                 track_source: 'local',
                                 navidrome_id: null,
@@ -1582,7 +1596,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 
     const btnClose = document.createElement('button');
     btnClose.className = 'mini-btn';
-    btnClose.innerText = 'Done';
+    btnClose.innerText = t('done', 'Done');
     btnClose.style.background = 'var(--accent)';
     btnClose.style.color = 'white';
     btnClose.style.padding = '10px 20px';
@@ -1605,7 +1619,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 
 window.removeSongFromPlaylist = async (playlistId, songId, source = 'local') => {
     await removeSongFromPlaylist(playlistId, songId, source);
-    showToast(I18N[state.lang].removed || 'Removed');
+    showToast(t('removed', 'Removed'));
     if (state.currentTab === playlistId) renderLibrary();
     await loadPlaylistsFromDB();
 };
@@ -1685,7 +1699,8 @@ window.removeSongFromPlaylist = async (playlistId, songId, source = 'local') => 
                 await loadPlaylistsFromDB();
             
                 const count = state.selectedTracks.size;
-                showToast(`Added ${count} track(s) to ${pl.name}`);
+                const template = t('added_to_playlist', 'Added {count} track(s) to {playlist}');
+                showToast(template.replace('{count}', count).replace('{playlist}', pl.name));
                 window.clearTrackSelection();
                 window.toggleModal('playlistPickerOverlay');
                 refreshIcons();
@@ -1704,7 +1719,7 @@ window.removeSongFromPlaylist = async (playlistId, songId, source = 'local') => 
 
         const btnCancel = document.createElement('button');
         btnCancel.className = 'mini-btn';
-        btnCancel.innerText = 'Cancel';
+        btnCancel.innerText = t('cancel', 'Cancel');
         btnCancel.onclick = () => {
             window.toggleModal('playlistPickerOverlay');
             window.clearTrackSelection();
@@ -1730,9 +1745,9 @@ async function extractMetadata(file) {
                     for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
                     coverUrl = `data:${format};base64,${window.btoa(base64String)}`;
                 }
-                resolve({ title: title || file.name.replace(/\.[^/.]+$/, ""), artist: artist || "Unknown Artist", cover: coverUrl });
+                resolve({ title: title || file.name.replace(/\.[^/.]+$/, ""), artist: artist || t('unknown_artist', 'Unknown Artist'), cover: coverUrl });
             },
-            onError: () => resolve({ title: file.name.replace(/\.[^/.]+$/, ""), artist: "Unknown Artist", cover: null })
+            onError: () => resolve({ title: file.name.replace(/\.[^/.]+$/, ""), artist: t('unknown_artist', 'Unknown Artist'), cover: null })
         });
     });
 }
@@ -1772,7 +1787,7 @@ document.getElementById('fileInput').onchange = async (e) => {
     // Small delay to ensure DOM updates are rendered
     await new Promise(r => setTimeout(r, 100));
     dom.loader.classList.add('hidden');
-    showToast('Files imported successfully!');
+    showToast(t('files_imported', 'Files imported successfully!'));
     
     // Reset file input so same file can be imported again
     e.target.value = '';
@@ -1885,7 +1900,7 @@ window.toggleZen = (enable) => {
         const zenSearchResults = document.getElementById('zenSearchResults');
         
         if (globalSearch) {
-            globalSearch.placeholder = 'Search Music...';
+            globalSearch.placeholder = t('search_music_placeholder', 'Search Music...');
             globalSearch.value = '';
             globalSearch.focus();
             
@@ -1907,7 +1922,7 @@ window.toggleZen = (enable) => {
                     renderZenSearchResults(results.slice(0, 7), zenSearchResults);
                 } catch (err) {
                     console.error('[ZEN SEARCH] Error:', err);
-                    zenSearchResults.innerHTML = '<div class="zen-search-empty">Error searching</div>';
+                    zenSearchResults.innerHTML = `<div class="zen-search-empty">${t('search_error', 'Search error')}</div>`;
                 }
             });
         }
@@ -1930,7 +1945,7 @@ window.toggleZen = (enable) => {
         // Restore global search input
         const globalSearch = document.getElementById('globalSearch');
         if (globalSearch) {
-            globalSearch.placeholder = 'Search library...';
+            globalSearch.placeholder = t('search_library_placeholder', 'Search library...');
             globalSearch.value = '';
             
             // Reset to normal search listener
@@ -1965,7 +1980,7 @@ window.toggleZen = (enable) => {
 // Render zen mode search results (7 items in inline format)
 function renderZenSearchResults(results, container) {
     if (!results || results.length === 0) {
-        container.innerHTML = '<div class="zen-search-empty">No results found</div>';
+        container.innerHTML = `<div class="zen-search-empty">${t('no_results_found', 'No results found')}</div>`;
         return;
     }
     
@@ -1991,8 +2006,8 @@ function renderZenSearchResults(results, container) {
                     class="zen-result-thumbnail"
                     onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'"
                 >
-                <div class="zen-result-title">${track.title || 'Unknown'}</div>
-                <div class="zen-result-artist">${track.artist || 'Unknown Artist'}</div>
+                <div class="zen-result-title">${track.title || t('unknown_title', 'Unknown')}</div>
+                <div class="zen-result-artist">${track.artist || t('unknown_artist', 'Unknown Artist')}</div>
             </div>
         `;
     }).join('');
@@ -2041,7 +2056,7 @@ function initKeybinds() {
 
 // ============ ОЧИСТКА БД ============
 window.clearFullDatabase = async () => {
-    if (!confirm('Вы уверены? Все данные будут удалены.')) return;
+    if (!confirm(t('wipe_db_confirm', 'Are you sure? All data will be deleted.'))) return;
     await db.songs.clear();
     await db.playlists.clear();
     await db.settings.clear();
@@ -2053,7 +2068,7 @@ window.clearFullDatabase = async () => {
     resetUI();
     renderLibrary();
     await loadPlaylistsFromDB();
-    showToast('Database cleared');
+    showToast(t('database_cleared', 'Database cleared'));
 };
 
 // ============ ИНИЦИАЛИЗАЦИЯ ============
@@ -2085,7 +2100,7 @@ export async function initApp() {
     };
 
     // Fast initialization - show UI immediately
-    setLoaderMsg('Loading...');
+    setLoaderMsg(t('loading_status', 'Loading...'));
 
     // Step 1: Initialize DOM
     try {
@@ -2093,7 +2108,7 @@ export async function initApp() {
         console.log('[APP] DOM initialized');
     } catch (err) {
         console.error('[APP] DOM init failed:', err);
-        setLoaderMsg('Error: DOM initialization failed');
+        setLoaderMsg(t('error_dom_init', 'Error: DOM initialization failed'));
         setTimeout(() => { if(dom.loader) dom.loader.classList.add('hidden'); }, 5000);
         return;
     }
@@ -2101,7 +2116,7 @@ export async function initApp() {
     // Step 2: Check Dexie
     if (typeof Dexie === 'undefined') {
         console.error('[APP] Dexie not loaded');
-        setLoaderMsg('Error: Dexie library missing');
+        setLoaderMsg(t('error_dexie_missing', 'Error: Dexie library missing'));
         setTimeout(() => { if(dom.loader) dom.loader.classList.add('hidden'); }, 5000);
         return;
     }
@@ -2211,7 +2226,7 @@ export async function initApp() {
 
     // Hide loader immediately
     setTimeout(() => {
-        setLoaderMsg('Ready!');
+        setLoaderMsg(t('ready_status', 'Ready!'));
         if (dom.loader) dom.loader.classList.add('hidden');
         console.log('[APP] UI is visible');
     }, 200);
@@ -2313,8 +2328,8 @@ function updateMobilePlayer() {
     
     if (state.currentIndex !== -1 && state.library[state.currentIndex]) {
         const track = state.library[state.currentIndex];
-        if (mobileTrack) mobileTrack.innerText = track.title || 'Unknown';
-        if (mobileArtist) mobileArtist.innerText = track.artist || 'Unknown Artist';
+        if (mobileTrack) mobileTrack.innerText = track.title || t('unknown_title', 'Unknown');
+        if (mobileArtist) mobileArtist.innerText = track.artist || t('unknown_artist', 'Unknown Artist');
         if (mobileCover) mobileCover.src = track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300';
     }
     
@@ -2394,4 +2409,3 @@ document.addEventListener('click', function(e) {
 // Export helper functions to window
 window.saveQueueState = saveQueueState;
 window.restoreQueueState = restoreQueueState;
-

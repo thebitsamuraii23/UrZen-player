@@ -1,11 +1,12 @@
 // Модуль для отрисовки UI компонентов
 import { state, dom } from '../state.js';
 import { refreshIcons } from '../helpers.js';
+import { t } from '../settings.js';
 import { getCurrentListView } from './library-manager.js';
 
 // Экспортируем основные функции рендеринга
 export function resetUI() {
-    dom.trackName.innerText = "Select Media";
+    dom.trackName.innerText = t('ready', 'Select Media');
     dom.artistName.innerText = "";
     dom.mainCover.src = "";
     dom.vinylContainer.classList.remove('visible');
@@ -19,7 +20,7 @@ export function renderSidebarQueue() {
     container.innerHTML = '';
     
     if (state.library.length === 0) {
-        container.innerHTML = '<div style="color: var(--text-secondary); padding: 10px; text-align: center; font-size: 0.9em">Queue is empty</div>';
+        container.innerHTML = `<div style="color: var(--text-secondary); padding: 10px; text-align: center; font-size: 0.9em">${t('queue_empty', 'Queue is empty')}</div>`;
         return;
     }
     
@@ -34,7 +35,7 @@ export function renderSidebarQueue() {
         div.style.fontSize = '0.85em';
         div.style.color = 'var(--text-secondary)';
         
-        const title = (track.title || 'Unknown').substring(0, 25);
+        const title = (track.title || t('unknown_title', 'Unknown')).substring(0, 25);
         div.innerHTML = `<span title="${track.title}">${title}</span>`;
         
         div.onclick = () => {
@@ -50,7 +51,8 @@ export function renderSidebarQueue() {
         more.style.padding = '8px';
         more.style.color = 'var(--text-secondary)';
         more.style.fontSize = '0.85em';
-        more.innerHTML = `... and ${state.library.length - 3} more`;
+        const template = t('queue_more', '... and {count} more');
+        more.innerHTML = template.replace('{count}', state.library.length - 3);
         container.appendChild(more);
     }
 }
@@ -78,7 +80,7 @@ export function renderLibrary() {
         const source = track.source || 'local';
         
         const removeFromPlaylistBtn = (typeof state.currentTab === 'number') ?
-            `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="Remove from playlist"><i data-lucide="minus-square"></i></button>` : '';
+            `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="${t('remove_from_playlist', 'Remove from playlist')}"><i data-lucide="minus-square"></i></button>` : '';
 
         // Экранируем кавычки для безопасности
         const safeTitle = (track.title || '').replace(/'/g, "\\'");

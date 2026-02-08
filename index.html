@@ -31,11 +31,11 @@
 </head>
 <body class="lang-ru">
 
-<button class="mobile-menu-trigger" aria-label="Open menu" title="Menu">
+<button class="mobile-menu-trigger" aria-label="Open menu" title="Menu" data-t-aria-label="open_menu" data-t-title="menu">
     <i data-lucide="menu"></i>
 </button>
 <nav class="mobile-sidebar">
-    <button class="mobile-sidebar-close" title="Close menu">
+    <button class="mobile-sidebar-close" title="Close menu" data-t-title="close_menu">
         <i data-lucide="x"></i>
     </button>
     <div class="nav-brand">
@@ -43,37 +43,37 @@
     </div>
     <nav class="sidebar-section">
         <span class="section-label">Разделы</span>
-        <div class="nav-item" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();" title="Library">
-            <i data-lucide="layout-grid"></i> <span>Фонотека</span>
+        <div class="nav-item" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();" title="Library" data-t-title="library">
+            <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
         </div>
-        <div class="nav-item" id="nav-fav-mobile" onclick="window.switchTab('fav'); window.closeMobileMenu();" title="Favorites">
-            <i data-lucide="heart"></i> <span>Любимое</span>
+        <div class="nav-item" id="nav-fav-mobile" onclick="window.switchTab('fav'); window.closeMobileMenu();" title="Favorites" data-t-title="favorites">
+            <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
         </div>
-        <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music">
-            <i data-lucide="music"></i> <span>Music</span>
+        <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music" data-t-title="navidrome_music">
+            <i data-lucide="music"></i> <span data-t="music">Music</span>
         </div>
     </nav>
     <nav class="sidebar-section">
         <span class="section-label" style="display: flex; justify-content: space-between; align-items: center; padding-right: 8px;">
-            <span>Коллекции</span>
-            <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()" title="New playlist"></i>
+            <span data-t="playlists">Коллекции</span>
+            <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()" title="New playlist" data-t-title="create_playlist"></i>
         </span>
         <div id="playlistNav-mobile"></div>
     </nav>
     <nav class="sidebar-section">
-        <span class="section-label">Очередь</span>
+        <span class="section-label" data-t="queue">Очередь</span>
         <div class="list-container" id="sidebarQueueList-mobile"></div>
     </nav>
     <div style="padding: 0 8px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-        <div class="nav-item" onclick="document.getElementById('fileInput').click()" title="Import tracks">
-            <i data-lucide="upload-cloud"></i> <span>Загрузить</span>
+        <div class="nav-item" onclick="document.getElementById('fileInput').click()" title="Import tracks" data-t-title="import_tracks">
+            <i data-lucide="upload-cloud"></i> <span data-t="add_files">Загрузить</span>
         </div>
-        <div class="nav-item" onclick="window.toggleSettings()" title="Settings">
-            <i data-lucide="sliders"></i> <span>Настройки</span>
+        <div class="nav-item" onclick="window.toggleSettings()" title="Settings" data-t-title="settings">
+            <i data-lucide="sliders"></i> <span data-t="settings">Настройки</span>
         </div>
     </div>
     <div class="credits-footer">
-        Made by <span class="credits-name">thebitsamurai</span>
+        <span data-t="made_by">Made by</span> <span class="credits-name">thebitsamurai</span>
     </div>
 </nav>
 <div class="mobile-sidebar-overlay" onclick="window.closeMobileMenu()"></div>
@@ -83,7 +83,7 @@
     <div style="width: 200px; height: 2px; background: var(--surface-bright); position: relative; overflow: hidden;">
         <div style="width: 50%; height: 100%; background: var(--accent); position: absolute; animation: loadMove 1.5s infinite;"></div>
     </div>
-    <p id="loaderText" style="margin-top: 15px; color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 2px;">Initializing System...</p>
+    <p id="loaderText" style="margin-top: 15px; color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 2px;" data-t="loading_status">Initializing System...</p>
 </div>
 
 <div id="zenOverlay">
@@ -97,14 +97,14 @@
 </div>
 
 <div class="top-search" id="topSearch">
-    <input type="search" id="globalSearch" placeholder="Search tracks or artists..." aria-label="Search" />
+    <input type="search" id="globalSearch" placeholder="Search tracks or artists..." aria-label="Search" data-t-placeholder="search_placeholder" data-t-aria-label="search_label" />
 </div>
 
-<div class="zen-trigger" title="Zen Mode" onclick="window.toggleZen(true)">
+<div class="zen-trigger" title="Zen Mode" onclick="window.toggleZen(true)" data-t-title="zen_mode">
     <i data-lucide="expand"></i>
 </div>
 
-<button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks">
+<button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks" data-t-title="import_tracks">
     <i data-lucide="plus-circle"></i>
 </button>
 
@@ -123,24 +123,26 @@
         
         <!-- Login Tab -->
         <div id="authLoginTab" class="auth-tab active">
-            <h3 style="margin-bottom: 25px; text-align: center;">Sign In</h3>
-            <input type="text" id="loginUsername" placeholder="Username" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
-            <input type="password" id="loginPassword" placeholder="Password" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
-            <button onclick="window.handleLogin()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;">Sign In</button>
+            <h3 style="margin-bottom: 25px; text-align: center;" data-t="auth_login_title">Sign In</h3>
+            <input type="text" id="loginUsername" placeholder="Username" data-t-placeholder="auth_username" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
+            <input type="password" id="loginPassword" placeholder="Password" data-t-placeholder="auth_password" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
+            <button onclick="window.handleLogin()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;" data-t="auth_sign_in">Sign In</button>
             <div style="text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 16px;">
-                Don't have an account? <span onclick="window.switchAuthTab('register')" style="color: var(--accent); cursor: pointer; text-decoration: underline;">Create one</span>
+                <span data-t="auth_no_account">Don't have an account?</span>
+                <span onclick="window.switchAuthTab('register')" style="color: var(--accent); cursor: pointer; text-decoration: underline;" data-t="auth_create_one">Create one</span>
             </div>
             <div id="authLoginStatus" class="auth-status"></div>
         </div>
 
         <!-- Register Tab -->
         <div id="authRegisterTab" class="auth-tab" style="display: none;">
-            <h3 style="margin-bottom: 25px; text-align: center;">Create Account</h3>
-            <input type="text" id="registerUsername" placeholder="Username (min 3 chars)" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
-            <input type="password" id="registerPassword" placeholder="Password (min 6 chars)" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
-            <button onclick="window.handleRegister()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;">Create Account</button>
+            <h3 style="margin-bottom: 25px; text-align: center;" data-t="auth_register_title">Create Account</h3>
+            <input type="text" id="registerUsername" placeholder="Username (min 3 chars)" data-t-placeholder="auth_username_min" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 12px; font-size: 14px;">
+            <input type="password" id="registerPassword" placeholder="Password (min 6 chars)" data-t-placeholder="auth_password_min" style="width:100%; background: var(--surface); border: 1px solid var(--border); padding: 12px 16px; border-radius: 8px; color: white; margin-bottom: 20px; font-size: 14px;">
+            <button onclick="window.handleRegister()" style="width:100%; background: var(--accent); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; margin-bottom: 12px;" data-t="auth_create_account">Create Account</button>
             <div style="text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 16px;">
-                Already have an account? <span onclick="window.switchAuthTab('login')" style="color: var(--accent); cursor: pointer; text-decoration: underline;">Sign in</span>
+                <span data-t="auth_have_account">Already have an account?</span>
+                <span onclick="window.switchAuthTab('login')" style="color: var(--accent); cursor: pointer; text-decoration: underline;" data-t="auth_sign_in_link">Sign in</span>
             </div>
             <div id="authRegisterStatus" class="auth-status"></div>
         </div>
@@ -155,7 +157,7 @@
         <p id="restrictionMessage" data-t="music_restricted_message" style="margin-bottom: 32px; color: var(--text-dim); font-size: 14px; line-height: 1.6;">Зарегистрируйтесь, чтобы использовать раздел Музыка</p>
         <div style="display: flex; gap: 12px; justify-content: center;">
             <button id="musicRegisterBtn" data-t="music_restricted_button" onclick="window.openAuthModal('register')" style="flex: 1; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s;">Зарегистрироваться</button>
-            <button onclick="window.closeMusicRestrictionOverlay()" style="flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s;">Отмена</button>
+            <button onclick="window.closeMusicRestrictionOverlay()" style="flex: 1; background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s;" data-t="cancel">Отмена</button>
         </div>
     </div>
 </div>
@@ -164,7 +166,7 @@
 <div class="modal-overlay" id="renamePlaylistModal">
     <div class="modal-content" style="width: 380px;">
         <h3 style="margin-bottom: 25px;" data-t="rename_playlist">Rename Playlist</h3>
-        <input type="text" id="renamePlaylistInput" placeholder="New name..." style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white; margin-bottom: 25px;">
+        <input type="text" id="renamePlaylistInput" placeholder="New name..." data-t-placeholder="rename_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white; margin-bottom: 25px;">
         <div style="display: flex; gap: 15px;">
             <button onclick="window.confirmRenamePlaylist()" style="flex: 1; background: var(--accent); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700; transition: 0.3s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" data-t="confirm">Confirm</button>
             <button onclick="window.cancelRenamePlaylist()" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.background='var(--surface-bright)'" onmouseout="this.style.background='var(--surface)'" data-t="cancel">Cancel</button>
@@ -211,6 +213,7 @@
                 <select id="langSelect" onchange="window.changeLanguage(this.value)">
                     <option value="en">🇺🇸 English</option>
                     <option value="ru">🇷🇺 Русский</option>
+                    <option value="ua">🇺🇦 Українська</option>
                     <option value="es">🇪🇸 Español</option>
                     <option value="de">🇩🇪 Deutsch</option>
                     <option value="fr">🇫🇷 Français</option>
@@ -253,7 +256,7 @@
 <div class="modal-overlay" id="playlistModal">
     <div class="modal-content" style="width: 380px;">
         <h3 style="margin-bottom: 25px;" data-t="create_playlist">Новая коллекция</h3>
-        <input type="text" id="playlistNameInp" placeholder="Название плейлиста..." style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
+        <input type="text" id="playlistNameInp" placeholder="Название плейлиста..." data-t-placeholder="playlist_name_placeholder" style="width:100%; background: #1a1a1a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white;">
         <div style="display: flex; gap: 15px; margin-top: 25px;">
             <button onclick="window.saveNewPlaylist()" style="flex: 1; background: var(--accent); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer; font-weight: 700;" data-t="save">Создать</button>
             <button onclick="window.togglePlaylistModal()" style="flex: 1; background: var(--surface); color: white; border: none; padding: 16px; border-radius: 12px; cursor:pointer;" data-t="cancel">Отмена</button>
@@ -279,21 +282,21 @@
                 <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
             </div>
             <div class="nav-item" id="nav-navidrome" onclick="window.switchTab('navidrome')">
-                <i data-lucide="music"></i> <span>Music</span>
+                <i data-lucide="music"></i> <span data-t="music">Music</span>
             </div>
         </nav>
 
         <nav class="sidebar-section">
             <span class="section-label">
-                <span data-t="playlists">Коллекции</span> 
+                <span data-t="playlists">Коллекции</span>
                 <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()"></i>
             </span>
             <div id="playlistNav"></div>
         </nav>
 
         <nav class="sidebar-section">
-            <span class="section-label">Queue</span>
-            <button class="queue-clear-btn" onclick="window.clearQueue()" style="width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-sibitche: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Clear all tracks from queue">
+            <span class="section-label" data-t="queue">Queue</span>
+            <button class="queue-clear-btn" onclick="window.clearQueue()" style="width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-sibitche: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Clear all tracks from queue" data-t-title="clear_queue_title">
                 <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                 <span data-t="clear_queue">Clear Queue</span>
             </button>
@@ -307,7 +310,7 @@
 
         <!-- Auth Button (not logged in) -->
         <div id="authNavItem" class="nav-item" onclick="window.toggleAuthModal()" style="display: none;">
-            <i data-lucide="log-in"></i> <span id="authNavLabel">Login</span>
+            <i data-lucide="log-in"></i> <span id="authNavLabel" data-t="login">Login</span>
         </div>
 
         <!-- User Panel (logged in) -->
@@ -317,7 +320,7 @@
                     <i data-lucide="user" style="width: 16px; height: 16px;"></i>
                     <span id="userNavLabel" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
                 </div>
-                <button id="logoutNavBtn" onclick="event.stopPropagation(); window.handleLogout()" style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: 0.2s; font-size: 12px; font-weight: 600;" title="Logout">
+                <button id="logoutNavBtn" onclick="event.stopPropagation(); window.handleLogout()" style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: 0.2s; font-size: 12px; font-weight: 600;" title="Logout" data-t-title="logout">
                     <i data-lucide="log-out" style="width: 14px; height: 14px;"></i>
                 </button>
             </div>
@@ -328,7 +331,7 @@
         </div>
 
         <div class="credits-footer">
-            Made by <span class="credits-name">thebitsamurai</span>
+            <span data-t="made_by">Made by</span> <span class="credits-name">thebitsamurai</span>
         </div>
     </aside>
 
@@ -339,7 +342,7 @@
                 <button onclick="window.showMobileLibrary()" style="background: transparent; border: none; color: var(--text); cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                     <i data-lucide="chevron-down"></i>
                 </button>
-                <span style="font-size: 12px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Now Playing</span>
+                <span style="font-size: 12px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;" data-t="now_playing">Now Playing</span>
                 <button onclick="window.toggleSettings()" style="background: transparent; border: none; color: var(--text); cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                     <i data-lucide="sliders"></i>
                 </button>
@@ -349,14 +352,14 @@
                 <!-- Обложка альбома -->
                 <div style="display: flex; justify-content: center; margin-bottom: 40px;">
                     <div id="mobileVinylContainer" style="width: 240px; height: 240px; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(255, 62, 0, 0.2); background: var(--surface);">
-                        <img id="mobileMainCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300" style="width: 100%; height: 100%; object-fit: cover;">
+                        <img id="mobileMainCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300" style="width: 100%; height: 100%; object-fit: cover;" alt="Cover" data-t-alt="cover">
                     </div>
                 </div>
 
                 <!-- Информация о треке -->
                 <div style="text-align: center; margin-bottom: 32px; width: 100%;">
-                    <h2 id="mobileTrackName" style="margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; margin-bottom: 8px;">Select Media</h2>
-                    <p id="mobileArtistName" style="margin: 0; font-size: 14px; color: var(--text-dim); font-weight: 500;">Unknown Artist</p>
+                    <h2 id="mobileTrackName" style="margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; margin-bottom: 8px;" data-t="ready">Select Media</h2>
+                    <p id="mobileArtistName" style="margin: 0; font-size: 14px; color: var(--text-dim); font-weight: 500;" data-t="unknown_artist">Unknown Artist</p>
                 </div>
 
                 <!-- Прогресс трека -->
@@ -372,19 +375,19 @@
 
                 <!-- Кнопки управления -->
                 <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 32px; align-items: center;">
-                    <button class="mini-btn" id="mobileShuffle" onclick="window.toggleShuffle()" style="width: 44px; height: 44px;" title="Shuffle">
+                    <button class="mini-btn" id="mobileShuffle" onclick="window.toggleShuffle()" style="width: 44px; height: 44px;" title="Shuffle" data-t-title="shuffle">
                         <i data-lucide="shuffle"></i>
                     </button>
-                    <button class="mini-btn" onclick="window.prevTrack()" style="width: 48px; height: 48px;" title="Previous">
+                    <button class="mini-btn" onclick="window.prevTrack()" style="width: 48px; height: 48px;" title="Previous" data-t-title="previous">
                         <i data-lucide="skip-back"></i>
                     </button>
-                    <button class="play-main" id="mobilePlayBtn" onclick="window.togglePlayback()" style="width: 64px; height: 64px;" title="Play/Pause">
+                    <button class="play-main" id="mobilePlayBtn" onclick="window.togglePlayback()" style="width: 64px; height: 64px;" title="Play/Pause" data-t-title="play_pause">
                         <i data-lucide="play" id="mobilePlayIcon"></i>
                     </button>
-                    <button class="mini-btn" onclick="window.nextTrack()" style="width: 48px; height: 48px;" title="Next">
+                    <button class="mini-btn" onclick="window.nextTrack()" style="width: 48px; height: 48px;" title="Next" data-t-title="next">
                         <i data-lucide="skip-forward"></i>
                     </button>
-                    <button class="mini-btn" id="mobileRepeat" onclick="window.toggleRepeat()" style="width: 44px; height: 44px;" title="Repeat">
+                    <button class="mini-btn" id="mobileRepeat" onclick="window.toggleRepeat()" style="width: 44px; height: 44px;" title="Repeat" data-t-title="repeat">
                         <i data-lucide="repeat"></i>
                     </button>
                 </div>
@@ -392,10 +395,10 @@
                 <!-- Быстрые действия -->
                 <div style="display: flex; gap: 12px; margin-bottom: 20px; width: 100%;">
                     <button onclick="if (state.library[state.currentIndex]) window.toggleFav(state.library[state.currentIndex].id || state.library[state.currentIndex].navidromeId, state.library[state.currentIndex].source || 'local')" style="flex: 1; padding: 12px; background: var(--secondary-color); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <i data-lucide="heart" style="width: 18px;"></i> Favorite
+                        <i data-lucide="heart" style="width: 18px;"></i> <span data-t="favorite">Favorite</span>
                     </button>
                     <button onclick="window.toggleModal('playlistPickerOverlay')" style="flex: 1; padding: 12px; background: var(--secondary-color); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                        <i data-lucide="plus" style="width: 18px;"></i> Playlist
+                        <i data-lucide="plus" style="width: 18px;"></i> <span data-t="playlist">Playlist</span>
                     </button>
                 </div>
             </div>
@@ -406,7 +409,7 @@
             <section class="hero-section" id="heroSection">
                 <div class="vinyl-container" id="vinylContainer">
                     <div class="vinyl">
-                        <img id="mainCover" src="" alt="Cover">
+                        <img id="mainCover" src="" alt="Cover" data-t-alt="cover">
                     </div>
                 </div>
                 <div class="track-meta">
@@ -573,7 +576,8 @@
         console.error('Runtime error:', e.error);
         const txt = document.getElementById('loaderText');
         if (txt) {
-            txt.innerText = 'Runtime Error: ' + (e.error?.message || e.message || 'See console');
+            const prefix = window.t ? window.t('runtime_error', 'Runtime Error:') : 'Runtime Error:';
+            txt.innerText = prefix + ' ' + (e.error?.message || e.message || (window.t ? window.t('see_console', 'See console') : 'See console'));
             txt.title = e.error?.stack || '';
         }
         const loader = document.getElementById('appLoader');
@@ -584,7 +588,8 @@
         console.error('Unhandled rejection:', e.reason);
         const txt = document.getElementById('loaderText');
         if (txt) {
-            txt.innerText = 'Unhandled Rejection: ' + (e.reason?.message || String(e.reason));
+            const prefix = window.t ? window.t('unhandled_rejection', 'Unhandled Rejection:') : 'Unhandled Rejection:';
+            txt.innerText = prefix + ' ' + (e.reason?.message || String(e.reason));
             txt.title = e.reason?.stack || '';
         }
         const loader = document.getElementById('appLoader');
