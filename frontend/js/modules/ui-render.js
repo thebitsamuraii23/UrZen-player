@@ -76,8 +76,10 @@ export function renderLibrary() {
         div.draggable = true;
         div.dataset.id = track.id || track.navidromeId;
         
-        const trackId = track.id || track.navidromeId;
         const source = track.source || 'local';
+        const trackId = source === 'navidrome'
+            ? (track.navidromeId || track.url || track.id)
+            : track.id;
         
         const removeFromPlaylistBtn = (typeof state.currentTab === 'number') ?
             `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="${t('remove_from_playlist', 'Remove from playlist')}"><i data-lucide="minus-square"></i></button>` : '';

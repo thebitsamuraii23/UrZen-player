@@ -17,12 +17,21 @@ export const state = {
     draggedItem: null,
     shuffle: false,
     repeat: 'none',
+    hideLeftQueue: true,
+    hideRightQueue: false,
+    rightQueueWidth: 320,
+    performanceMode: false,
+    visualizerRunning: false,
+    visualizerFrameId: null,
+    visualizerRgb: null,
+    visualizerTheme: null,
     selectedTracks: new Set(),
     searchQuery: '',
     navidromeSearchQuery: '',  // Отдельный поиск для Navidrome
     shuffledOrder: [],  // Массив индексов в перемешанном порядке
     shufflePosition: 0,  // Текущая позиция в перемешанном порядке
-    nextOverrideId: null
+    nextOverrideId: null,
+    theme: 'night-sky'
 };
 
 // DOM elements

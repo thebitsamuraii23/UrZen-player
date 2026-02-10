@@ -112,6 +112,7 @@ window.handleLogin = async function() {
       setTimeout(() => {
         window.toggleAuthModal();
         updateAuthNavItem(data.username);
+        if (window.handlePostLoginSync) window.handlePostLoginSync();
       }, 800);
     } else {
       showAuthStatus(statusEl, data.error || t('auth_login_failed', 'Login failed'), 'error');
@@ -168,6 +169,7 @@ window.handleRegister = async function() {
         document.getElementById('registerPassword').value = '';
         window.toggleAuthModal();
         updateAuthNavItem(data.username);
+        if (window.handlePostLoginSync) window.handlePostLoginSync();
       }, 800);
     } else {
       showAuthStatus(statusEl, data.error || t('auth_register_failed', 'Registration failed'), 'error');

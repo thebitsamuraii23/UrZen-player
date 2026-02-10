@@ -42,6 +42,9 @@ function initializeDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        navidrome_server TEXT,
+        navidrome_user TEXT,
+        navidrome_pass TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `, (err) => {
@@ -77,6 +80,7 @@ function initializeDatabase() {
         track_source TEXT DEFAULT 'local',
         navidrome_id TEXT,
         cover_art_id TEXT,
+        track_url TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -84,6 +88,28 @@ function initializeDatabase() {
     `, (err) => {
       if (err) console.error('[DB] Playlist_tracks table error:', err.message);
       else console.log('[DB] Playlist_tracks table ready');
+    });
+
+    // Add missing columns for existing databases
+    db.run('ALTER TABLE users ADD COLUMN navidrome_server TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] navidrome_server column:', err.message);
+      }
+    });
+    db.run('ALTER TABLE users ADD COLUMN navidrome_user TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] navidrome_user column:', err.message);
+      }
+    });
+    db.run('ALTER TABLE users ADD COLUMN navidrome_pass TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] navidrome_pass column:', err.message);
+      }
+    });
+    db.run('ALTER TABLE playlist_tracks ADD COLUMN track_url TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] track_url column:', err.message);
+      }
     });
   });
 }
@@ -336,7 +362,7 @@ app.get('/api/playlists/:playlistId', verifyToken, (req, res) => {
 
       // Fetch tracks for this playlist
       db.all(
-        'SELECT id, playlist_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY id',
+        'SELECT id, playlist_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id, track_url FROM playlist_tracks WHERE playlist_id = ? ORDER BY id',
         [playlistId],
         (err, tracks) => {
           if (err) {
@@ -365,7 +391,8 @@ app.post('/api/playlists/:playlistId/tracks', verifyToken, (req, res) => {
     track_duration,
     track_source,
     navidrome_id,
-    cover_art_id
+    cover_art_id,
+    track_url
   } = req.body;
 
   // Verify playlist belongs to user
@@ -384,9 +411,9 @@ app.post('/api/playlists/:playlistId/tracks', verifyToken, (req, res) => {
 
       db.run(
         `INSERT INTO playlist_tracks 
-         (playlist_id, user_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [playlistId, userId, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id],
+         (playlist_id, user_id, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id, track_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [playlistId, userId, track_title, track_artist, track_album, track_duration, track_source, navidrome_id, cover_art_id, track_url],
         function(err) {
           if (err) {
             console.error('Insert error:', err);
@@ -402,10 +429,47 @@ app.post('/api/playlists/:playlistId/tracks', verifyToken, (req, res) => {
             track_duration,
             track_source,
             navidrome_id,
-            cover_art_id
+            cover_art_id,
+            track_url
           });
         }
       );
+    }
+  );
+});
+
+// User settings: media server
+app.get('/api/user/settings', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  db.get(
+    'SELECT navidrome_server, navidrome_user, navidrome_pass FROM users WHERE id = ?',
+    [userId],
+    (err, row) => {
+      if (err) {
+        console.error('[DB] Error fetching user settings:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      res.json({
+        navidrome_server: row?.navidrome_server || '',
+        navidrome_user: row?.navidrome_user || '',
+        navidrome_pass: row?.navidrome_pass || ''
+      });
+    }
+  );
+});
+
+app.put('/api/user/settings', verifyToken, (req, res) => {
+  const userId = req.user.userId;
+  const { navidrome_server, navidrome_user, navidrome_pass } = req.body || {};
+  db.run(
+    'UPDATE users SET navidrome_server = ?, navidrome_user = ?, navidrome_pass = ? WHERE id = ?',
+    [navidrome_server || '', navidrome_user || '', navidrome_pass || '', userId],
+    function(err) {
+      if (err) {
+        console.error('[DB] Error updating user settings:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+      res.json({ success: true });
     }
   );
 });

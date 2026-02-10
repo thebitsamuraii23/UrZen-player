@@ -176,11 +176,20 @@ export async function deleteTrack(id, source = 'local') {
 // Сохраняет состояние очереди в localStorage
 export function saveQueueState() {
     const queueState = {
-        libraryIds: state.library.map(s => ({
-            id: s.id,
-            navidromeId: s.navidromeId,
-            source: s.source
-        })),
+        libraryIds: state.library.map(s => {
+            const derivedUrl = s.url || (s.source === 'navidrome' && s.navidromeId && window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(s.navidromeId) : '');
+            return {
+                id: s.id,
+                navidromeId: s.navidromeId,
+                source: s.source,
+                title: s.title,
+                artist: s.artist,
+                album: s.album,
+                duration: s.duration,
+                cover: s.cover,
+                url: derivedUrl || s.url
+            };
+        }),
         currentIndex: state.currentIndex
     };
     localStorage.setItem('queueState', JSON.stringify(queueState));
@@ -194,8 +203,110 @@ export async function restoreQueueState() {
     
     try {
         const queueState = JSON.parse(saved);
+        if (Array.isArray(queueState.libraryIds) && queueState.libraryIds.length > 0) {
+            const byId = new Map();
+            const byNavId = new Map();
+            const byUrl = new Map();
+            state.library.forEach(t => {
+                if (t.id !== undefined && t.id !== null) byId.set(String(t.id), t);
+                if (t.navidromeId) byNavId.set(String(t.navidromeId), t);
+                if (t.url) byUrl.set(String(t.url), t);
+            });
+            
+            const newLibrary = [];
+            const pendingNavidromeSaves = [];
+            const usedKeys = new Set();
+            
+            queueState.libraryIds.forEach(entry => {
+                let item = null;
+                let shouldPersistNavidrome = false;
+                if (entry.source === 'navidrome') {
+                    let entryUrl = entry.url || entry.trackUrl || '';
+                    if (entryUrl && entryUrl.includes('/rest/stream.view') && entryUrl.includes('f=json')) {
+                        try {
+                            const parsed = new URL(entryUrl);
+                            parsed.searchParams.delete('f');
+                            entryUrl = parsed.toString();
+                        } catch (e) {}
+                    }
+                    const navId = entry.navidromeId || entry.id;
+                    if (entryUrl) {
+                        item = byUrl.get(String(entryUrl));
+                    }
+                    if (!item && navId) {
+                        item = byNavId.get(String(navId)) || byId.get(String(navId));
+                    }
+                    if (!item && (navId || entryUrl)) {
+                        const resolvedUrl = entryUrl || (window.getNavidromeStreamUrl && navId ? window.getNavidromeStreamUrl(navId) : '');
+                        item = {
+                            id: entry.id || navId,
+                            navidromeId: navId,
+                            title: entry.title || '',
+                            artist: entry.artist || '',
+                            album: entry.album || '',
+                            duration: entry.duration || 0,
+                            cover: entry.cover || '',
+                            source: 'navidrome',
+                            url: resolvedUrl
+                        };
+                        shouldPersistNavidrome = true;
+                    }
+                } else if (entry.id !== undefined && entry.id !== null) {
+                    item = byId.get(String(entry.id));
+                }
+                
+                if (item) {
+                    const key = String(item.url || item.navidromeId || item.id);
+                    if (!usedKeys.has(key)) {
+                        usedKeys.add(key);
+                        newLibrary.push(item);
+                        if (shouldPersistNavidrome) {
+                            pendingNavidromeSaves.push(item);
+                        }
+                    }
+                }
+            });
+            
+            state.library.forEach(t => {
+                const key = String(t.url || t.navidromeId || t.id);
+                if (!usedKeys.has(key)) {
+                    usedKeys.add(key);
+                    newLibrary.push(t);
+                }
+            });
+            
+            state.library = newLibrary;
+
+            if (pendingNavidromeSaves.length > 0 && window.db?.songs) {
+                for (const track of pendingNavidromeSaves) {
+                    try {
+                        const exists = await window.db.songs.filter(s =>
+                            (track.navidromeId && s.navidromeId === track.navidromeId) ||
+                            (track.url && s.url === track.url)
+                        ).first();
+                        if (!exists) {
+                            await window.db.songs.add({
+                                title: track.title || '',
+                                artist: track.artist || '',
+                                album: track.album || '',
+                                duration: track.duration || 0,
+                                url: track.url || '',
+                                cover: track.cover || '',
+                                source: 'navidrome',
+                                navidromeId: track.navidromeId,
+                                isFavorite: false,
+                                order: 999999 + Math.random()
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('[LIBRARY] Failed to persist Navidrome track:', e);
+                    }
+                }
+            }
+        }
         if (queueState.currentIndex !== undefined) {
             state.currentIndex = queueState.currentIndex;
+            if (state.currentIndex >= state.library.length) state.currentIndex = -1;
         }
         console.log('[LIBRARY] Queue state restored, currentIndex:', state.currentIndex);
     } catch (err) {

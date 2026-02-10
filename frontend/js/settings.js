@@ -1,11 +1,23 @@
 // Настройки приложения
 import { state, dom } from './state.js';
-import { I18N } from './i18n.js?v=20260126-2';
+import { I18N } from './i18n.js?v=20260209-2';
 import { refreshIcons, showToast } from './helpers.js';
+
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? `http://localhost:3001`
+    : window.location.origin;
 
 const DEFAULT_NAVIDROME_SERVER = 'https://music.youtubemusicdownloader.life';
 const DEFAULT_NAVIDROME_USER = 'guest';
 const DEFAULT_NAVIDROME_PASS = 'guest';
+const AVAILABLE_THEMES = [
+    { id: 'classic', label: 'Original' },
+    { id: 'night-sky', label: 'Night sky' },
+    { id: 'faulty-terminal', label: 'Faulty terminal' },
+    { id: 'dot-grid', label: 'Dot Grid' },
+    { id: 'aurora', label: 'Aurora' }
+];
+const DEFAULT_THEME = 'night-sky';
 
 // Определяет язык браузера и возвращает поддерживаемый язык
 function detectBrowserLanguage() {
@@ -33,6 +45,112 @@ export function t(key, fallback = '') {
     const lang = normalizeLang(state.lang);
     return I18N[lang]?.[key] ?? I18N.en?.[key] ?? fallback;
 }
+
+function normalizeTheme(theme) {
+    const normalized = String(theme || '').toLowerCase().trim();
+    if (AVAILABLE_THEMES.some((item) => item.id === normalized)) return normalized;
+    return DEFAULT_THEME;
+}
+
+function syncThemeUI(theme) {
+    const cards = document.querySelectorAll('.theme-card[data-theme-option]');
+    if (!cards.length) return;
+    cards.forEach((card) => {
+        const isActive = card.getAttribute('data-theme-option') === theme;
+        card.classList.toggle('active', isActive);
+        card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+}
+
+export function applyTheme(theme, persist = false) {
+    const normalized = normalizeTheme(theme);
+    state.theme = normalized;
+    document.documentElement.setAttribute('data-theme', normalized);
+    if (document.body) document.body.setAttribute('data-theme', normalized);
+    syncThemeUI(normalized);
+    if (persist) {
+        try {
+            window.db?.settings?.put({ key: 'theme', value: normalized });
+        } catch (e) {
+            console.warn('[SETTINGS] Failed to save theme to DB:', e);
+        }
+        localStorage.setItem('theme', normalized);
+    }
+}
+
+function getAuthHeader() {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return null;
+    return {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+    };
+}
+
+async function fetchAccountMediaServer() {
+    const headers = getAuthHeader();
+    if (!headers) return null;
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/user/settings`, {
+            method: 'GET',
+            headers
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.warn('[SETTINGS] Failed to fetch account media server:', e);
+        return null;
+    }
+}
+
+async function saveAccountMediaServer(server, user, pass) {
+    const headers = getAuthHeader();
+    if (!headers) return;
+    try {
+        await fetch(`${API_BASE_URL}/api/user/settings`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({
+                navidrome_server: server || '',
+                navidrome_user: user || '',
+                navidrome_pass: pass || ''
+            })
+        });
+    } catch (e) {
+        console.warn('[SETTINGS] Failed to save account media server:', e);
+    }
+}
+
+async function syncAccountMediaServer() {
+    const data = await fetchAccountMediaServer();
+    if (!data) return;
+    const server = (data.navidrome_server || '').trim();
+    const user = (data.navidrome_user || '').trim();
+    const pass = (data.navidrome_pass || '').trim();
+    if (!server) return;
+    
+    const normalized = server.replace(/\/$/, '');
+    try {
+        await window.db.settings.put({ key: 'navidromeServer', value: normalized });
+        await window.db.settings.put({ key: 'navidromeUser', value: user || DEFAULT_NAVIDROME_USER });
+        await window.db.settings.put({ key: 'navidromePass', value: pass || DEFAULT_NAVIDROME_PASS });
+    } catch (e) {
+        console.warn('[SETTINGS] Failed to sync server to DB:', e);
+    }
+    localStorage.setItem('navidromeServer', normalized);
+    localStorage.setItem('navidromeUser', user || DEFAULT_NAVIDROME_USER);
+    localStorage.setItem('navidromePass', pass || DEFAULT_NAVIDROME_PASS);
+    state.navidromeServer = normalized;
+    state.navidromeUser = user || DEFAULT_NAVIDROME_USER;
+    state.navidromePass = pass || DEFAULT_NAVIDROME_PASS;
+
+    localStorage.removeItem('navidromeSongs');
+    localStorage.removeItem('navidromeSongsLastUpdate');
+    window._navidromeSongsCache = [];
+    if (window.state) window.state.navidromeSongs = [];
+}
+
+window.syncAccountMediaServer = syncAccountMediaServer;
 
 export async function loadSettings() {
     const lang = await window.db.settings.get('language');
@@ -69,6 +187,40 @@ export async function loadSettings() {
     const rep = await window.db.settings.get('repeat');
     if (rep !== undefined) state.repeat = rep.value;
     else if (localStorage.getItem('repeat')) state.repeat = localStorage.getItem('repeat');
+
+    const savedTheme = await window.db.settings.get('theme');
+    if (savedTheme?.value) {
+        state.theme = savedTheme.value;
+    } else if (localStorage.getItem('theme')) {
+        state.theme = localStorage.getItem('theme');
+    } else {
+        state.theme = DEFAULT_THEME;
+    }
+    applyTheme(state.theme);
+
+    const perfMode = await window.db.settings.get('performanceMode');
+    if (perfMode !== undefined) state.performanceMode = !!perfMode.value;
+    else if (localStorage.getItem('performanceMode')) state.performanceMode = localStorage.getItem('performanceMode') === 'true';
+    const perfCheck = document.getElementById('performanceModeCheck');
+    if (perfCheck) perfCheck.checked = state.performanceMode;
+    if (window.applyPerformanceMode) window.applyPerformanceMode(state.performanceMode, false);
+
+    const hideLeftQueue = await window.db.settings.get('hideLeftQueue');
+    if (hideLeftQueue !== undefined) state.hideLeftQueue = !!hideLeftQueue.value;
+    else if (localStorage.getItem('hideLeftQueue')) state.hideLeftQueue = localStorage.getItem('hideLeftQueue') === 'true';
+    const hideLeftCheck = document.getElementById('hideLeftQueueCheck');
+    if (hideLeftCheck) hideLeftCheck.checked = state.hideLeftQueue;
+    if (window.applyLeftQueueVisibility) window.applyLeftQueueVisibility(state.hideLeftQueue);
+
+    const hideRightQueue = await window.db.settings.get('hideRightQueue');
+    if (hideRightQueue !== undefined) state.hideRightQueue = !!hideRightQueue.value;
+    else if (localStorage.getItem('hideRightQueue')) state.hideRightQueue = localStorage.getItem('hideRightQueue') === 'true';
+
+    const rightQueueWidth = await window.db.settings.get('rightQueueWidth');
+    if (rightQueueWidth !== undefined) state.rightQueueWidth = Number(rightQueueWidth.value) || state.rightQueueWidth;
+    else if (localStorage.getItem('rightQueueWidth')) state.rightQueueWidth = parseFloat(localStorage.getItem('rightQueueWidth'));
+    if (window.applyRightQueueWidth) window.applyRightQueueWidth(state.rightQueueWidth || 320, false);
+    if (window.applyRightQueueVisibility) window.applyRightQueueVisibility(state.hideRightQueue, false);
     
     // Загружаем последний открытый таб
     const tab = localStorage.getItem('currentTab');
@@ -122,6 +274,11 @@ export async function loadSettings() {
         }
     } catch (e) {
         state.navidromePass = localStorage.getItem('navidromePass') || '';
+    }
+
+    // If logged in, prefer account-synced media server
+    if (localStorage.getItem('auth_token')) {
+        syncAccountMediaServer();
     }
 }
 
@@ -187,6 +344,11 @@ export function initSettingsHandlers() {
         applyLanguage();
     };
 
+    window.changeTheme = (val) => {
+        applyTheme(val, true);
+        showToast(t('theme_applied', 'Theme updated'));
+    };
+
     window.changeMediaServer = async () => {
         const modal = document.getElementById('mediaServerModal');
         if (!modal) return;
@@ -242,6 +404,9 @@ export function initSettingsHandlers() {
         state.navidromeServer = normalized;
         state.navidromeUser = user;
         state.navidromePass = pass;
+        if (localStorage.getItem('auth_token')) {
+            saveAccountMediaServer(normalized, user, pass);
+        }
 
         // Clear navidrome caches to force reload from new server
         localStorage.removeItem('navidromeSongs');
@@ -271,6 +436,9 @@ export function initSettingsHandlers() {
         state.navidromeServer = null;
         state.navidromeUser = '';
         state.navidromePass = '';
+        if (localStorage.getItem('auth_token')) {
+            saveAccountMediaServer('', '', '');
+        }
         localStorage.removeItem('navidromeSongs');
         localStorage.removeItem('navidromeSongsLastUpdate');
         window._navidromeSongsCache = [];

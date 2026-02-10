@@ -14,13 +14,15 @@ export async function addSongToPlaylist(playlistId, songId, track, source = 'loc
     
     if (source === 'navidrome' && track) {
         if (!isNavCurrentlyIncluded) {
-            playlist.navidromeSongIds.push(track.navidromeId);
+            const navUrl = track.url || (window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(track.navidromeId) : '');
+            if (track.navidromeId) playlist.navidromeSongIds.push(track.navidromeId);
             playlist.navidromeSongs.push({
                 navidromeId: track.navidromeId,
                 title: track.title,
                 artist: track.artist,
                 album: track.album,
                 cover: track.cover,
+                url: navUrl,
                 source: 'navidrome'
             });
         } else {
@@ -48,8 +50,13 @@ export async function removeSongFromPlaylist(playlistId, songId, source = 'local
     if (!pl) return;
     
     if (source === 'navidrome') {
-        pl.navidromeSongIds = Array.isArray(pl.navidromeSongIds) ? pl.navidromeSongIds.filter(id => id !== songId) : [];
-        pl.navidromeSongs = Array.isArray(pl.navidromeSongs) ? pl.navidromeSongs.filter(s => s.navidromeId !== songId) : [];
+        const isUrl = typeof songId === 'string' && /^https?:\/\//i.test(songId);
+        pl.navidromeSongs = Array.isArray(pl.navidromeSongs)
+            ? pl.navidromeSongs.filter(s => isUrl ? s.url !== songId : s.navidromeId !== songId)
+            : [];
+        pl.navidromeSongIds = pl.navidromeSongs
+            .map(s => s.navidromeId)
+            .filter(id => id !== undefined && id !== null);
     } else {
         pl.songIds = Array.isArray(pl.songIds) ? pl.songIds.filter(id => id !== songId) : [];
     }
@@ -63,13 +70,14 @@ export async function removeSongFromPlaylist(playlistId, songId, source = 'local
 }
 
 export async function createPlaylist(name) {
-    await window.db.playlists.add({ 
+    const id = await window.db.playlists.add({ 
         name, 
         songIds: [],
         navidromeSongIds: [],
         navidromeSongs: []
     });
     console.log('[PLAYLIST] Created new playlist:', name);
+    return id;
 }
 
 export async function deletePlaylist(playlistId) {

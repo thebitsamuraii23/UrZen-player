@@ -262,19 +262,135 @@ export async function syncPlaylistsWithServer(localPlaylists, db) {
   try {
     console.log('[SERVER-PLAYLIST] Starting sync...');
     
-    // Fetch server playlists
     const serverPlaylists = await fetchServerPlaylists();
-    const serverPlaylistNames = new Set(serverPlaylists.map(p => p.name));
+    const serverByName = new Map(serverPlaylists.map(p => [p.name, p]));
+    const localByName = new Map((localPlaylists || []).map(p => [p.name, p]));
 
-    // Create playlists on server that exist locally but not on server
-    for (const localPlaylist of localPlaylists) {
-      if (!serverPlaylistNames.has(localPlaylist.name)) {
+    // Link local playlists to server IDs by name
+    for (const local of localPlaylists) {
+      if (!local.serverId && serverByName.has(local.name)) {
+        const match = serverByName.get(local.name);
+        await db.playlists.update(local.id, { serverId: match.id });
+        local.serverId = match.id;
+      }
+    }
+
+    // Create server playlists missing from server
+    for (const local of localPlaylists) {
+      if (!serverByName.has(local.name)) {
         try {
-          const created = await createServerPlaylist(localPlaylist.name);
-          console.log('[SERVER-PLAYLIST] Created missing playlist on server:', localPlaylist.name);
+          const created = await createServerPlaylist(local.name);
+          if (created?.id) {
+            await db.playlists.update(local.id, { serverId: created.id });
+            local.serverId = created.id;
+            serverByName.set(local.name, created);
+          }
+          console.log('[SERVER-PLAYLIST] Created missing playlist on server:', local.name);
         } catch (error) {
           console.error('[SERVER-PLAYLIST] Failed to create playlist:', error);
         }
+      }
+    }
+
+    // Create local playlists missing from local DB
+    for (const serverPl of serverPlaylists) {
+      if (!localByName.has(serverPl.name)) {
+        try {
+          const newId = await db.playlists.add({
+            name: serverPl.name,
+            songIds: [],
+            navidromeSongIds: [],
+            navidromeSongs: [],
+            serverId: serverPl.id
+          });
+          console.log('[SERVER-PLAYLIST] Created local playlist from server:', serverPl.name, 'localId:', newId);
+        } catch (error) {
+          console.error('[SERVER-PLAYLIST] Failed to create local playlist:', error);
+        }
+      }
+    }
+
+    // Refresh local playlists from DB after structural changes
+    const mergedLocal = await db.playlists.toArray();
+
+    // Sync tracks (Navidrome only) both ways
+    for (const local of mergedLocal) {
+      const serverId = local.serverId || serverByName.get(local.name)?.id;
+      if (!serverId) continue;
+
+      try {
+        const details = await fetchServerPlaylistDetails(serverId);
+        const serverTracks = details?.tracks || [];
+        const serverNavTracks = serverTracks.filter(t => t.track_source === 'navidrome' && (t.navidrome_id || t.track_url));
+        const serverNavKeys = new Set(serverNavTracks.map(t => String(t.track_url || t.navidrome_id)));
+
+        const localNavSongs = Array.isArray(local.navidromeSongs) ? local.navidromeSongs.slice() : [];
+        const localNavKeys = new Set(localNavSongs.map(t => String(t.url || t.navidromeId)));
+        const localNavIds = new Set((local.navidromeSongIds || []).map(id => String(id)));
+
+        let localChanged = false;
+
+        // Pull from server -> local
+        for (const track of serverNavTracks) {
+          const navId = track.navidrome_id ? String(track.navidrome_id) : '';
+          const navUrl = track.track_url || (window.getNavidromeStreamUrl && track.navidrome_id ? window.getNavidromeStreamUrl(track.navidrome_id) : '');
+          const key = String(navUrl || navId);
+          if (!localNavKeys.has(key)) {
+            localNavKeys.add(key);
+            if (navId) {
+              local.navidromeSongIds = Array.isArray(local.navidromeSongIds) ? local.navidromeSongIds : [];
+              if (!localNavIds.has(navId)) {
+                localNavIds.add(navId);
+                local.navidromeSongIds.push(track.navidrome_id);
+              }
+            }
+            localNavSongs.push({
+              navidromeId: track.navidrome_id,
+              title: track.track_title || '',
+              artist: track.track_artist || '',
+              album: track.track_album || '',
+              cover: track.cover_art_id || '',
+              url: navUrl || '',
+              source: 'navidrome'
+            });
+            localChanged = true;
+          }
+        }
+
+        // Push from local -> server (Navidrome only)
+        for (const localTrack of (local.navidromeSongs || [])) {
+          const navId = localTrack.navidromeId ? String(localTrack.navidromeId) : '';
+          const navUrl = localTrack.url || (window.getNavidromeStreamUrl && localTrack.navidromeId ? window.getNavidromeStreamUrl(localTrack.navidromeId) : '');
+          const key = String(navUrl || navId);
+          if (key && !serverNavKeys.has(key)) {
+            const trackData = {
+              track_title: localTrack.title || '',
+              track_artist: localTrack.artist || '',
+              track_album: localTrack.album || '',
+              track_duration: localTrack.duration || 0,
+              track_source: 'navidrome',
+              navidrome_id: localTrack.navidromeId || null,
+              cover_art_id: localTrack.cover || null,
+              track_url: navUrl || null
+            };
+            try {
+              await addTrackToServerPlaylist(serverId, trackData);
+              console.log('[SERVER-PLAYLIST] Added missing Navidrome track to server playlist:', local.name);
+            } catch (error) {
+              console.error('[SERVER-PLAYLIST] Failed to add Navidrome track:', error);
+            }
+          }
+        }
+
+        if (localChanged) {
+          await db.playlists.update(local.id, {
+            navidromeSongIds: local.navidromeSongIds,
+            navidromeSongs: localNavSongs,
+            serverId
+          });
+        }
+      } catch (error) {
+        console.error('[SERVER-PLAYLIST] Track sync error:', error);
       }
     }
 

@@ -14,6 +14,13 @@
             if (!info) return;
             info.style.display = (info.style.display === 'none' || !info.style.display) ? 'block' : 'none';
         };
+
+        (() => {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-theme', savedTheme);
+            }
+        })();
         
         const lucideLoadTimeout = setTimeout(() => {
             console.warn('Lucide icons failed to load; using fallback SVG placeholders.');
@@ -26,7 +33,7 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="css/main.css?v=20260126-2">
+    <link rel="stylesheet" href="css/main.css?v=20260210-1">
     <link rel="stylesheet" href="css/mobile-player-center.css?v=20260126-2" />
 </head>
 <body class="lang-ru">
@@ -43,6 +50,9 @@
     </div>
     <nav class="sidebar-section">
         <span class="section-label">Разделы</span>
+        <div class="nav-item" id="nav-home-mobile" onclick="window.switchTab('home'); window.closeMobileMenu();" title="Home" data-t-title="home">
+            <i data-lucide="home"></i> <span data-t="home">Home</span>
+        </div>
         <div class="nav-item" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();" title="Library" data-t-title="library">
             <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
         </div>
@@ -98,10 +108,6 @@
 
 <div class="top-search" id="topSearch">
     <input type="search" id="globalSearch" placeholder="Search tracks or artists..." aria-label="Search" data-t-placeholder="search_placeholder" data-t-aria-label="search_label" />
-</div>
-
-<div class="zen-trigger" title="Zen Mode" onclick="window.toggleZen(true)" data-t-title="zen_mode">
-    <i data-lucide="expand"></i>
 </div>
 
 <button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks" data-t-title="import_tracks">
@@ -213,6 +219,7 @@
 <div class="modal-overlay" id="settingsModal">
     <div class="modal-content modal-animate">
         <div class="modal-close" onclick="window.toggleSettings()"><i data-lucide="x"></i></div>
+        <div class="settings-page">
         <h3 style="margin-bottom: 20px;" data-t="settings">Конфигурация системы</h3>
         
         <button class="settings-btn" onclick="window.switchTab('about'); window.toggleSettings();" style="width:100%; background: #1a1a1a; color: #d0d0d0; border: 1px solid var(--border); padding: 14px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); transition: all 0.3s ease;" onmouseover="this.style.background='#252525'; this.style.borderColor='#ff6f91'; this.style.color='#ff6f91'; this.style.boxShadow='0 4px 16px rgba(255, 107, 107, 0.2)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#1a1a1a'; this.style.borderColor='var(--border)'; this.style.color='#d0d0d0'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.2)'; this.style.transform='translateY(0)';">
@@ -233,6 +240,39 @@
             </div>
         </div>
 
+        <div class="setting-group theme-group">
+            <div class="setting-row">
+                <span>Theme</span>
+            </div>
+            <div class="theme-switcher">
+                <button type="button" class="theme-card" data-theme-option="classic" onclick="window.changeTheme('classic')" aria-pressed="false">
+                    <span class="theme-card-title">Original</span>
+                    <span class="theme-card-sub">Classic UI</span>
+                    <span class="theme-card-chip">Legacy</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-option="night-sky" onclick="window.changeTheme('night-sky')" aria-pressed="false">
+                    <span class="theme-card-title">Night sky</span>
+                    <span class="theme-card-sub">Starlight UI</span>
+                    <span class="theme-card-chip">Cosmic</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-option="faulty-terminal" onclick="window.changeTheme('faulty-terminal')" aria-pressed="false">
+                    <span class="theme-card-title">Faulty terminal</span>
+                    <span class="theme-card-sub">Glitch scanlines</span>
+                    <span class="theme-card-chip">CRT</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-option="dot-grid" onclick="window.changeTheme('dot-grid')" aria-pressed="false">
+                    <span class="theme-card-title">Dot Grid</span>
+                    <span class="theme-card-sub">Precision layout</span>
+                    <span class="theme-card-chip">Matrix</span>
+                </button>
+                <button type="button" class="theme-card" data-theme-option="aurora" onclick="window.changeTheme('aurora')" aria-pressed="false">
+                    <span class="theme-card-title">Aurora</span>
+                    <span class="theme-card-sub">Flowing lights</span>
+                    <span class="theme-card-chip">Polar</span>
+                </button>
+            </div>
+        </div>
+
         <div class="setting-group" style="gap:12px;">
             <button onclick="window.changeMediaServer()" data-t="change_media_server"
                 style="width:100%; background: #15161a; color: #f2f2f2; border: 1px solid var(--border); padding: 14px 16px; border-radius: 14px; cursor: pointer; font-weight: 800; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease;"
@@ -249,12 +289,32 @@
                 <span data-t="reset_media_server">Сбросить медиасервер</span>
             </button>
         </div>
-        
+
         <div class="setting-group">
             <div class="setting-row">
                 <span data-t="bass_boost">Ультра-бас</span>
                 <label class="switch">
                     <input type="checkbox" id="bassBoostCheck" checked onchange="window.toggleBassBoost(this.checked)">
+                    <span class="slider-toggle"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="setting-group">
+            <div class="setting-row">
+                <span data-t="performance_mode">Performance mode</span>
+                <label class="switch">
+                    <input type="checkbox" id="performanceModeCheck" onchange="window.togglePerformanceMode(this.checked)">
+                    <span class="slider-toggle"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="setting-group">
+            <div class="setting-row">
+                <span data-t="hide_left_queue">Убрать левый queue sidebar</span>
+                <label class="switch">
+                    <input type="checkbox" id="hideLeftQueueCheck" onchange="window.toggleLeftQueue(this.checked)">
                     <span class="slider-toggle"></span>
                 </label>
             </div>
@@ -282,6 +342,7 @@
             <i data-lucide="trash-2" style="width:16px; display:inline; vertical-align:middle; margin-right:8px;"></i>
             <span data-t="reset_db">Wipe All Data</span>
         </button>
+        </div>
     </div>
 </div>
 
@@ -329,6 +390,9 @@
         
         <nav class="sidebar-section">
             <span class="section-label" data-t="navigation">Разделы</span>
+            <div class="nav-item" id="nav-home" onclick="window.switchTab('home')">
+                <i data-lucide="home"></i> <span data-t="home">Home</span>
+            </div>
             <div class="nav-item active" id="nav-all" onclick="window.switchTab('all')">
                 <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
             </div>
@@ -348,7 +412,7 @@
             <div id="playlistNav"></div>
         </nav>
 
-        <nav class="sidebar-section">
+        <nav class="sidebar-section" id="leftQueueSection">
             <span class="section-label" data-t="queue">Queue</span>
             <button class="queue-clear-btn" onclick="window.clearQueue()" style="width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-dim); font-sibitche: 12px; cursor: pointer; transition: 0.3s; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Clear all tracks from queue" data-t-title="clear_queue_title">
                 <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
@@ -458,6 +522,51 @@
             </div>
         </div>
 
+        <div id="homeSection" class="home-section">
+            <div class="home-header">
+                <div>
+                    <p class="home-eyebrow" data-t="home_welcome">Welcome back</p>
+                    <h2 class="home-title" data-t="home_title">Your sonic dashboard</h2>
+                    <p class="home-subtitle" id="homeTasteHint" data-t="home_subtitle">We are tuning recommendations for you.</p>
+                </div>
+                <div class="home-actions">
+                    <button class="home-action-btn" type="button" onclick="window.refreshHome(true)">
+                        <i data-lucide="sparkles" style="width:16px;"></i>
+                        <span data-t="refresh">Refresh</span>
+                    </button>
+                </div>
+            </div>
+            <div class="home-status" id="homeStatus"></div>
+
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="continue_listening">Continue listening</h3>
+                </div>
+                <div class="home-row-grid" id="homeContinueGrid"></div>
+            </div>
+
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="recently_played">Recently played</h3>
+                </div>
+                <div class="home-row-grid" id="homeRecentGrid"></div>
+            </div>
+
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 id="homeRecommendedTitle" data-t="recommended_for_you">Recommended for you</h3>
+                </div>
+                <div class="home-row-grid" id="homeRecommendationsGrid"></div>
+            </div>
+
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="new_releases">New releases</h3>
+                </div>
+                <div class="home-row-grid" id="homeNewGrid"></div>
+            </div>
+        </div>
+
         <!-- Мобильная библиотека -->
         <div id="mobileLibraryView" style="display: flex; flex-direction: column;">
             <section class="hero-section" id="heroSection">
@@ -469,6 +578,11 @@
                 <div class="track-meta">
                     <p id="artistName"></p>
                     <h1 id="trackName" data-t="ready">Select Media</h1>
+                    <div class="zen-inline-wrap">
+                        <button class="zen-inline" title="Zen Mode" data-t-title="zen_mode" data-t-aria-label="zen_mode" onclick="window.toggleZen(true)">
+                            <i data-lucide="expand"></i>
+                        </button>
+                    </div>
                 </div>
             </section>
         </div>
@@ -579,8 +693,20 @@
         </div>
     </div>
 
-    <aside class="right">
-        <span class="section-label" data-t="queue">Очередь</span>
+    <aside class="right" id="rightQueueSidebar">
+        <div class="right-queue-header">
+            <span class="section-label" data-t="queue">Очередь</span>
+            <button class="queue-hide-btn" id="rightQueueToggle" onclick="window.toggleRightQueue()" title="Hide queue" data-t-title="hide_right_queue" data-t-aria-label="hide_right_queue">
+                <i data-lucide="eye-off"></i>
+            </button>
+        </div>
+        <div class="right-queue-actions">
+            <button class="right-queue-clear" onclick="window.clearQueue()" data-t-title="clear_queue_title" data-t-aria-label="clear_queue_title">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                <span data-t="clear_queue">Clear Queue</span>
+            </button>
+        </div>
+        <div class="queue-resize-handle" id="rightQueueResizeHandle" title="Resize queue"></div>
         <div class="list-container" id="playlist"></div>
 
         <div class="fx-panel" id="bassBoostPanel">
@@ -595,6 +721,10 @@
             </div>
         </div>
     </aside>
+    
+    <button class="queue-show-btn" id="rightQueueShowBtn" onclick="window.toggleRightQueue()" title="Show queue" data-t-title="show_right_queue" data-t-aria-label="show_right_queue">
+        <i data-lucide="chevron-left"></i>
+    </button>
 
     <div class="master-controls" id="playerControls">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -623,7 +753,7 @@
 
 <!-- Модульная загрузка JavaScript -->
 <script type="module">
-    import { initApp } from './js/app.js?v=20260126-2';
+    import { initApp } from './js/app.js?v=20260210-1';
     window.addEventListener('DOMContentLoaded', initApp);
     
     window.addEventListener('error', (e) => {

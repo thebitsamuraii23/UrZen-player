@@ -1,23 +1,485 @@
 // Главная точка входа приложения
 import { state, dom, initDOM } from './state.js';
 import { initAuth } from './auth.js';
-import { searchLocalLibrary } from './navidrome-search.js';
+import {
+    searchLocalLibrary,
+    getRandomSongs as getNavidromeRandomSongs,
+    getSongsByGenre as getNavidromeSongsByGenre,
+    getAlbumList2 as getNavidromeAlbumList,
+    getAlbum as getNavidromeAlbum,
+    getGenres as getNavidromeGenres,
+    getNavidromeCoverArtUrl,
+    scrobbleNavidromeSong
+} from './navidrome-search.js';
 import { loadLibraryFromDB, getCurrentListView, deleteTrack, saveQueueState, restoreQueueState } from './modules/library-manager.js';
 import { addSongToPlaylist, removeSongFromPlaylist, createPlaylist, deletePlaylist, renamePlaylist } from './modules/playlist-manager.js';
 import { isUserAuthenticated, syncPlaylistsWithServer } from './modules/server-playlist-manager.js';
-import { I18N } from './i18n.js?v=20260126-2';
+import { I18N } from './i18n.js?v=20260209-2';
 import { formatTime, showToast, refreshIcons } from './helpers.js';
 import { loadSettings, applyLanguage, initSettingsHandlers, normalizeLang, t as translate } from './settings.js';
 
 // Инициализация БД
 const db = new Dexie("AetherProDB");
-db.version(7).stores({
-    songs: "++id, title, artist, isFavorite, order",
+db.version(8).stores({
+    songs: "++id, navidromeId, title, artist, isFavorite, order",
     playlists: "++id, name",
     settings: "key"
 });
 
 const t = (key, fallback = '') => translate(key, fallback);
+const DEFAULT_COVER = 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300';
+
+function resolveCover(src) {
+    return src && String(src).trim().length > 0 ? src : DEFAULT_COVER;
+}
+
+function applyImgFallback(img, src = '') {
+    if (!img) return;
+    img.onerror = () => {
+        img.src = DEFAULT_COVER;
+    };
+    img.src = resolveCover(src);
+}
+
+// ============ HOME / RECOMMENDATIONS ============
+const HOME_HISTORY_KEY = 'playHistory';
+const HOME_HISTORY_LIMIT = 200;
+const HOME_REFRESH_COOLDOWN = 60 * 1000;
+let homeRefreshInFlight = false;
+let homeLastRefresh = 0;
+const PLAY_PROGRESS_KEY = 'playProgress';
+const PLAY_PROGRESS_THROTTLE = 2500;
+let lastProgressSave = 0;
+
+function loadPlayHistory() {
+    try {
+        const raw = localStorage.getItem(HOME_HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.warn('[HOME] Failed to load history:', e);
+        return [];
+    }
+}
+
+function savePlayHistory(items) {
+    try {
+        localStorage.setItem(HOME_HISTORY_KEY, JSON.stringify(items));
+    } catch (e) {
+        console.warn('[HOME] Failed to save history:', e);
+    }
+}
+
+function getHistoryKey(track) {
+    const baseId = track?.navidromeId || track?.id || track?.url || track?.title || 'unknown';
+    const source = track?.source || 'local';
+    return `${source}:${String(baseId)}`;
+}
+
+function loadProgressMap() {
+    try {
+        const raw = localStorage.getItem(PLAY_PROGRESS_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (e) {
+        console.warn('[HOME] Failed to load progress map:', e);
+        return {};
+    }
+}
+
+function saveProgressMap(map) {
+    try {
+        localStorage.setItem(PLAY_PROGRESS_KEY, JSON.stringify(map));
+    } catch (e) {
+        console.warn('[HOME] Failed to save progress map:', e);
+    }
+}
+
+function savePlaybackProgress(track, currentTime, duration) {
+    if (!track || !Number.isFinite(currentTime)) return;
+    if (!duration || !Number.isFinite(duration) || duration <= 0) return;
+    if (currentTime < 5) return;
+    if (duration - currentTime < 8) {
+        clearPlaybackProgress(track);
+        return;
+    }
+    const map = loadProgressMap();
+    map[getHistoryKey(track)] = {
+        position: currentTime,
+        duration,
+        updatedAt: Date.now()
+    };
+    saveProgressMap(map);
+}
+
+function clearPlaybackProgress(track) {
+    if (!track) return;
+    const map = loadProgressMap();
+    const key = getHistoryKey(track);
+    if (map[key]) {
+        delete map[key];
+        saveProgressMap(map);
+    }
+}
+
+function getPlaybackProgress(track) {
+    if (!track) return null;
+    const map = loadProgressMap();
+    return map[getHistoryKey(track)] || null;
+}
+
+function applySavedPosition(track) {
+    if (!track || !dom.audio) return;
+    const progress = getPlaybackProgress(track);
+    if (!progress || !progress.position) return;
+    dom.audio.addEventListener('loadedmetadata', () => {
+        const duration = Number(dom.audio.duration || progress.duration || 0);
+        if (!duration) return;
+        const target = Math.min(progress.position, Math.max(0, duration - 8));
+        if (target > 5 && Number.isFinite(target)) {
+            dom.audio.currentTime = target;
+        }
+    }, { once: true });
+}
+
+window.applySavedPosition = applySavedPosition;
+
+function logPlayHistory(track) {
+    if (!track) return;
+    const history = loadPlayHistory();
+    const key = getHistoryKey(track);
+    const entry = {
+        key,
+        id: track.id || null,
+        navidromeId: track.navidromeId || null,
+        url: track.url || null,
+        source: track.source || 'local',
+        title: track.title || t('unknown_title', 'Unknown'),
+        artist: track.artist || t('unknown_artist', 'Unknown Artist'),
+        album: track.album || '',
+        cover: track.cover || '',
+        genre: track.genre || '',
+        playedAt: Date.now()
+    };
+    const filtered = history.filter(item => item.key !== key);
+    filtered.unshift(entry);
+    savePlayHistory(filtered.slice(0, HOME_HISTORY_LIMIT));
+}
+
+window.logPlayHistory = logPlayHistory;
+
+function splitGenres(value) {
+    if (!value) return [];
+    return String(value)
+        .split(/[,/;|]/)
+        .map(s => s.trim())
+        .filter(Boolean);
+}
+
+function computeTasteProfile(history) {
+    const now = Date.now();
+    const genreScores = new Map();
+    const artistScores = new Map();
+    history.forEach((item, idx) => {
+        const playedAt = item.playedAt || now;
+        const ageDays = Math.max(0, (now - playedAt) / 86400000);
+        const recencyWeight = Math.exp(-ageDays / 12);
+        const positionWeight = 1 - idx / (history.length + 6);
+        const weight = Math.max(0.2, recencyWeight * positionWeight);
+
+        splitGenres(item.genre).forEach((genre) => {
+            genreScores.set(genre, (genreScores.get(genre) || 0) + weight);
+        });
+        if (item.artist) {
+            artistScores.set(item.artist, (artistScores.get(item.artist) || 0) + weight);
+        }
+    });
+
+    const topGenres = Array.from(genreScores.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([genre]) => genre);
+
+    const topArtists = Array.from(artistScores.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([artist]) => artist);
+
+    return { topGenres, topArtists };
+}
+
+function mapAlbumSong(song, album) {
+    if (!song) return null;
+    return {
+        id: song.id,
+        navidromeId: song.id,
+        title: song.title || t('unknown_title', 'Unknown'),
+        artist: song.artist || album?.artist || t('unknown_artist', 'Unknown Artist'),
+        album: song.album || album?.name || '',
+        duration: song.duration || 0,
+        cover: getNavidromeCoverArtUrl(song.coverArt || album?.coverArt, 300) || '',
+        source: 'navidrome',
+        genre: song.genre || ''
+    };
+}
+
+function dedupeTracks(list, history = []) {
+    const seen = new Set();
+    history.forEach(item => seen.add(getHistoryKey(item)));
+    return list.filter(item => {
+        const key = getHistoryKey(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function pickRandomLocal(count = 10) {
+    const pool = (state.library || []).filter(item => item && item.title);
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count).map(item => ({
+        id: item.id,
+        navidromeId: item.navidromeId || null,
+        title: item.title,
+        artist: item.artist,
+        album: item.album || '',
+        cover: item.cover || '',
+        source: item.source || 'local',
+        genre: item.genre || ''
+    }));
+}
+
+async function fetchRecentFromServer(limit = 10) {
+    const albums = await getNavidromeAlbumList('recent', limit);
+    if (!albums.length) return [];
+    const picks = albums.slice(0, limit);
+    const results = await Promise.all(picks.map(async (album) => {
+        const albumData = await getNavidromeAlbum(album.id);
+        const song = albumData?.song?.[0];
+        return mapAlbumSong(song, album);
+    }));
+    return results.filter(Boolean);
+}
+
+async function fetchNewFromServer(limit = 10) {
+    const albums = await getNavidromeAlbumList('newest', limit);
+    if (!albums.length) return [];
+    const picks = albums.slice(0, limit);
+    const results = await Promise.all(picks.map(async (album) => {
+        const albumData = await getNavidromeAlbum(album.id);
+        const song = albumData?.song?.[0];
+        return mapAlbumSong(song, album);
+    }));
+    return results.filter(Boolean);
+}
+
+async function fetchRecommendations(profile, history) {
+    const results = [];
+    const topGenres = profile.topGenres || [];
+
+    for (const genre of topGenres) {
+        const byGenre = await getNavidromeSongsByGenre(genre, 10);
+        results.push(...byGenre.map(song => ({
+            ...song,
+            genre: song.genre || genre
+        })));
+    }
+
+    if (profile.topArtists && profile.topArtists.length) {
+        for (const artist of profile.topArtists) {
+            const searchResults = await window.searchNavidrome?.(artist) || [];
+            const filtered = searchResults.filter(item =>
+                String(item.artist || '').toLowerCase().includes(String(artist).toLowerCase())
+            );
+            results.push(...filtered.slice(0, 6));
+        }
+    }
+
+    if (results.length < 12) {
+        const genre = topGenres[0];
+        const extra = await getNavidromeRandomSongs({ size: 12, genre });
+        results.push(...extra);
+    }
+
+    if (results.length < 12) {
+        const extra = await getNavidromeRandomSongs({ size: 12 });
+        results.push(...extra);
+    }
+
+    return dedupeTracks(results, history).slice(0, 16);
+}
+
+function renderHomeGrid(containerId, items, emptyText) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    if (!items || items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = emptyText;
+        container.appendChild(empty);
+        return;
+    }
+    items.forEach(item => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'home-card';
+        const cover = document.createElement('img');
+        cover.alt = `${item.title || t('unknown_title', 'Unknown')} cover`;
+        applyImgFallback(cover, item.cover);
+        const title = document.createElement('div');
+        title.className = 'home-card-title';
+        title.textContent = item.title || t('unknown_title', 'Unknown');
+        const subtitle = document.createElement('div');
+        subtitle.className = 'home-card-subtitle';
+        subtitle.textContent = item.artist || t('unknown_artist', 'Unknown Artist');
+        const chip = document.createElement('div');
+        chip.className = 'home-card-chip';
+        if (item.progress && item.progress.position) {
+            const mins = Math.floor(item.progress.position / 60);
+            const secs = Math.floor(item.progress.position % 60).toString().padStart(2, '0');
+            chip.textContent = `${t('continue_listening', 'Continue')} · ${mins}:${secs}`;
+        } else {
+            chip.textContent = item.genre || (item.source === 'navidrome' ? 'Server' : 'Local');
+        }
+        card.appendChild(cover);
+        card.appendChild(title);
+        card.appendChild(subtitle);
+        card.appendChild(chip);
+        card.onclick = async () => {
+            if (item.source === 'navidrome') {
+                const songId = item.navidromeId || item.id;
+                if (songId) {
+                    window.playNavidromeSong(songId, item.title, item.artist, item.album, item.cover);
+                }
+            } else if (item.id !== null && item.id !== undefined) {
+                window.playTrack(item.id);
+            }
+            if (item.progress) {
+                applySavedPosition(item);
+            }
+            updateHomeVisibility();
+        };
+        container.appendChild(card);
+    });
+}
+
+function updateHomeVisibility(force = false) {
+    const shouldShow = state.currentTab === 'home';
+    document.body.classList.toggle('home-visible', shouldShow);
+    const homeSection = document.getElementById('homeSection');
+    if (homeSection) homeSection.style.display = shouldShow ? 'flex' : 'none';
+    const mobileLibraryView = document.getElementById('mobileLibraryView');
+    if (mobileLibraryView) mobileLibraryView.style.display = shouldShow ? 'none' : 'flex';
+
+    if (shouldShow) {
+        const playerControls = document.getElementById('playerControls');
+        const rightPanel = document.querySelector('.right');
+        const topSearch = document.getElementById('topSearch');
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        const hasAudio = !!(dom.audio && dom.audio.src);
+        if (topSearch) topSearch.style.display = 'none';
+        if (playerControls) playerControls.style.display = hasAudio ? 'flex' : 'none';
+        if (rightPanel) rightPanel.style.display = (hasAudio && !state.hideRightQueue) ? 'flex' : 'none';
+        if (rightQueueShow) rightQueueShow.style.display = hasAudio && state.hideRightQueue ? 'flex' : 'none';
+    }
+
+    if (shouldShow && (force || Date.now() - homeLastRefresh > HOME_REFRESH_COOLDOWN)) {
+        window.refreshHome();
+    }
+}
+
+window.updateHomeVisibility = updateHomeVisibility;
+
+window.refreshHome = async (force = false) => {
+    if (homeRefreshInFlight) return;
+    const now = Date.now();
+    if (!force && now - homeLastRefresh < HOME_REFRESH_COOLDOWN) return;
+    homeRefreshInFlight = true;
+    homeLastRefresh = now;
+
+    const status = document.getElementById('homeStatus');
+    if (status) status.textContent = t('loading_status', 'Loading...');
+
+    try {
+        const history = loadPlayHistory();
+        const taste = computeTasteProfile(history);
+        if (!taste.topGenres.length) {
+            const serverGenres = await getNavidromeGenres();
+            taste.topGenres = (serverGenres || [])
+                .map(item => item.value || item.name || item.genre || '')
+                .filter(Boolean)
+                .slice(0, 3);
+        }
+        const tasteHint = document.getElementById('homeTasteHint');
+        if (tasteHint) {
+            tasteHint.textContent = taste.topGenres.length
+                ? `${t('because_you_listen', 'Because you listen to')} ${taste.topGenres[0]}`
+                : t('home_subtitle', 'We are tuning recommendations for you.');
+        }
+
+        const recommendedTitle = document.getElementById('homeRecommendedTitle');
+        if (recommendedTitle && taste.topGenres.length) {
+            recommendedTitle.textContent = `${t('recommended_for_you', 'Recommended for you')} · ${taste.topGenres[0]}`;
+        }
+
+        const progressMap = loadProgressMap();
+        let continueList = history.slice(0, 12).map(item => ({
+            id: item.id,
+            navidromeId: item.navidromeId,
+            title: item.title,
+            artist: item.artist,
+            album: item.album,
+            cover: item.cover,
+            source: item.source,
+            genre: item.genre,
+            progress: progressMap[item.key] || null
+        }));
+
+        let recentList = await fetchRecentFromServer(10);
+        if (!recentList.length) {
+            recentList = history.slice(0, 10).map(item => ({
+                id: item.id,
+                navidromeId: item.navidromeId,
+                title: item.title,
+                artist: item.artist,
+                album: item.album,
+                cover: item.cover,
+                source: item.source,
+                genre: item.genre
+            }));
+        }
+
+        let recommended = await fetchRecommendations(taste, history);
+        if (!recommended.length) {
+            recommended = pickRandomLocal(12);
+        }
+
+        let newList = await fetchNewFromServer(10);
+        if (!newList.length) {
+            const year = new Date().getFullYear();
+            const fresh = await getNavidromeRandomSongs({ size: 10, fromYear: year - 1, toYear: year });
+            newList = fresh.length ? fresh : pickRandomLocal(10);
+        }
+
+        continueList = dedupeTracks(continueList);
+        recentList = dedupeTracks(recentList, continueList);
+        recommended = dedupeTracks(recommended, [...continueList, ...recentList]);
+        newList = dedupeTracks(newList, [...continueList, ...recentList, ...recommended]);
+
+        renderHomeGrid('homeContinueGrid', continueList, t('home_continue_empty', 'Start playing music to see history here.'));
+        renderHomeGrid('homeRecentGrid', recentList, t('home_recent_empty', 'No recent plays yet.'));
+        renderHomeGrid('homeRecommendationsGrid', recommended, t('home_reco_empty', 'We need more listening data.'));
+        renderHomeGrid('homeNewGrid', newList, t('home_new_empty', 'No new releases found.'));
+
+        if (status) status.textContent = '';
+    } catch (error) {
+        console.error('[HOME] Failed to refresh:', error);
+        if (status) status.textContent = t('home_load_failed', 'Failed to load recommendations.');
+    } finally {
+        homeRefreshInFlight = false;
+    }
+};
 
 // ============ НАСТРОЙКИ ============
 // (Теперь в settings.js)
@@ -111,16 +573,316 @@ function renderPlaylistNav() {
     refreshIcons();
 }
 
+function ensureNavidromeStyles() {
+    if (document.getElementById('navidromeStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'navidromeStyles';
+    style.textContent = `
+        #navidromeContainer.music-tab {
+            background: #0c0c0e;
+            color: #f1f1f1;
+            overflow: hidden;
+        }
+        #navidromeContainer.music-tab::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(1200px 600px at 20% -10%, rgba(255, 255, 255, 0.06), transparent 60%),
+                radial-gradient(900px 520px at 90% 10%, rgba(255, 140, 0, 0.12), transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+            animation: navidromeGlow 12s ease-in-out infinite;
+        }
+        #navidromeContainer.music-tab::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.6));
+            pointer-events: none;
+            z-index: 0;
+            animation: navidromeVeil 10s ease-in-out infinite;
+        }
+        #navidromeContainer.music-tab > * {
+            position: relative;
+            z-index: 1;
+        }
+        #navidromeContainer.music-tab.music-tab-visible {
+            animation: navidromeFadeIn 0.45s ease both;
+        }
+        .music-tab-header {
+            background: linear-gradient(135deg, rgba(13, 13, 13, 0.98), rgba(26, 26, 26, 0.98));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+        }
+        .music-tab-visible .music-tab-header {
+            animation: navidromeHeaderIn 0.55s ease both;
+        }
+        .music-tab-back {
+            background: linear-gradient(135deg, #0a0a0a, #1a1a1a);
+            color: #f4f4f4;
+            border-radius: 999px;
+            letter-spacing: 0.3px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            font-size: 12px;
+            padding: 10px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: 42px;
+            height: 42px;
+            justify-content: center;
+        }
+        .music-tab-back::after {
+            content: "";
+            position: absolute;
+            inset: -40% -20%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+            transform: translateX(-120%) rotate(10deg);
+            transition: transform 0.5s ease;
+        }
+        .music-tab-back-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            position: relative;
+        }
+        .music-tab-back-icon::before,
+        .music-tab-back-icon::after {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 50%;
+            width: 12px;
+            height: 2px;
+            background: #f4f4f4;
+            border-radius: 999px;
+            transform: translateY(-50%);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+        }
+        .music-tab-back-icon::after {
+            width: 8px;
+            height: 8px;
+            border-left: 2px solid #f4f4f4;
+            border-bottom: 2px solid #f4f4f4;
+            background: transparent;
+            transform: translateY(-50%) rotate(45deg);
+            left: 1px;
+            box-shadow: none;
+        }
+        .music-tab-back:hover {
+            transform: translateY(-1px) scale(1.03);
+            border-color: rgba(255, 255, 255, 0.18);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+        .music-tab-back:hover::after {
+            transform: translateX(120%) rotate(10deg);
+        }
+        .music-tab-back:active {
+            transform: translateY(0) scale(0.99);
+        }
+        .music-tab-back:hover .music-tab-back-icon::before {
+            animation: navidromeArrowPulse 0.6s ease;
+        }
+        .music-tab-back:hover .music-tab-back-icon::after {
+            animation: navidromeArrowNudge 0.6s ease;
+        }
+        .music-tab-search {
+            background: rgba(20, 20, 20, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            color: #f5f5f5;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 10px 20px rgba(0, 0, 0, 0.25);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .music-tab-search:focus {
+            outline: none;
+            border-color: rgba(255, 140, 0, 0.6);
+            box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.2), 0 12px 20px rgba(0, 0, 0, 0.35);
+        }
+        .music-tab-grid {
+            padding: 32px 32px 56px;
+            gap: 24px;
+        }
+        .music-tab-visible .music-tab-grid {
+            animation: navidromeGridIn 0.6s ease both;
+        }
+        .navidrome-song-tile {
+            background: linear-gradient(180deg, rgba(28, 28, 28, 0.98), rgba(12, 12, 12, 0.98));
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            box-shadow: 0 16px 28px rgba(0, 0, 0, 0.35);
+            animation: navidromeTileIn 0.5s ease var(--tile-delay, 0s) both;
+            will-change: transform, box-shadow;
+        }
+        .navidrome-song-tile.active {
+            border-color: rgba(255, 140, 0, 0.5);
+            box-shadow: 0 16px 30px rgba(255, 140, 0, 0.2);
+        }
+        .navidrome-song-tile:hover {
+            transform: translateY(-6px) scale(1.03);
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.45);
+        }
+        .navidrome-queue-btn {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            background: rgba(12, 12, 12, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f5f5f5;
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            z-index: 20;
+        }
+        .navidrome-queue-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(18, 18, 18, 0.95);
+            box-shadow: 0 10px 18px rgba(0, 0, 0, 0.4);
+        }
+        .navidrome-queue-btn:active {
+            transform: translateY(0);
+        }
+        .music-tab-visible .navidrome-queue-btn {
+            animation: navidromeQueuePop 0.45s ease both;
+        }
+        .navidrome-playlist-btn {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background: rgba(12, 12, 12, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f5f5f5;
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+            z-index: 20;
+        }
+        .navidrome-playlist-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(18, 18, 18, 0.95);
+            box-shadow: 0 10px 18px rgba(0, 0, 0, 0.4);
+        }
+        .navidrome-playlist-btn:active {
+            transform: translateY(0);
+        }
+        @keyframes navidromeFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes navidromeHeaderIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes navidromeGridIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes navidromeTileIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes navidromeGlow {
+            0%, 100% { opacity: 0.7; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(12px); }
+        }
+        @keyframes navidromeVeil {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.7; }
+        }
+        @keyframes navidromeQueuePop {
+            from { opacity: 0; transform: translateY(6px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes navidromeArrowPulse {
+            0% { transform: translateY(-50%) translateX(0); opacity: 0.7; }
+            60% { transform: translateY(-50%) translateX(-2px); opacity: 1; }
+            100% { transform: translateY(-50%) translateX(0); opacity: 0.9; }
+        }
+        @keyframes navidromeArrowNudge {
+            0% { transform: translateY(-50%) rotate(45deg) translateX(0); }
+            60% { transform: translateY(-50%) rotate(45deg) translateX(-2px); }
+            100% { transform: translateY(-50%) rotate(45deg) translateX(0); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function updateSyncStatus(statusKey, fallback, withTime = false) {
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    let text = t(statusKey, fallback);
+    if (withTime) {
+        try {
+            const time = new Date().toLocaleTimeString();
+            text = `${text} • ${time}`;
+        } catch (e) {}
+    }
+    el.textContent = text;
+}
+
+window.syncNowPlaylists = async () => {
+    if (!isUserAuthenticated()) {
+        updateSyncStatus('sync_status_login', 'Sign in to sync');
+        showToast(t('sync_requires_login', 'Please sign in to sync'));
+        return;
+    }
+    updateSyncStatus('sync_status_syncing', 'Syncing...');
+    try {
+        await syncPlaylistsWithServer(state.playlists, db);
+        await loadPlaylistsFromDB();
+        if (typeof state.currentTab === 'number') renderLibrary();
+        updateSyncStatus('sync_status_done', 'Synced', true);
+    } catch (err) {
+        console.warn('[SYNC] Manual sync failed:', err);
+        updateSyncStatus('sync_status_failed', 'Sync failed');
+    }
+};
+
+window.handlePostLoginSync = async () => {
+    if (!isUserAuthenticated()) return;
+    try {
+        updateSyncStatus('sync_status_syncing', 'Syncing...');
+        if (window.syncAccountMediaServer) {
+            await window.syncAccountMediaServer();
+        }
+        await syncPlaylistsWithServer(state.playlists, db);
+        await loadPlaylistsFromDB();
+        if (typeof state.currentTab === 'number') renderLibrary();
+        updateSyncStatus('sync_status_done', 'Synced', true);
+    } catch (err) {
+        console.warn('[SYNC] Post-login sync failed:', err);
+        updateSyncStatus('sync_status_failed', 'Sync failed');
+    }
+};
+
 window.saveNewPlaylist = async () => {
     const name = document.getElementById('playlistNameInp').value;
     if (!name) return;
-    await createPlaylist(name);
+    const localId = await createPlaylist(name);
     
     // Sync with server if authenticated
     if (isUserAuthenticated()) {
         try {
             const { createServerPlaylist } = await import('./modules/server-playlist-manager.js');
-            await createServerPlaylist(name);
+            const created = await createServerPlaylist(name);
+            if (created?.id) {
+                await db.playlists.update(localId, { serverId: created.id });
+            }
             console.log('[SYNC] Created playlist on server');
         } catch (error) {
             console.error('[SYNC] Failed to create playlist on server:', error);
@@ -149,8 +911,16 @@ window.confirmDeletePlaylist = async () => {
     // Sync with server if authenticated
     if (isUserAuthenticated() && playlist) {
         try {
-            const { deleteServerPlaylist } = await import('./modules/server-playlist-manager.js');
-            await deleteServerPlaylist(id);
+            const { deleteServerPlaylist, fetchServerPlaylists } = await import('./modules/server-playlist-manager.js');
+            let serverId = playlist.serverId;
+            if (!serverId) {
+                const serverPlaylists = await fetchServerPlaylists();
+                const match = serverPlaylists.find(p => p.name === playlist.name);
+                serverId = match?.id;
+            }
+            if (serverId) {
+                await deleteServerPlaylist(serverId);
+            }
             console.log('[SYNC] Deleted playlist on server');
         } catch (error) {
             console.error('[SYNC] Failed to delete playlist on server:', error);
@@ -192,8 +962,19 @@ window.confirmRenamePlaylist = async () => {
     // Sync with server if authenticated
     if (isUserAuthenticated()) {
         try {
-            const { renameServerPlaylist } = await import('./modules/server-playlist-manager.js');
-            await renameServerPlaylist(id, newName);
+            const { renameServerPlaylist, fetchServerPlaylists } = await import('./modules/server-playlist-manager.js');
+            let serverId = state.playlists.find(p => p.id === id)?.serverId;
+            if (!serverId) {
+                const serverPlaylists = await fetchServerPlaylists();
+                const match = serverPlaylists.find(p => p.name === oldName);
+                serverId = match?.id;
+                if (serverId) {
+                    await db.playlists.update(id, { serverId });
+                }
+            }
+            if (serverId) {
+                await renameServerPlaylist(serverId, newName);
+            }
             console.log('[SYNC] Renamed playlist on server');
         } catch (error) {
             console.error('[SYNC] Failed to rename playlist on server:', error);
@@ -230,23 +1011,36 @@ function renderLibrary() {
     
     list.forEach((track, index) => {
         const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
-        const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
+        const isActive = currentTrack && (
+            currentTrack.id === track.id ||
+            currentTrack.navidromeId === track.navidromeId ||
+            (currentTrack.url && track.url && currentTrack.url === track.url)
+        );
         const div = document.createElement('div');
         div.className = `song-item ${isActive ? 'active' : ''}`;
         div.draggable = true;
-        div.dataset.id = track.id || track.navidromeId;
-        
-        const trackId = track.id || track.navidromeId;
         const source = track.source || 'local';
+        const trackId = source === 'navidrome'
+            ? (track.navidromeId || track.url || track.id)
+            : track.id;
+        div.dataset.id = trackId;
         
+        const isFavView = state.currentTab === 'fav';
         const removeFromPlaylistBtn = (typeof state.currentTab === 'number') ?
             `<button class="mini-btn" onclick="event.stopPropagation(); window.removeSongFromPlaylist(${state.currentTab}, '${trackId}', '${source}')" title="${t('remove_from_playlist', 'Remove from playlist')}"><i data-lucide="minus-square"></i></button>` : '';
+        const playNextAction = source === 'navidrome'
+            ? `window.addToQueueNextNavidrome('${trackId}')`
+            : `window.addToQueueNextLocal(${trackId})`;
+        const playNextBtn = `<button class="mini-btn" onclick="event.stopPropagation(); ${playNextAction}" title="${t('play_next', 'Play next')}"><i data-lucide="list-plus"></i></button>`;
+        const removeBtn = isFavView
+            ? `<button class="mini-btn danger" onclick="event.stopPropagation(); window.toggleFav('${trackId}', '${source}')" title="${t('fav_removed', 'Removed from favorites')}"><i data-lucide="heart-off"></i></button>`
+            : `<button class="mini-btn danger" onclick="event.stopPropagation(); window.removeFromQueue('${trackId}')" title="${t('remove_from_queue', 'Remove from queue')}"><i data-lucide="trash-2"></i></button>`;
 
         // Экранируем кавычки для безопасности
-        const safeTitle = (track.title || '').replace(/'/g, "\\'");
-        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const safeTitle = (track.title || t('unknown_title', 'Unknown')).replace(/'/g, "\\'");
+        const safeArtist = (track.artist || t('unknown_artist', 'Unknown Artist')).replace(/'/g, "\\'");
         const safeAlbum = (track.album || '').replace(/'/g, "\\'");
-        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        const safeCover = (resolveCover(track.cover) || '').replace(/'/g, "\\'");
 
         let onClickHandler;
         if (source === 'navidrome') {
@@ -255,17 +1049,21 @@ function renderLibrary() {
             onClickHandler = `window.playTrack(${trackId})`;
         }
 
+        const trackTitle = track.title || t('unknown_title', 'Unknown');
+        const trackArtist = track.artist || t('unknown_artist', 'Unknown Artist');
+
         div.innerHTML = `
-            <img src="${track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'">
-            <div class="song-item-info" title="${track.title}&#10;${track.artist}">
-                <h4>${track.title}${source === 'navidrome' ? ' 🌐' : ''}</h4>
-                <p>${track.artist}</p>
+            <img src="${resolveCover(track.cover)}" onerror="this.src='${DEFAULT_COVER}'">
+            <div class="song-item-info" title="${trackTitle}&#10;${trackArtist}">
+                <h4>${trackTitle}${source === 'navidrome' ? ' 🌐' : ''}</h4>
+                <p>${trackArtist}</p>
             </div>
             <div class="song-actions">
                 <button class="mini-btn" onclick="event.stopPropagation(); window.openPlaylistPickerMulti('${trackId}', '${source}')"><i data-lucide="plus"></i></button>
                 <button class="mini-btn" onclick="event.stopPropagation(); window.toggleFav('${trackId}', '${source}')"><i data-lucide="heart" style="fill: ${track.isFavorite?'var(--accent)':'none'}; color: ${track.isFavorite?'var(--accent)':'currentColor'}"></i></button>
+                ${playNextBtn}
                 ${removeFromPlaylistBtn}
-                <button class="mini-btn danger" onclick="event.stopPropagation(); window.deleteTrack('${trackId}', '${source}')"><i data-lucide="trash-2"></i></button>
+                ${removeBtn}
             </div>
         `;
         div.onclick = () => { eval(onClickHandler); };
@@ -287,6 +1085,34 @@ function initNavidromeContainer() {
     // Проверяем, уже ли создан контейнер
     let navidromeContainer = document.getElementById('navidromeContainer');
     if (navidromeContainer) {
+        navidromeContainer.classList.add('music-tab');
+        ensureNavidromeStyles();
+        const header = navidromeContainer.querySelector('div');
+        if (header) {
+            header.classList.add('music-tab-header');
+            header.style.removeProperty('background');
+            header.style.removeProperty('border-bottom');
+        }
+        const oldAddBtn = header ? header.querySelector('#navidromeAddPlaylistBtn') : null;
+        if (oldAddBtn) oldAddBtn.remove();
+        const backBtn = navidromeContainer.querySelector('button');
+        if (backBtn) {
+            backBtn.classList.add('music-tab-back');
+            backBtn.setAttribute('aria-label', t('back', 'Back'));
+            backBtn.innerHTML = '<span class="music-tab-back-icon" aria-hidden="true"></span>';
+            backBtn.style.cssText = 'border: none; padding: 10px 14px; cursor: pointer; font-weight: 600;';
+        }
+        const searchInput = navidromeContainer.querySelector('#navidromeSearchInput');
+        if (searchInput) {
+            searchInput.classList.add('music-tab-search');
+            searchInput.style.cssText = 'flex: 1; padding: 10px 15px; font-size: 14px;';
+        }
+        const grid = navidromeContainer.querySelector('#navidromeGrid');
+        if (grid) {
+            grid.classList.add('music-tab-grid');
+            grid.style.removeProperty('padding');
+            grid.style.removeProperty('gap');
+        }
         // Контейнер уже есть, просто обновим сетку
         updateNavidromeSongs();
         return;
@@ -295,6 +1121,7 @@ function initNavidromeContainer() {
     // Создаём контейнер ОДИН раз
     navidromeContainer = document.createElement('div');
     navidromeContainer.id = 'navidromeContainer';
+    navidromeContainer.classList.add('music-tab');
     document.body.appendChild(navidromeContainer);
     
     navidromeContainer.style.cssText = `
@@ -308,13 +1135,14 @@ function initNavidromeContainer() {
         left: 0;
         z-index: 1000;
     `;
+
+    ensureNavidromeStyles();
     
     // Верхняя панель с поиском и кнопкой назад (создаём один раз)
     const header = document.createElement('div');
+    header.className = 'music-tab-header';
     header.style.cssText = `
         padding: 20px;
-        background: var(--surface);
-        border-bottom: 1px solid var(--border);
         display: flex;
         gap: 15px;
         align-items: center;
@@ -322,16 +1150,19 @@ function initNavidromeContainer() {
     `;
     
     const backBtn = document.createElement('button');
-    backBtn.innerText = `← ${t('back', 'Back')}`;
-    backBtn.style.cssText = 'background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;';
+    backBtn.className = 'music-tab-back';
+    backBtn.setAttribute('aria-label', t('back', 'Back'));
+    backBtn.innerHTML = '<span class="music-tab-back-icon" aria-hidden="true"></span>';
+    backBtn.style.cssText = 'border: none; padding: 10px 14px; cursor: pointer; font-weight: 600;';
     backBtn.onclick = () => window.switchTab('all');
     
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.id = 'navidromeSearchInput';
+    searchInput.className = 'music-tab-search';
     searchInput.placeholder = t('search_navidrome_placeholder', 'Search Navidrome...');
     searchInput.value = state.searchQuery || '';
-    searchInput.style.cssText = 'flex: 1; background: var(--surface-bright); border: 1px solid var(--border); padding: 10px 15px; border-radius: 8px; color: white; font-size: 14px;';
+    searchInput.style.cssText = 'flex: 1; padding: 10px 15px; font-size: 14px;';
     
     // Слушатель НА ОДНОМ input элементе
     searchInput.addEventListener('input', (e) => {
@@ -346,13 +1177,12 @@ function initNavidromeContainer() {
     // Контейнер для сетки (создаём один раз, будем обновлять содержимое)
     const grid = document.createElement('div');
     grid.id = 'navidromeGrid';
+    grid.className = 'music-tab-grid';
     grid.style.cssText = `
         flex: 1;
         overflow-y: auto;
-        padding: 30px;
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 25px;
         width: 100%;
         box-sizing: border-box;
         align-content: start;
@@ -444,9 +1274,15 @@ function updateNavidromeSongs() {
 
 // Функция для отрисовки плиток песен
 function renderNavidromeTiles(list, grid) {
-    list.forEach((track) => {
+    list.forEach((track, idx) => {
         const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
-        const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
+        const isActive = currentTrack && (
+            currentTrack.id === track.id ||
+            currentTrack.navidromeId === track.navidromeId ||
+            (currentTrack.url && track.url && currentTrack.url === track.url)
+        );
+        const displayTitle = track.title || t('unknown_title', 'Unknown');
+        const displayArtist = track.artist || t('unknown_artist', 'Unknown Artist');
         
         const tile = document.createElement('div');
         tile.className = `navidrome-song-tile ${isActive ? 'active' : ''}`;
@@ -455,13 +1291,12 @@ function renderNavidromeTiles(list, grid) {
             position: relative;
             border-radius: 12px;
             overflow: hidden;
-            background: var(--surface);
             transition: all 0.2s ease;
-            border: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             height: 220px;
         `;
+        tile.style.setProperty('--tile-delay', `${Math.min(idx * 0.03, 0.45)}s`);
         
         // Контейнер для обложки
         const imgContainer = document.createElement('div');
@@ -506,7 +1341,7 @@ function renderNavidromeTiles(list, grid) {
         overlay.innerHTML = `
             <div style="color: white; text-align: center; padding: 20px; animation: fadeInScale 0.3s ease;">
                 <p style="margin: 0; font-size: 13px; color: var(--text-dim); margin-bottom: 8px;">${t('artist', 'Artist')}</p>
-                <p style="margin: 0; font-size: 14px; font-weight: 600; word-break: break-word;">${track.artist}</p>
+                <p style="margin: 0; font-size: 14px; font-weight: 600; word-break: break-word;">${displayArtist}</p>
             </div>
         `;
         imgContainer.appendChild(overlay);
@@ -522,18 +1357,18 @@ function renderNavidromeTiles(list, grid) {
         `;
         info.innerHTML = `
             <h4 style="margin: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3;">
-                ${track.title}
+                ${displayTitle}
             </h4>
         `;
         
         tile.appendChild(imgContainer);
         tile.appendChild(info);
         
-        const trackId = track.id || track.navidromeId;
-        const safeTitle = (track.title || '').replace(/'/g, "\\'");
-        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const trackId = track.navidromeId || track.id;
+        const safeTitle = displayTitle.replace(/'/g, "\\'");
+        const safeArtist = displayArtist.replace(/'/g, "\\'");
         const safeAlbum = (track.album || '').replace(/'/g, "\\'");
-        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        const safeCover = (resolveCover(track.cover) || '').replace(/'/g, "\\'");
 
         window.tempNavidromeTracks[String(trackId)] = track;
 
@@ -548,10 +1383,24 @@ function renderNavidromeTiles(list, grid) {
             }
         };
         imgContainer.appendChild(queueBtn);
+
+        const playlistBtn = document.createElement('button');
+        playlistBtn.className = 'navidrome-playlist-btn';
+        playlistBtn.title = t('add_to_playlist', 'Add to playlist');
+        playlistBtn.innerHTML = '<i data-lucide="list-plus"></i>';
+        playlistBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.tempPendingTrack = track;
+            window.lastNavidromeSelection = { id: trackId, source: 'navidrome', track };
+            window.openPlaylistPickerMulti(trackId, 'navidrome');
+        };
+        imgContainer.appendChild(playlistBtn);
         
         tile.onclick = () => {
             // Animate tile and open player
             tile.style.animation = 'scaleToPlayer 0.6s ease-in-out forwards';
+            window.lastNavidromeSelection = { id: trackId, source: 'navidrome', track };
+            window.tempPendingTrack = track;
             
             setTimeout(() => {
                 window.playNavidromeSong(trackId, safeTitle, safeArtist, safeAlbum, safeCover);
@@ -587,6 +1436,28 @@ function renderNavidromeInterface() {
     }, 0);
 }
 
+window.openMusicTabPlaylistPicker = () => {
+    let trackId = null;
+    let source = null;
+    const last = window.lastNavidromeSelection;
+    if (last && last.id) {
+        trackId = last.id;
+        source = last.source || 'navidrome';
+        if (last.track) window.tempPendingTrack = last.track;
+    } else if (state.currentIndex !== -1 && state.library[state.currentIndex]) {
+        const track = state.library[state.currentIndex];
+        source = track.source === 'navidrome' ? 'navidrome' : 'local';
+        trackId = source === 'navidrome'
+            ? (track.navidromeId || track.url || track.id)
+            : track.id;
+    }
+    if (!trackId) {
+        showToast(t('track_data_unavailable', 'Error: Track data not available'));
+        return;
+    }
+    window.openPlaylistPickerMulti(trackId, source);
+};
+
 function handleDragStart(e) {
     state.draggedItem = this;
     this.classList.add('dragging');
@@ -603,6 +1474,9 @@ async function handleDrop(e) {
     if (this !== state.draggedItem) {
         const draggedId = parseInt(state.draggedItem.dataset.id);
         const targetId = parseInt(this.dataset.id);
+        if (Number.isNaN(draggedId) || Number.isNaN(targetId)) {
+            return;
+        }
         
         const draggedIdx = state.library.findIndex(t => t.id === draggedId);
         const targetIdx = state.library.findIndex(t => t.id === targetId);
@@ -634,7 +1508,9 @@ function renderSearchResults(results) {
     results.forEach((track, index) => {
         const div = document.createElement('div');
         div.className = 'song-item';
-        const trackId = track.source === 'navidrome' ? track.navidromeId : track.id;
+        const trackId = track.source === 'navidrome'
+            ? (track.navidromeId || track.url || track.id)
+            : track.id;
         div.dataset.id = trackId || `result-${index}`;
         
         const coverImg = track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100';
@@ -663,10 +1539,10 @@ function renderSearchResults(results) {
         window.tempSearchTracks = window.tempSearchTracks || {};
         window.tempSearchTracks[tempTrackKey] = track;
 
-        const safeTitle = (track.title || '').replace(/'/g, "\\'");
-        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const safeTitle = (track.title || t('unknown_title', 'Unknown')).replace(/'/g, "\\'");
+        const safeArtist = (track.artist || t('unknown_artist', 'Unknown Artist')).replace(/'/g, "\\'");
         const safeAlbum = (track.album || '').replace(/'/g, "\\'");
-        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        const safeCover = (resolveCover(track.cover) || '').replace(/'/g, "\\'");
 
         let playButtonAction;
         if (track.source === 'navidrome') {
@@ -676,8 +1552,8 @@ function renderSearchResults(results) {
         }
 
         div.innerHTML = `
-            <img src="${coverImg}" alt="${track.title || t('unknown_title', 'Unknown')}" onerror="this.src='https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'">
-            <div class="song-item-info" title="${track.title}&#10;${track.artist}">
+            <img src="${resolveCover(track.cover)}" alt="${track.title || t('unknown_title', 'Unknown')}" onerror="this.src='${DEFAULT_COVER}'">
+            <div class="song-item-info" title="${track.title || t('unknown_title', 'Unknown')}&#10;${track.artist || t('unknown_artist', 'Unknown Artist')}">
                 <h4>${track.title || t('unknown_title', 'Unknown')}${track.source === 'navidrome' ? ' 🌐' : ''}</h4>
                 <p>${track.artist || t('unknown_artist', 'Unknown Artist')}</p>
             </div>
@@ -698,7 +1574,12 @@ function renderSearchResults(results) {
 
 // deleteTrack moved to library-manager.js module
 window.deleteTrack = async (id, source = 'local') => {
-    await deleteTrack(id, source);
+    let normalizedId = id;
+    if (source !== 'navidrome') {
+        const n = Number(id);
+        if (!Number.isNaN(n)) normalizedId = n;
+    }
+    await deleteTrack(normalizedId, source);
 };
 
 function resetUI() {
@@ -706,25 +1587,38 @@ function resetUI() {
     dom.artistName.innerText = "";
     dom.mainCover.src = "";
     dom.vinylContainer.classList.remove('visible');
+    if (dom.audio) {
+        dom.audio.removeAttribute('src');
+        try { dom.audio.load(); } catch (e) {}
+    }
     updatePlayIcon(false);
+    updateHomeVisibility(true);
 }
 
 window.toggleFav = async (id, source = 'local') => {
-    const track = state.library.find(t => t.id === id || t.navidromeId === id);
+    let normalizedId = id;
+    if (source !== 'navidrome') {
+        const n = Number(id);
+        if (!Number.isNaN(n)) normalizedId = n;
+    }
+    const track = state.library.find(t => t.id === normalizedId || t.navidromeId === normalizedId || t.url === normalizedId);
     if (!track) return;
     
     track.isFavorite = !track.isFavorite;
     
     if (source === 'local') {
-        await db.songs.update(id, { isFavorite: track.isFavorite });
+        await db.songs.update(normalizedId, { isFavorite: track.isFavorite });
     } else {
         const favorites = JSON.parse(localStorage.getItem('navidromeFavorites') || '[]');
         if (track.isFavorite) {
-            if (!favorites.find(f => f.navidromeId === id)) {
+            if (!track.url && track.navidromeId && window.getNavidromeStreamUrl) {
+                track.url = window.getNavidromeStreamUrl(track.navidromeId);
+            }
+            if (!favorites.find(f => f.navidromeId === id || f.url === id)) {
                 favorites.push(track);
             }
         } else {
-            const idx = favorites.findIndex(f => f.navidromeId === id);
+            const idx = favorites.findIndex(f => f.navidromeId === id || f.url === id);
             if (idx !== -1) favorites.splice(idx, 1);
         }
         localStorage.setItem('navidromeFavorites', JSON.stringify(favorites));
@@ -749,9 +1643,15 @@ function renderSidebarQueue() {
 
         queue.forEach((track, idx) => {
             const currentTrack = state.currentIndex !== -1 ? state.library[state.currentIndex] : null;
-            const isActive = currentTrack && (currentTrack.id === track.id || currentTrack.navidromeId === track.navidromeId);
-            const trackId = track.id || track.navidromeId;
+            const isActive = currentTrack && (
+                currentTrack.id === track.id ||
+                currentTrack.navidromeId === track.navidromeId ||
+                (currentTrack.url && track.url && currentTrack.url === track.url)
+            );
             const source = track.source || 'local';
+            const trackId = source === 'navidrome'
+                ? (track.navidromeId || track.url || track.id)
+                : track.id;
             
             const div = document.createElement('div');
             div.className = `song-item${isActive ? ' active' : ''}`;
@@ -761,10 +1661,10 @@ function renderSidebarQueue() {
             div.style.cursor = 'pointer';
             div.style.position = 'relative';
             
-            const safeTitle = (track.title || '').replace(/'/g, "\\'");
-            const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+            const safeTitle = (track.title || t('unknown_title', 'Unknown')).replace(/'/g, "\\'");
+            const safeArtist = (track.artist || t('unknown_artist', 'Unknown Artist')).replace(/'/g, "\\'");
             const safeAlbum = (track.album || '').replace(/'/g, "\\'");
-            const safeCover = (track.cover || '').replace(/'/g, "\\'");
+            const safeCover = (resolveCover(track.cover) || '').replace(/'/g, "\\'");
             
             let onClickHandler;
             if (source === 'navidrome') {
@@ -785,7 +1685,7 @@ function renderSidebarQueue() {
             const info = document.createElement('div');
             info.className = 'song-item-info';
             info.style.flex = '1';
-            info.innerHTML = `<h4>${track.title}${source === 'navidrome' ? ' 🌐' : ''}</h4><p>${track.artist}</p>`;
+            info.innerHTML = `<h4>${safeTitle}${source === 'navidrome' ? ' 🌐' : ''}</h4><p>${safeArtist}</p>`;
             
             // Create delete button
             const deleteBtn = document.createElement('button');
@@ -795,15 +1695,37 @@ function renderSidebarQueue() {
             deleteBtn.innerHTML = '<i data-lucide="trash-2" style="width:18px; height:18px;"></i>';
             deleteBtn.onclick = (e) => {
                 e.stopPropagation();
-                console.log('[QUEUE] Removing track at index:', idx);
-                window.removeFromQueue(trackId);
+                const libIdx = findLibraryIndex(track);
+                console.log('[QUEUE] Removing track libIdx:', libIdx, 'viewIdx:', idx, 'trackId:', trackId);
+                if (libIdx !== -1) window.removeFromQueueByIndex(libIdx);
+                else window.removeFromQueue(trackId);
             };
             deleteBtn.onmouseover = () => deleteBtn.style.color = '#ff3e00';
             deleteBtn.onmouseout = () => deleteBtn.style.color = 'var(--text-dim)';
             
+            const playNextBtn = document.createElement('button');
+            playNextBtn.className = 'mini-btn';
+            playNextBtn.title = t('play_next', 'Play next');
+            playNextBtn.style.cssText = 'background: transparent; border: none; cursor: pointer; padding: 6px; color: var(--text-dim); transition: 0.2s;';
+            playNextBtn.innerHTML = '<i data-lucide="list-plus" style="width:18px; height:18px;"></i>';
+            playNextBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (track.source === 'navidrome') {
+                    const nextId = track.navidromeId || track.url;
+                    window.addToQueueNextNavidrome(nextId);
+                } else {
+                    if (window.addToQueueNextLocal) {
+                        window.addToQueueNextLocal(track.id);
+                    }
+                }
+            };
+            playNextBtn.onmouseover = () => playNextBtn.style.color = 'var(--accent)';
+            playNextBtn.onmouseout = () => playNextBtn.style.color = 'var(--text-dim)';
+            
             // Assemble div
             div.appendChild(img);
             div.appendChild(info);
+            div.appendChild(playNextBtn);
             div.appendChild(deleteBtn);
             
             // Add click handler for playing the track
@@ -826,40 +1748,200 @@ function renderSidebarQueue() {
     });
 }
 
-// Remove a track from the queue by ID
-window.removeFromQueue = (trackId) => {
-    console.log('[QUEUE] Removing track:', trackId);
-    // Find and remove from state.library
-    const idx = state.library.findIndex(t => t.id === trackId || t.navidromeId === trackId);
-    if (idx !== -1) {
-        console.log('[QUEUE] Found at index:', idx);
-        state.library.splice(idx, 1);
-        // If currentIndex is after removed, decrement
-        if (state.currentIndex > idx) state.currentIndex--;
-        // If currentIndex is now out of bounds, reset
-        if (state.currentIndex >= state.library.length) state.currentIndex = -1;
-        // Save and update
-        if (typeof saveQueueState === 'function') {
-            console.log('[QUEUE] Saving queue state');
-            saveQueueState();
-        }
-        renderSidebarQueue();
-        renderLibrary();
-    } else {
-        console.warn('[QUEUE] Track not found:', trackId);
+function clampRightQueueWidth(width) {
+    const leftWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--left-sidebar-width')) || 320;
+    const minWidth = 220;
+    const maxWidth = Math.max(minWidth, Math.min(560, window.innerWidth - leftWidth - 360));
+    return Math.max(minWidth, Math.min(maxWidth, width));
+}
+
+window.applyRightQueueWidth = (width, persist = false) => {
+    const clamped = clampRightQueueWidth(width);
+    state.rightQueueWidth = clamped;
+    document.documentElement.style.setProperty('--right-sidebar-width', `${clamped}px`);
+    if (persist) {
+        try { db.settings.put({ key: 'rightQueueWidth', value: clamped }); } catch (e) {}
+        localStorage.setItem('rightQueueWidth', String(clamped));
     }
+};
+
+window.applyLeftQueueVisibility = (hidden, persist = false) => {
+    state.hideLeftQueue = !!hidden;
+    document.body.classList.toggle('left-queue-hidden', state.hideLeftQueue);
+    if (persist) {
+        try { db.settings.put({ key: 'hideLeftQueue', value: state.hideLeftQueue }); } catch (e) {}
+        localStorage.setItem('hideLeftQueue', String(state.hideLeftQueue));
+    }
+};
+
+window.applyRightQueueVisibility = (hidden, persist = false) => {
+    state.hideRightQueue = !!hidden;
+    document.body.classList.toggle('right-queue-hidden', state.hideRightQueue);
+    const rightPanel = document.querySelector('.right');
+    if (rightPanel && !state.hideRightQueue) {
+        if (state.currentTab === 'navidrome' || state.currentTab === 'about') {
+            rightPanel.style.display = 'none';
+        } else {
+            rightPanel.style.display = 'flex';
+        }
+    }
+    const btn = document.getElementById('rightQueueToggle');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        const key = state.hideRightQueue ? 'show_right_queue' : 'hide_right_queue';
+        if (icon) icon.setAttribute('data-lucide', state.hideRightQueue ? 'eye' : 'eye-off');
+        btn.setAttribute('data-t-title', key);
+        btn.setAttribute('data-t-aria-label', key);
+        btn.title = t(key, state.hideRightQueue ? 'Show right queue' : 'Hide right queue');
+        btn.setAttribute('aria-label', btn.title);
+        refreshIcons();
+    }
+    if (persist) {
+        try { db.settings.put({ key: 'hideRightQueue', value: state.hideRightQueue }); } catch (e) {}
+        localStorage.setItem('hideRightQueue', String(state.hideRightQueue));
+    }
+};
+
+window.toggleLeftQueue = (hidden) => {
+    window.applyLeftQueueVisibility(!!hidden, true);
+};
+
+window.toggleRightQueue = () => {
+    window.applyRightQueueVisibility(!state.hideRightQueue, true);
+};
+
+window.applyPerformanceMode = (enabled, persist = false) => {
+    state.performanceMode = !!enabled;
+    document.body.classList.toggle('performance-mode', state.performanceMode);
+    const canvas = document.getElementById('visualizerCanvas');
+    if (canvas) canvas.style.display = state.performanceMode ? 'none' : '';
+    if (state.performanceMode) {
+        stopVisualizer();
+    } else if (state.analyser) {
+        startVisualizer();
+    }
+    if (persist) {
+        try { db.settings.put({ key: 'performanceMode', value: state.performanceMode }); } catch (e) {}
+        localStorage.setItem('performanceMode', String(state.performanceMode));
+    }
+};
+
+window.togglePerformanceMode = (enabled) => {
+    window.applyPerformanceMode(!!enabled, true);
+};
+
+function initRightQueueResizer() {
+    const handle = document.getElementById('rightQueueResizeHandle');
+    if (!handle) return;
+    let pendingWidth = state.rightQueueWidth || 320;
+
+    const onPointerMove = (e) => {
+        const nextWidth = clampRightQueueWidth(window.innerWidth - e.clientX);
+        pendingWidth = nextWidth;
+        window.applyRightQueueWidth(nextWidth, false);
+    };
+
+    const stopResize = (e) => {
+        document.body.classList.remove('resizing');
+        try { handle.releasePointerCapture(e.pointerId); } catch (err) {}
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', stopResize);
+        window.applyRightQueueWidth(pendingWidth, true);
+    };
+
+    handle.addEventListener('pointerdown', (e) => {
+        if (window.innerWidth <= 1024) return;
+        if (state.hideRightQueue) return;
+        document.body.classList.add('resizing');
+        pendingWidth = state.rightQueueWidth || 320;
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', stopResize);
+    });
+
+    window.addEventListener('resize', () => {
+        if (!state.hideRightQueue) window.applyRightQueueWidth(state.rightQueueWidth || 320, false);
+    });
+}
+
+// Remove a track from the queue by ID
+function normalizeQueueId(value) {
+    if (value === undefined || value === null) return '';
+    const raw = String(value);
+    if (raw.startsWith('http')) {
+        try {
+            const parsed = new URL(raw);
+            parsed.searchParams.delete('f');
+            return parsed.toString();
+        } catch (e) {
+            return raw;
+        }
+    }
+    return raw;
+}
+
+function findLibraryIndex(track) {
+    if (!track) return -1;
+    return state.library.findIndex(t =>
+        t === track ||
+        normalizeQueueId(t.id) === normalizeQueueId(track.id) ||
+        normalizeQueueId(t.navidromeId) === normalizeQueueId(track.navidromeId) ||
+        normalizeQueueId(t.url) === normalizeQueueId(track.url)
+    );
+}
+
+window.removeFromQueue = (trackId) => {
+    console.log('[QUEUE] Removing track by id:', trackId);
+    const target = normalizeQueueId(trackId);
+    const targetNum = Number(target);
+    const idx = state.library.findIndex(t => {
+        const id = normalizeQueueId(t.id);
+        const navId = normalizeQueueId(t.navidromeId);
+        const url = normalizeQueueId(t.url);
+        if (id === target || navId === target || url === target) return true;
+        if (!Number.isNaN(targetNum)) {
+            const idNum = Number(t.id);
+            const navNum = Number(t.navidromeId);
+            if (!Number.isNaN(idNum) && idNum === targetNum) return true;
+            if (!Number.isNaN(navNum) && navNum === targetNum) return true;
+        }
+        return false;
+    });
+    removeFromQueueByIndex(idx);
+};
+
+window.removeFromQueueByIndex = (idx) => {
+    if (idx === -1 || idx >= state.library.length) {
+        console.warn('[QUEUE] Track index not found:', idx);
+        return;
+    }
+    state.library.splice(idx, 1);
+    if (state.currentIndex > idx) state.currentIndex--;
+    if (state.currentIndex >= state.library.length) state.currentIndex = -1;
+    if (typeof saveQueueState === 'function') saveQueueState();
+    renderSidebarQueue();
+    renderLibrary();
 };
 
 // Add a Navidrome track to queue and make it play next
 window.addToQueueNextNavidrome = (trackId) => {
     const id = String(trackId);
+    const isUrl = /^https?:\/\//i.test(id);
     const tempMap = window.tempNavidromeTracks || {};
     let track = tempMap[id];
     if (!track && Array.isArray(state.navidromeSongs)) {
-        track = state.navidromeSongs.find(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+        track = state.navidromeSongs.find(t =>
+            String(t.id || t.navidromeId) === id ||
+            String(t.navidromeId) === id ||
+            String(t.url || '') === id
+        );
     }
     if (!track) {
-        track = state.library.find(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+        track = state.library.find(t =>
+            String(t.id || t.navidromeId) === id ||
+            String(t.navidromeId) === id ||
+            String(t.url || '') === id
+        );
     }
     if (!track) {
         showToast(t('track_data_unavailable', 'Error: Track data not available'));
@@ -872,14 +1954,18 @@ window.addToQueueNextNavidrome = (trackId) => {
         artist: track.artist || t('unknown_artist', 'Unknown Artist'),
         album: track.album || '',
         duration: track.duration || 0,
-        url: window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(id) : track.url,
-        cover: track.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100',
+        url: isUrl ? id : (window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(id) : track.url),
+        cover: resolveCover(track.cover),
         source: 'navidrome',
-        navidromeId: id
+        navidromeId: isUrl ? (track.navidromeId || null) : id
     };
     
     let insertIdx = state.currentIndex >= 0 ? state.currentIndex + 1 : state.library.length;
-    const existingIdx = state.library.findIndex(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    const existingIdx = state.library.findIndex(t =>
+        String(t.id || t.navidromeId) === id ||
+        String(t.navidromeId) === id ||
+        String(t.url || '') === id
+    );
     
     if (existingIdx !== -1) {
         const [existing] = state.library.splice(existingIdx, 1);
@@ -912,16 +1998,51 @@ window.addToQueueNextNavidrome = (trackId) => {
     showToast(t('added_to_queue_next', 'Added to queue (play next)'));
 };
 
+// Add a local track to queue and make it play next
+window.addToQueueNextLocal = (trackId) => {
+    const id = Number(trackId);
+    if (Number.isNaN(id)) return;
+    const track = state.library.find(t => t.id === id);
+    if (!track) return;
+    
+    let insertIdx = state.currentIndex >= 0 ? state.currentIndex + 1 : state.library.length;
+    const existingIdx = state.library.findIndex(t => t.id === id);
+    
+    if (existingIdx !== -1) {
+        const [existing] = state.library.splice(existingIdx, 1);
+        if (existingIdx < insertIdx) insertIdx--;
+        state.library.splice(insertIdx, 0, existing);
+    }
+    
+    if (state.currentIndex === -1) {
+        window.playTrack(track.id);
+        return;
+    }
+    
+    if (existingIdx !== -1 && existingIdx < state.currentIndex) {
+        state.currentIndex--;
+    }
+    if (insertIdx <= state.currentIndex) {
+        state.currentIndex++;
+    }
+    
+    state.nextOverrideId = id;
+    if (typeof saveQueueState === 'function') saveQueueState();
+    renderLibrary();
+    renderSidebarQueue();
+    showToast(t('play_next', 'Play next'));
+};
+
 // ============ ПЛЕЕР ============
 window.playTrack = (id) => {
     console.log('🎵 [PLAYTRACK] Called with id:', id);
-    const track = state.library.find(t => t.id === id || t.navidromeId === id);
+    const track = state.library.find(t => t.id === id || t.navidromeId === id || t.url === id);
     console.log('🎵 [PLAYTRACK] Found track:', track?.title, track?.artist);
     if (!track) {
         console.error('Track not found:', id);
         return;
     }
-    state.currentIndex = state.library.findIndex(t => t.id === id || t.navidromeId === id);
+    state.currentIndex = state.library.findIndex(t => t.id === id || t.navidromeId === id || t.url === id);
     
     // Если shuffle включен, синхронизировать позицию с выбранным треком
     if (state.shuffle) {
@@ -949,42 +2070,44 @@ window.playTrack = (id) => {
         return;
     }
     
-    console.log('[PLAYBACK] Playing:', track.title, 'from', track.source, 'navidromeId:', track.navidromeId);
+    const displayTitle = track.title || t('unknown_title', 'Unknown');
+    const displayArtist = track.artist || t('unknown_artist', 'Unknown Artist');
+    const displayAlbum = track.album || '';
+    if (!track.title) track.title = displayTitle;
+    if (!track.artist) track.artist = displayArtist;
+    if (!track.album) track.album = displayAlbum;
+
+    console.log('[PLAYBACK] Playing:', displayTitle, 'from', track.source, 'navidromeId:', track.navidromeId);
     dom.audio.src = audioSrc;
     dom.audio.crossOrigin = 'anonymous';
+    applySavedPosition(track);
     dom.audio.play().catch(err => {
         console.error('[PLAYBACK] Play error:', err);
         showToast(`${t('playback_error', 'Playback error:')} ${err.message}`);
     });
-    dom.trackName.innerText = track.title;
-    dom.artistName.innerText = track.artist;
-    if (track.cover) {
-        dom.mainCover.src = track.cover;
-        dom.vinylContainer.classList.add('visible');
-    } else {
-        dom.vinylContainer.classList.remove('visible');
-    }
+    dom.trackName.innerText = displayTitle;
+    dom.artistName.innerText = displayArtist;
+    applyImgFallback(dom.mainCover, track.cover);
+    dom.vinylContainer.classList.add('visible');
     
     // Update browser title and Media Session API
-    document.title = `${track.title} - ${track.artist} | UrZen`;
+    document.title = `${displayTitle} - ${displayArtist} | UrZen`;
     if ('mediaSession' in navigator) {
         try {
             const metadata = {
-                title: String(track.title || t('unknown_title', 'Unknown')),
-                artist: String(track.artist || t('unknown_artist', 'Unknown Artist')),
-                album: String(track.album || 'UrZen Player')
+                title: String(displayTitle || t('unknown_title', 'Unknown')),
+                artist: String(displayArtist || t('unknown_artist', 'Unknown Artist')),
+                album: String(displayAlbum || 'UrZen Player')
             };
             
-            if (track.cover) {
-                const coverUrl = track.cover;
-                metadata.artwork = [
-                    { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
-                    { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
-                    { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
-                    { src: coverUrl, sizes: '256x256', type: 'image/jpeg' }
-                ];
-                console.log('[MEDIA SESSION] Artwork set with cover');
-            }
+            const coverUrl = resolveCover(track.cover);
+            metadata.artwork = [
+                { src: coverUrl, sizes: '96x96', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '128x128', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '192x192', type: 'image/jpeg' },
+                { src: coverUrl, sizes: '256x256', type: 'image/jpeg' }
+            ];
+            console.log('[MEDIA SESSION] Artwork set with cover');
             
             navigator.mediaSession.metadata = new MediaMetadata(metadata);
             console.log('[MEDIA SESSION] Metadata set:', metadata);
@@ -1021,6 +2144,11 @@ window.playTrack = (id) => {
     if (window.saveQueueState) window.saveQueueState();
     
     renderLibrary();
+    logPlayHistory(track);
+    if (track.source === 'navidrome' && track.navidromeId) {
+        scrobbleNavidromeSong(track.navidromeId).catch(() => {});
+    }
+    updateHomeVisibility();
 };
 
 // Fisher-Yates shuffle algorithm
@@ -1052,7 +2180,11 @@ function syncShufflePositionWithTrackId(trackId) {
     if (view.length === 0) return;
     
     const id = String(trackId);
-    const viewIndex = view.findIndex(t => String(t.id || t.navidromeId) === id || String(t.navidromeId) === id);
+    const viewIndex = view.findIndex(t =>
+        String(t.id || t.navidromeId) === id ||
+        String(t.navidromeId) === id ||
+        String(t.url || '') === id
+    );
     if (viewIndex === -1) return;
     
     if (!Array.isArray(state.shuffledOrder) || state.shuffledOrder.length !== view.length) {
@@ -1089,9 +2221,17 @@ window.nextTrack = () => {
         const overrideId = String(state.nextOverrideId);
         state.nextOverrideId = null;
         
-        nextTrack = view.find(t => String(t.id || t.navidromeId) === overrideId || String(t.navidromeId) === overrideId);
+        nextTrack = view.find(t =>
+            String(t.id || t.navidromeId) === overrideId ||
+            String(t.navidromeId) === overrideId ||
+            String(t.url || '') === overrideId
+        );
         if (!nextTrack) {
-            nextTrack = state.library.find(t => String(t.id || t.navidromeId) === overrideId || String(t.navidromeId) === overrideId);
+            nextTrack = state.library.find(t =>
+                String(t.id || t.navidromeId) === overrideId ||
+                String(t.navidromeId) === overrideId ||
+                String(t.url || '') === overrideId
+            );
         }
         if (nextTrack && state.shuffle) {
             syncShufflePositionWithTrackId(overrideId);
@@ -1122,8 +2262,12 @@ window.nextTrack = () => {
     } else if (!nextTrack) {
         // Обычное воспроизведение в порядке
         const currentTrack = state.library[state.currentIndex];
-        const currentTrackId = currentTrack?.id || currentTrack?.navidromeId;
-        const idxInView = view.findIndex(t => (t.id || t.navidromeId) === currentTrackId);
+        const currentTrackId = currentTrack?.id || currentTrack?.navidromeId || currentTrack?.url;
+        const idxInView = view.findIndex(t =>
+            (t.id || t.navidromeId) === currentTrackId ||
+            t.navidromeId === currentTrackId ||
+            t.url === currentTrackId
+        );
 
         if (idxInView < view.length - 1) {
             nextTrack = view[idxInView + 1];
@@ -1135,7 +2279,8 @@ window.nextTrack = () => {
     }
 
     if (nextTrack.source === 'navidrome') {
-        window.playNavidromeSong(nextTrack.navidromeId, nextTrack.title, nextTrack.artist, nextTrack.album, nextTrack.cover);
+        const nextId = nextTrack.navidromeId || nextTrack.url;
+        window.playNavidromeSong(nextId, nextTrack.title, nextTrack.artist, nextTrack.album, nextTrack.cover);
     } else {
         window.playTrack(nextTrack.id);
     }
@@ -1160,8 +2305,12 @@ window.prevTrack = () => {
     } else {
         // Обычное воспроизведение в обратном порядке
         const currentTrack = state.library[state.currentIndex];
-        const currentTrackId = currentTrack?.id || currentTrack?.navidromeId;
-        const idxInView = view.findIndex(t => (t.id || t.navidromeId) === currentTrackId);
+        const currentTrackId = currentTrack?.id || currentTrack?.navidromeId || currentTrack?.url;
+        const idxInView = view.findIndex(t =>
+            (t.id || t.navidromeId) === currentTrackId ||
+            t.navidromeId === currentTrackId ||
+            t.url === currentTrackId
+        );
 
         if (idxInView > 0) {
             prevTrack = view[idxInView - 1];
@@ -1173,7 +2322,8 @@ window.prevTrack = () => {
     }
 
     if (prevTrack.source === 'navidrome') {
-        window.playNavidromeSong(prevTrack.navidromeId, prevTrack.title, prevTrack.artist, prevTrack.album, prevTrack.cover);
+        const prevId = prevTrack.navidromeId || prevTrack.url;
+        window.playNavidromeSong(prevId, prevTrack.title, prevTrack.artist, prevTrack.album, prevTrack.cover);
     } else {
         window.playTrack(prevTrack.id);
     }
@@ -1218,7 +2368,8 @@ window.togglePlayback = () => {
     if (state.currentIndex === -1 && state.library.length > 0) {
         const firstTrack = state.library[0];
         if (firstTrack.source === 'navidrome') {
-            window.playNavidromeSong(firstTrack.navidromeId, firstTrack.title, firstTrack.artist, firstTrack.album, firstTrack.cover);
+            const firstId = firstTrack.navidromeId || firstTrack.url;
+            window.playNavidromeSong(firstId, firstTrack.title, firstTrack.artist, firstTrack.album, firstTrack.cover);
         } else {
             window.playTrack(firstTrack.id);
         }
@@ -1270,7 +2421,33 @@ window.switchTab = (tab) => {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     
     // Обработка переключения вкладок
-    if (tab === 'all') {
+    if (tab === 'home') {
+        document.getElementById('nav-home')?.classList.add('active');
+        document.getElementById('nav-home-mobile')?.classList.add('active');
+        console.log('[TAB] Switched to Home');
+
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const aboutContainer = document.getElementById('aboutContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
+        if (aboutContainer) aboutContainer.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'flex';
+        if (rightPanel) rightPanel.style.display = 'none';
+        if (playerControls) playerControls.style.display = 'none';
+        if (topSearch) topSearch.style.display = 'none';
+        if (rightQueueShow) rightQueueShow.style.display = 'none';
+
+        updateHomeVisibility(true);
+        return;
+    } else if (tab === 'all') {
         document.getElementById('nav-all')?.classList.add('active');
         document.getElementById('nav-all-mobile')?.classList.add('active');
         console.log('[TAB] Switched to All Library');
@@ -1282,12 +2459,17 @@ window.switchTab = (tab) => {
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
-        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
         if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
         if (topSearch) topSearch.style.display = 'flex';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = '';
         
         renderLibrary();
         renderPlaylistNav();
@@ -1303,12 +2485,17 @@ window.switchTab = (tab) => {
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
-        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
         if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
         if (topSearch) topSearch.style.display = 'flex';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = '';
         
         renderLibrary();
         renderPlaylistNav();
@@ -1323,12 +2510,19 @@ window.switchTab = (tab) => {
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
-        if (navidromeContainer) navidromeContainer.style.display = 'flex';
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'flex';
+            navidromeContainer.classList.remove('music-tab-visible');
+            void navidromeContainer.offsetWidth;
+            navidromeContainer.classList.add('music-tab-visible');
+        }
         if (aboutContainer) aboutContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'none';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
         if (topSearch) topSearch.style.display = 'none';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = 'none';
         
         // Проверяем, загружены ли песни
         if (!state.navidromeSongs || state.navidromeSongs.length === 0) {
@@ -1377,11 +2571,16 @@ window.switchTab = (tab) => {
             }
             btn.style.display = 'block';
         } catch (e) {}
-        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
         if (mainContent) mainContent.style.display = 'none';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
         if (topSearch) topSearch.style.display = 'none';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = 'none';
         
         // Локализуем страницу
         if (window.localizePageContent) {
@@ -1397,15 +2596,21 @@ window.switchTab = (tab) => {
         const rightPanel = document.querySelector('.right');
         const playerControls = document.getElementById('playerControls');
         const topSearch = document.getElementById('topSearch');
-        if (navidromeContainer) navidromeContainer.style.display = 'none';
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
         if (topSearch) topSearch.style.display = 'flex';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = '';
         
         renderLibrary();
         renderPlaylistNav();
     }
+    updateHomeVisibility();
 };
 
 window.toggleShuffle = () => {
@@ -1490,15 +2695,17 @@ window.toggleFavSearchResult = (trackId, source) => {
     if (source === 'navidrome') {
         // For Navidrome songs, save favorite to localStorage
         let navidromeFavs = JSON.parse(localStorage.getItem('navidromeFavorites') || '[]');
-        const favIndex = navidromeFavs.findIndex(f => f.navidromeId === trackId);
+        const favIndex = navidromeFavs.findIndex(f => f.navidromeId === trackId || f.url === trackId);
         
         if (favIndex === -1) {
+            const navUrl = track.url || (track.navidromeId && window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(track.navidromeId) : '');
             navidromeFavs.push({
                 navidromeId: trackId,
                 title: track.title,
                 artist: track.artist,
                 album: track.album,
                 cover: track.cover,
+                url: navUrl,
                 source: 'navidrome'
             });
             showToast(t('fav_added', 'Added to favorites!'));
@@ -1544,7 +2751,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 
     // Получить полную информацию о песне
     // 1) локальная библиотека
-    let track = state.library.find(t => t.id === songId || t.navidromeId === songId);
+    let track = state.library.find(t => t.id === songId || t.navidromeId === songId || t.url === songId);
 
     // 2) временное хранилище (Navidrome результаты поиска)
     if (!track && source === 'navidrome' && window.tempPendingTrack) {
@@ -1554,7 +2761,7 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 
     // 3) Navidrome вкладка: берём из загруженного списка, если ещё не нашли
     if (!track && source === 'navidrome' && Array.isArray(state.navidromeSongs)) {
-        track = state.navidromeSongs.find(t => t.navidromeId === songId || t.id === songId);
+        track = state.navidromeSongs.find(t => t.navidromeId === songId || t.id === songId || t.url === songId);
         if (track) {
             // гарантируем наличие navidromeId
             if (!track.navidromeId) track.navidromeId = track.id;
@@ -1568,7 +2775,8 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
         // Для Navidrome песен проверяем по navidromeId
         const isIncluded = Array.isArray(pl.songIds) && (
             pl.songIds.includes(songId) || 
-            (track && pl.navidromeSongIds && pl.navidromeSongIds.includes(track.navidromeId))
+            (track && pl.navidromeSongIds && pl.navidromeSongIds.includes(track.navidromeId)) ||
+            (track && (pl.navidromeSongs || []).some(s => s.url && track.url && s.url === track.url))
         );
         
         const btn = document.createElement('button');
@@ -1627,11 +2835,16 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
             playlist.navidromeSongs = Array.isArray(playlist.navidromeSongs) ? playlist.navidromeSongs : [];
             
             const isCurrentlyIncluded = playlist.songIds.includes(songId);
-            const isNavCurrentlyIncluded = track && track.navidromeId && playlist.navidromeSongIds.includes(track.navidromeId);
+            const trackUrl = track?.url || (track?.navidromeId && window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(track.navidromeId) : '');
+            const isNavCurrentlyIncluded = track && (
+                (track.navidromeId && playlist.navidromeSongIds.includes(track.navidromeId)) ||
+                (trackUrl && (playlist.navidromeSongs || []).some(s => s.url === trackUrl))
+            );
             
             if (source === 'navidrome' && track) {
                 if (!isNavCurrentlyIncluded) {
-                    playlist.navidromeSongIds.push(track.navidromeId);
+                    const navUrl = track.url || (window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(track.navidromeId) : '');
+                    if (track.navidromeId) playlist.navidromeSongIds.push(track.navidromeId);
                     // Сохраняем полный объект песни для надёжности
                     playlist.navidromeSongs.push({
                         navidromeId: track.navidromeId,
@@ -1639,13 +2852,23 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
                         artist: track.artist,
                         album: track.album,
                         cover: track.cover,
+                        url: navUrl,
                         source: 'navidrome'
                     });
                     
                     // Sync with server if authenticated
                     if (isUserAuthenticated()) {
                         try {
-                            const { addTrackToServerPlaylist } = await import('./modules/server-playlist-manager.js');
+                            const { addTrackToServerPlaylist, fetchServerPlaylists } = await import('./modules/server-playlist-manager.js');
+                            let serverId = playlist.serverId;
+                            if (!serverId) {
+                                const serverPlaylists = await fetchServerPlaylists();
+                                const match = serverPlaylists.find(p => p.name === playlist.name);
+                                serverId = match?.id;
+                                if (serverId) {
+                                    await db.playlists.update(id, { serverId });
+                                }
+                            }
                             const trackData = {
                                 track_title: track.title,
                                 track_artist: track.artist,
@@ -1653,42 +2876,52 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
                                 track_duration: track.duration,
                                 track_source: 'navidrome',
                                 navidrome_id: track.navidromeId,
-                                cover_art_id: track.coverArtId || track.cover
+                                cover_art_id: track.coverArtId || track.cover,
+                                track_url: track.url || (window.getNavidromeStreamUrl ? window.getNavidromeStreamUrl(track.navidromeId) : null)
                             };
-                            await addTrackToServerPlaylist(id, trackData);
-                            console.log('[SYNC] Added track to server playlist');
+                            if (serverId) {
+                                await addTrackToServerPlaylist(serverId, trackData);
+                                console.log('[SYNC] Added track to server playlist');
+                            }
                         } catch (error) {
                             console.error('[SYNC] Failed to add track to server playlist:', error);
                         }
                     }
                 } else {
                     playlist.navidromeSongIds = playlist.navidromeSongIds.filter(s => s !== track.navidromeId);
-                    playlist.navidromeSongs = playlist.navidromeSongs.filter(s => s.navidromeId !== track.navidromeId);
+                    playlist.navidromeSongs = playlist.navidromeSongs.filter(s => s.navidromeId !== track.navidromeId && s.url !== trackUrl);
+                    
+                    if (isUserAuthenticated()) {
+                        try {
+                            const { fetchServerPlaylists, fetchServerPlaylistDetails, removeTrackFromServerPlaylist } = await import('./modules/server-playlist-manager.js');
+                            let serverId = playlist.serverId;
+                            if (!serverId) {
+                                const serverPlaylists = await fetchServerPlaylists();
+                                const match = serverPlaylists.find(p => p.name === playlist.name);
+                                serverId = match?.id;
+                                if (serverId) {
+                                    await db.playlists.update(id, { serverId });
+                                }
+                            }
+                            if (serverId) {
+                                const details = await fetchServerPlaylistDetails(serverId);
+                                const serverTrack = details?.tracks?.find(t =>
+                                    t.navidrome_id === track.navidromeId ||
+                                    t.track_url === trackUrl
+                                );
+                                if (serverTrack?.id) {
+                                    await removeTrackFromServerPlaylist(serverId, serverTrack.id);
+                                    console.log('[SYNC] Removed track from server playlist');
+                                }
+                            }
+                        } catch (error) {
+                            console.error('[SYNC] Failed to remove track from server playlist:', error);
+                        }
+                    }
                 }
             } else {
                 if (!isCurrentlyIncluded) {
                     playlist.songIds.push(songId);
-                    
-                    // Sync with server if authenticated
-                    if (isUserAuthenticated()) {
-                        try {
-                            const { addTrackToServerPlaylist } = await import('./modules/server-playlist-manager.js');
-                            // Get track details from library
-                            const trackData = {
-                                track_title: track?.title || t('unknown_title', 'Unknown'),
-                                track_artist: track?.artist || t('unknown_artist', 'Unknown Artist'),
-                                track_album: track?.album || t('unknown_title', 'Unknown'),
-                                track_duration: track?.duration || 0,
-                                track_source: 'local',
-                                navidrome_id: null,
-                                cover_art_id: track?.cover || null
-                            };
-                            await addTrackToServerPlaylist(id, trackData);
-                            console.log('[SYNC] Added local track to server playlist');
-                        } catch (error) {
-                            console.error('[SYNC] Failed to add track to server playlist:', error);
-                        }
-                    }
                 } else {
                     playlist.songIds = playlist.songIds.filter(s => s !== songId);
                 }
@@ -1748,6 +2981,34 @@ window.openPlaylistPickerMulti = (songId, source = 'local') => {
 
 window.removeSongFromPlaylist = async (playlistId, songId, source = 'local') => {
     await removeSongFromPlaylist(playlistId, songId, source);
+    if (source === 'navidrome' && isUserAuthenticated()) {
+        try {
+            const { fetchServerPlaylists, fetchServerPlaylistDetails, removeTrackFromServerPlaylist } = await import('./modules/server-playlist-manager.js');
+            const playlist = state.playlists.find(p => p.id === playlistId);
+            let serverId = playlist?.serverId;
+            if (!serverId && playlist?.name) {
+                const serverPlaylists = await fetchServerPlaylists();
+                const match = serverPlaylists.find(p => p.name === playlist.name);
+                serverId = match?.id;
+                if (serverId) {
+                    await db.playlists.update(playlistId, { serverId });
+                }
+            }
+            if (serverId) {
+                const details = await fetchServerPlaylistDetails(serverId);
+                const serverTrack = details?.tracks?.find(t =>
+                    t.navidrome_id === songId ||
+                    t.navidrome_id === Number(songId) ||
+                    t.track_url === songId
+                );
+                if (serverTrack?.id) {
+                    await removeTrackFromServerPlaylist(serverId, serverTrack.id);
+                }
+            }
+        } catch (error) {
+            console.error('[SYNC] Failed to remove track from server playlist:', error);
+        }
+    }
     showToast(t('removed', 'Removed'));
     if (state.currentTab === playlistId) renderLibrary();
     await loadPlaylistsFromDB();
@@ -1935,7 +3196,7 @@ function setupAudioNodes() {
     source.connect(state.bassFilter);
     state.bassFilter.connect(state.analyser);
     state.analyser.connect(state.audioCtx.destination);
-    startVisualizer();
+    if (!state.performanceMode) startVisualizer();
 }
 
 function initVisualizer() {
@@ -1944,25 +3205,66 @@ function initVisualizer() {
     c.height = state.isZen ? window.innerHeight * 0.6 : window.innerHeight * 0.4;
 }
 
+function getAccentRgb() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim();
+    const parts = raw.split(',').map((val) => Number.parseInt(val.trim(), 10)).filter((num) => Number.isFinite(num));
+    if (parts.length >= 3) {
+        return { r: parts[0], g: parts[1], b: parts[2] };
+    }
+    return { r: 255, g: 62, b: 0 };
+}
+
+function updateVisualizerPalette() {
+    state.visualizerTheme = document.documentElement.getAttribute('data-theme') || 'classic';
+    state.visualizerRgb = getAccentRgb();
+}
+
 function startVisualizer() {
+    if (state.performanceMode) return;
+    if (!state.analyser || state.visualizerRunning) return;
     const c = document.getElementById('visualizerCanvas');
+    if (!c) return;
     const ctx = c.getContext('2d');
+    updateVisualizerPalette();
     const bufferLength = state.analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
     function draw() {
-        requestAnimationFrame(draw);
+        if (state.performanceMode || !state.visualizerRunning) {
+            state.visualizerRunning = false;
+            return;
+        }
+        state.visualizerFrameId = requestAnimationFrame(draw);
         state.analyser.getByteFrequencyData(dataArray);
         ctx.clearRect(0, 0, c.width, c.height);
         const barWidth = (c.width / bufferLength) * 2.5;
         let x = 0;
+        const themeId = document.documentElement.getAttribute('data-theme') || 'classic';
+        if (!state.visualizerRgb || state.visualizerTheme !== themeId) {
+            updateVisualizerPalette();
+        }
+        const { r, g, b } = state.visualizerRgb || { r: 255, g: 62, b: 0 };
         for(let i = 0; i < bufferLength; i++) {
             let barHeight = dataArray[i] * (state.isZen ? 1.8 : 1.2);
-            ctx.fillStyle = `rgba(255, 62, 0, ${barHeight/255})`;
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${barHeight/255})`;
             ctx.fillRect(x, c.height - barHeight, barWidth, barHeight);
             x += barWidth + 2;
         }
     }
+    state.visualizerRunning = true;
     draw();
+}
+
+function stopVisualizer() {
+    if (state.visualizerFrameId) {
+        cancelAnimationFrame(state.visualizerFrameId);
+        state.visualizerFrameId = null;
+    }
+    state.visualizerRunning = false;
+    const c = document.getElementById('visualizerCanvas');
+    if (c) {
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+    }
 }
 
 // ============ СОБЫТИЯ АУДИО ============
@@ -1971,6 +3273,7 @@ function initAudioEvents() {
         state.isPlaying = true; 
         document.body.classList.add('playing'); 
         updatePlayIcon(true);
+        if (state.currentTab === 'home') updateHomeVisibility();
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'playing';
         }
@@ -1979,6 +3282,7 @@ function initAudioEvents() {
         state.isPlaying = false; 
         document.body.classList.remove('playing'); 
         updatePlayIcon(false);
+        if (state.currentTab === 'home') updateHomeVisibility();
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
         }
@@ -2002,13 +3306,38 @@ function initAudioEvents() {
     };
     dom.audio.onended = () => window.nextTrack();
     dom.audio.onloadedmetadata = () => dom.timeDur.innerText = formatTime(dom.audio.duration);
+
+    dom.audio.addEventListener('timeupdate', () => {
+        const now = Date.now();
+        if (now - lastProgressSave < PLAY_PROGRESS_THROTTLE) return;
+        lastProgressSave = now;
+        const currentTrack = state.library[state.currentIndex];
+        if (currentTrack) {
+            savePlaybackProgress(currentTrack, dom.audio.currentTime, dom.audio.duration);
+        }
+    });
+
+    dom.audio.addEventListener('ended', () => {
+        const currentTrack = state.library[state.currentIndex];
+        if (currentTrack) {
+            clearPlaybackProgress(currentTrack);
+        }
+        if (state.currentTab === 'home') updateHomeVisibility();
+    });
 }
 
 function updatePlayIcon(playing) {
-    if (!dom.playIcon) return;
     const iconName = playing ? 'pause' : 'play';
-    dom.playIcon.setAttribute('data-lucide', iconName);
-    if (window.lucide) window.lucide.createIcons();
+    const mainBtn = dom.playBtn || document.getElementById('btnPlay');
+    if (mainBtn) {
+        mainBtn.innerHTML = `<i data-lucide="${iconName}" id="playIconUI" size="28"></i>`;
+    }
+    const mobileBtn = document.getElementById('mobilePlayBtn');
+    if (mobileBtn) {
+        mobileBtn.innerHTML = `<i data-lucide="${iconName}" id="mobilePlayIcon"></i>`;
+    }
+    dom.playIcon = document.getElementById('playIconUI');
+    refreshIcons();
 }
 
 function updateVolumeUI() { dom.volFill.style.width = (dom.audio.volume * 100) + "%"; }
@@ -2016,6 +3345,7 @@ function updateVolumeUI() { dom.volFill.style.width = (dom.audio.volume * 100) +
 // ============ ZEN MODE ============
 window.toggleZen = (enable) => {
     state.isZen = enable;
+    document.body.classList.toggle('zen-active', enable);
     if (enable) {
         dom.zenOverlay.appendChild(dom.heroSlot);
         dom.zenOverlay.style.display = 'flex';
@@ -2114,12 +3444,14 @@ function renderZenSearchResults(results, container) {
     }
     
     container.innerHTML = results.map(track => {
-        const trackId = track.id || track.navidromeId;
         const source = track.source || 'local';
-        const safeTitle = (track.title || '').replace(/'/g, "\\'");
-        const safeArtist = (track.artist || '').replace(/'/g, "\\'");
+        const trackId = source === 'navidrome'
+            ? (track.navidromeId || track.id || track.url)
+            : track.id;
+        const safeTitle = (track.title || t('unknown_title', 'Unknown')).replace(/'/g, "\\'");
+        const safeArtist = (track.artist || t('unknown_artist', 'Unknown Artist')).replace(/'/g, "\\'");
         const safeAlbum = (track.album || '').replace(/'/g, "\\'");
-        const safeCover = (track.cover || '').replace(/'/g, "\\'");
+        const safeCover = (resolveCover(track.cover) || '').replace(/'/g, "\\'");
         
         let onClickHandler;
         if (source === 'navidrome') {
@@ -2238,6 +3570,12 @@ export async function initApp() {
     // Step 1: Initialize DOM
     try {
         initDOM();
+        initRightQueueResizer();
+        if (dom.mainCover) {
+            dom.mainCover.onerror = () => {
+                dom.mainCover.src = DEFAULT_COVER;
+            };
+        }
         console.log('[APP] DOM initialized');
     } catch (err) {
         console.error('[APP] DOM init failed:', err);
@@ -2328,6 +3666,7 @@ export async function initApp() {
         if (dom.searchInput) {
             dom.searchInput.addEventListener('input', async (e) => {
                 state.searchQuery = e.target.value || '';
+                updateHomeVisibility();
                 
                 // If search is empty, show normal library
                 if (!state.searchQuery.trim()) {
@@ -2394,16 +3733,19 @@ export async function initApp() {
             console.log('[APP] Loading playlists...');
             await loadPlaylistsFromDB();
             console.log('[APP] Playlists loaded');
+            if (isUserAuthenticated()) {
+                await syncPlaylistsWithServer(state.playlists, db);
+                await loadPlaylistsFromDB();
+            }
         } catch (err) {
             console.warn('[APP] Playlists load failed:', err);
             state.playlists = [];
         }
         // Ensure currentTab is set and switchTab is called
-        if (!state.currentTab) {
-            state.currentTab = 'all';
-            localStorage.setItem('currentTab', JSON.stringify('all'));
-        }
+        state.currentTab = 'home';
+        localStorage.setItem('currentTab', JSON.stringify('home'));
         window.switchTab(state.currentTab);
+        updateHomeVisibility(true);
     })();
 
     // Initialize auth in background
