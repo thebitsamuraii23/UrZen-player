@@ -358,7 +358,7 @@ function renderHomeGrid(containerId, items, emptyText) {
             if (item.progress) {
                 applySavedPosition(item);
             }
-            updateHomeVisibility();
+            window.switchTab('all');
         };
         container.appendChild(card);
     });
