@@ -10,7 +10,7 @@ import {
     getGenres as getNavidromeGenres,
     getNavidromeCoverArtUrl,
     scrobbleNavidromeSong
-} from './navidrome-search.js';
+} from './navidrome-search.js?v=20260210-2';
 import { loadLibraryFromDB, getCurrentListView, deleteTrack, saveQueueState, restoreQueueState } from './modules/library-manager.js';
 import { addSongToPlaylist, removeSongFromPlaylist, createPlaylist, deletePlaylist, renamePlaylist } from './modules/playlist-manager.js';
 import { isUserAuthenticated, syncPlaylistsWithServer } from './modules/server-playlist-manager.js';
