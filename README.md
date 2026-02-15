@@ -1,274 +1,169 @@
-# 🎵 Z BETA — Modern Audio Player with Navidrome Integration
+# UrZen Player
 
-A sleek, minimalist web-based audio player with playlist management, Bass Boost, Zen Mode, and **Navidrome streaming integration**. Your music is stored locally in IndexedDB with full privacy, plus you can search and stream from Navidrome.
+[![Stars](https://img.shields.io/github/stars/thebitsamuraii23/UrZen-player?style=for-the-badge)](https://github.com/thebitsamuraii23/UrZen-player/stargazers)
+[![Forks](https://img.shields.io/github/forks/thebitsamuraii23/UrZen-player?style=for-the-badge)](https://github.com/thebitsamuraii23/UrZen-player/network/members)
+[![License](https://img.shields.io/github/license/thebitsamuraii23/UrZen-player?style=for-the-badge)](./LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/thebitsamuraii23/UrZen-player/tests/updates?style=for-the-badge)](https://github.com/thebitsamuraii23/UrZen-player/commits/tests/updates)
+[![TypeScript First](https://img.shields.io/badge/TypeScript-First-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Groq AI](https://img.shields.io/badge/AI-Groq%20Integration-ff4f64?style=for-the-badge)](https://groq.com/)
+[![Navidrome](https://img.shields.io/badge/Navidrome-Subsonic%20API-2E3440?style=for-the-badge)](https://www.navidrome.org/)
 
-## ✨ Features
+A modern web music player focused on real listening workflows: local tracks, Navidrome streaming, AI-assisted playlist creation, smart shuffle continuation, and fast queue control.
 
-- 🎯 **Playlist Management** - Create, delete, and organize playlists with ease
-- 🎼 **Multi-Select Playlists** - Add one song to multiple playlists simultaneously
-- 🔊 **Bass Boost** - EQ with bass adjustment (0-25 dB)
-- 🔀 **Shuffle & Repeat** - Mix it up or loop your favorites
-- ❤️ **Favorites** - Mark and quick-access your favorite tracks
-- 🖱️ **Drag & Drop** - Reorder songs in your library intuitively
-- 🌙 **Zen Mode** (F key) - Immersive fullscreen experience with enhanced visualizer
-- 🎨 **Metadata Extraction** - Automatic title, artist, and album art detection
-- 🌍 **Multi-Language** - English and Russian support
-- 🌐 **Navidrome Integration** - Search and stream music from Navidrome server
-- 👤 **User Authentication** - Register/login with JWT tokens
-- ⌨️ **Keyboard Shortcuts**:
-  - `Space` — Play/Pause
-  - `← / →` — Seek ±10 seconds
-  - `↑ / ↓` — Volume control
-  - `Ctrl+← / Ctrl+→` — Previous/Next track
-  - `F` — Zen Mode
-  - `ESC` — Exit Zen Mode
+## Highlights
 
-## 📁 Project Structure
+- Full TypeScript migration across frontend and backend.
+- AI Playlist Builder (Groq): create playlists from natural language prompts.
+- Smart Shuffle AI: continues playback with relevant tracks from your library.
+- Mini Player first UX with queue modal and drag-and-drop reordering.
+- Mobile UX refresh: old fullscreen mobile player removed, page-level scrolling improved.
+- In-app Update Logs page for release notes and feature history.
 
-```
-html-player/
-├── index.html              # Main application file
-├── server.js               # Express.js backend with auth
-├── Dockerfile              # Docker container definition
-├── docker-compose.yml      # Docker compose configuration
+## Core Features
+
+### Playback and Library
+
+- Local library import with metadata extraction.
+- Navidrome search + streaming in the same app.
+- Unified queue for local and Navidrome tracks.
+- Shuffle, repeat, favorites, and keyboard shortcuts.
+- Zen Mode for focused playback.
+
+### Queue and Control
+
+- "Play next" behavior with playback-order aware queue rendering.
+- Mini queue modal with upcoming order indicators.
+- Drag-and-drop queue reordering.
+- Smart shuffle tail integration.
+
+### AI Features
+
+- `Create playlist using AI` in UI (no browser prompt fallback needed when modal is available).
+- Prompt parsing + ranking via Groq.
+- Navidrome-aware candidate discovery.
+- Smart shuffle endpoint for contextual continuation.
+
+## Tech Stack
+
+- Frontend: HTML, CSS, TypeScript (vanilla modules)
+- Backend: Node.js, Express, TypeScript runtime via `tsx`
+- Database: SQLite
+- Auth: JWT + bcrypt
+- Local storage: IndexedDB (Dexie in browser)
+- External APIs: Navidrome (Subsonic API), Groq API
+
+## Project Structure
+
+```text
+.
+├── src/
+│   ├── server.ts
+│   ├── backend/server.ts
+│   ├── client/
+│   │   ├── app.ts
+│   │   ├── auth.ts
+│   │   ├── database.ts
+│   │   ├── i18n.ts
+│   │   ├── navidrome-search.ts
+│   │   └── modules/
+│   └── modules/playlist-utils.ts
 ├── css/
-│   └── main.css           # Complete styling
-├── js/
-│   ├── app.js             # Core application logic
-│   ├── auth.js            # Authentication system
-│   ├── navidrome-search.js # Navidrome API integration
-│   └── state.js           # Global state management
 ├── assets/
-│   └── musicjacker.png    # Music Jacker icon
-├── README.md              # This documentation
-└── LICENSE                # MIT License
+├── index.html
+├── frontend/
+│   ├── index.html
+│   └── css/
+├── package.json
+└── tsconfig.json
 ```
 
-## 🚀 Quick Start (Local Development)
-
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-2. **Start the backend server** (in another terminal)
-   ```bash
-   npm start
-   ```
-
-3. **Open** in your browser
-   - If using Live Server: `http://localhost:5500`
-   - If using Node server: `http://localhost:3001`
-
-4. **Import music** using the "Import Tracks" button
-
-5. **Search & Stream** - Use the top search bar to:
-   - Search local library (files you imported)
-   - Search Navidrome server (automatic fallback with guest credentials)
-
-## 🐳 Docker Deployment
+## Getting Started (Local)
 
 ### Prerequisites
-- Docker and Docker Compose installed
-- Navidrome server accessible at `https://music.youtubemusicdownloader.life`
 
-### Quick Start with Docker
+- Node.js 18+
+- npm
 
-1. **Build and start the container**
-   ```bash
-   docker-compose up -d
-   ```
+### Install
 
-2. **Access the application**
-   - Open `http://localhost:3001` in your browser
-
-3. **View logs**
-   ```bash
-   docker-compose logs -f app
-   ```
-
-4. **Stop the container**
-   ```bash
-   docker-compose down
-   ```
-
-### Docker Setup Includes
-- ✅ Node.js runtime
-- ✅ SQLite database (persistent volume at `./data/`)
-- ✅ Static file serving
-- ✅ Health checks
-- ✅ Auto-restart on failure
-- ✅ Network isolation
-
-### Environment Variables
-
-In `docker-compose.yml`, you can customize:
-```yaml
-environment:
-  - NODE_ENV=production           # production or development
-  - PORT=3001                      # Server port
-  - DB_PATH=/app/data/music.db    # Database location (in volume)
+```bash
+npm install
 ```
 
-### Volume Mounts
+### Start server
 
-- **`./data`** - SQLite database and user data
-- **`./music`** - Optional: mount your music library directory
+```bash
+npm start
+```
 
-## 👤 Authentication System
+### Dev mode (watch)
 
-### User Registration & Login
+```bash
+npm run dev
+```
 
-1. Click the **Login** button in the top-right navigation
-2. **New User?** Switch to the "Register" tab
-3. Create your account with username and password
-4. Your credentials are securely hashed with bcrypt
-5. Automatic login after registration
-6. JWT tokens expire after 7 days
+### Open app
 
-### Token Management
+- `http://localhost:3001`
 
-- Tokens stored in browser `localStorage`
-- Automatically validated on page load
-- Username displayed in top navigation
-- Click your username → **Logout** to clear session
+## Environment Variables
 
-### Security Notes
+Set environment variables in your shell, container, or deployment platform.
 
-- All passwords are bcrypt hashed before database storage
-- JWT tokens use HS256 encryption
-- Local playlists and library remain private to your account
-- Navidrome integration uses guest credentials (no account needed)
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3001` | HTTP server port |
+| `DB_PATH` | `./users.db` | SQLite database path |
+| `JWT_SECRET` | `your-secret-key-change-this-in-production` | JWT signing secret |
+| `DEFAULT_NAVIDROME_SERVER` | preset URL | default Navidrome server |
+| `DEFAULT_NAVIDROME_USER` | `guest` | default Navidrome user |
+| `DEFAULT_NAVIDROME_PASS` | `guest` | default Navidrome password |
+| `GROQ_API_KEY` | empty | enables AI playlist + smart shuffle ranking |
+| `GROQ_API_URL` | Groq chat completions endpoint | custom Groq endpoint |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Groq model name |
+| `MAX_UPLOAD_BYTES` | `209715200` | max local upload size |
 
-## 🌐 Navidrome Integration
+Example:
 
-### Automatic Guest Access
+```bash
+GROQ_API_KEY=your_key_here JWT_SECRET=change_me npm start
+```
 
-- Search bar (top of player) automatically searches Navidrome
-- Guest credentials: `guest/guest` (pre-configured)
-- No login required for streaming
-- Results show source badge (🌐 Navidrome vs 📁 Local)
+## AI Endpoints
 
-### Combined Search
+- `POST /api/ai/create-playlist`
+- `POST /api/ai/smart-shuffle`
 
-1. **Type in top search bar** - searches both local & Navidrome simultaneously
-2. **Local results** appear first (files you imported)
-3. **Navidrome results** appear below
-4. **Duplicates** automatically removed by title/artist
-5. **Click any song** to play (works with both local & streamed)
+Both endpoints require authentication.
 
-### API Details
+## Keyboard Shortcuts
 
-- **Navidrome Server**: `https://music.youtubemusicdownloader.life`
-- **API Method**: Subsonic API (search3.view, stream.view)
-- **Format**: REST with JSON responses
-- **Version**: 1.16.1
+- `Space`: Play/Pause
+- `Left / Right`: Seek -/+10s
+- `Ctrl + Left / Right`: Previous/Next track
+- `Up / Down`: Volume
+- `F`: Toggle Zen Mode
+- `Esc`: Exit Zen Mode / close About/Update Logs overlay
 
-### Streaming
+## Deployment Notes
 
-- Songs stream directly from Navidrome in real-time
-- No local storage required
-- Works with existing player controls
-- Playback duration and progress tracking included
+- App serves static assets from:
+  - `/css` -> `css/`
+  - `/assets` -> `assets/`
+  - `/ts` -> `src/client/`
+- Health endpoint: `GET /health`
+- Docker-related files are included (`Dockerfile`, `docker-compose.yml`, `frontend/Dockerfile`).
 
-## 🎮 Core Features Explained
+## Privacy
 
-### Create & Manage Playlists
+- Local tracks remain under your own storage and account scope.
+- User auth uses hashed passwords and JWT.
+- No mandatory cloud sync layer.
 
-- Click **+** icon on any track
-- Select multiple playlists to add the song to
-- Changes save instantly to local storage
+## License
 
-### Add to Multiple Playlists
-
-- One song can belong to many playlists
-- Removing from a playlist doesn't delete the track
-- Just hover over a track and click **+** to manage
-
-### Bass Boost Control
-
-- Settings ⚙️ → "Ultra Bass" (toggle) → Adjust slider (0-25 dB)
-- Real-time audio processing with Web Audio API
-
-### Zen Mode Experience
-
-- Press **F** or click the Zen Mode button
-- Immersive fullscreen with enhanced visualizer
-- Perfect for focused listening
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Space` | Play/Pause |
-| `← / →` | Seek ±10 seconds |
-| `↑ / ↓` | Volume |
-| `Ctrl+← / →` | Previous/Next |
-| `F` | Zen Mode Toggle |
-| `ESC` | Exit Zen Mode |
-
-## 💾 Data Storage
-
-- **IndexedDB** — Local browser storage for complete privacy
-- **Zero cloud sync** — Your music stays on your device
-- **Clear data** — Settings → "Wipe Data" option available
-
-## 🛠️ Technical Stack
-
-- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
-- **Audio**: Web Audio API with BiquadFilter for Bass Boost
-- **Database**: Dexie.js (IndexedDB wrapper)
-- **Icons**: Lucide Icons
-- **Metadata**: jsmediatags for ID3 extraction
-
-## 📦 Built With
-
-- **Vanilla JavaScript** - No frameworks needed
-- **Modern CSS** - Glassmorphism design
-- **Web Audio API** - Professional audio processing
-- **IndexedDB** - Fast local storage
-
-## 🔗 My Other Projects
-
-- 🤖 **Music Jacker Bot** — [t.me/ytdlpload_bot](https://t.me/ytdlpload_bot) - Telegram bot for music
-- 🌐 **Music Jacker Website** — [musicjacker-site.onrender.com](https://musicjacker-site.onrender.com)
-- 📄 **My Resume** — [samuraizz-resume.githuib.io/samuraizz-resume](https://samuraizz-resume.githuib.io/samuraizz-resume)
-
-## 📊 Recent Updates
-
-### v2.0 - Modern UI Overhaul
-- ✅ Modular architecture with clean separation
-- ✅ Beautiful modal dialogs for playlist operations
-- ✅ Interactive playlist picker with visual feedback
-- ✅ English as default language
-- ✅ Animated settings panel with hover effects
-- ✅ Clear Queue button for quick playlist management
-
-## 🎨 UI/UX Highlights
-
-- **Dark Theme** with accent orange (#ff3e00)
-- **Glassmorphic Design** with blur effects
-- **Smooth Animations** throughout the interface
-- **Responsive Layout** for desktop and tablet
-- **Intuitive Controls** with clear visual feedback
-
-## 🔐 Privacy First
-
-- No tracking
-- No ads
-- No data collection
-- Everything stays on your device
-
-## 📜 License
-
-MIT License © 2026 - Feel free to use, modify, and distribute
+MIT License. See [LICENSE](./LICENSE).
 
 ---
 
-**Made with ❤️ by [thebitsamuraii23](https://github.com/thebitsamuraii23)**
-
-**Enjoy your music! 🎧**
-
-
-**Website is still in development and many features can be buggy or some features may be added.**
-**Thanks for your understanding!**
+Built by [thebitsamuraii23](https://github.com/thebitsamuraii23).
