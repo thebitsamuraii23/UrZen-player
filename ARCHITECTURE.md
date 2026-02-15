@@ -83,7 +83,7 @@
         ┌──────────────────▼────────────────────┐
         │                                        │
         │    NAVIDROME MUSIC SERVER              │
-        │    https://music.yourdomain.life       │
+        │    https://music.youtubemusicdownloader.life       │
         │                                        │
         │  • Songs                               │
         │  • Playlists                           │
