@@ -2057,6 +2057,64 @@ body.home-visible #mobileLibraryView .vinyl-container {
     font-size: 12px;
 }
 
+.update-logs-page {
+    background:
+        radial-gradient(960px 540px at 0% -10%, rgba(124, 140, 255, 0.22), transparent 65%),
+        radial-gradient(980px 520px at 100% 8%, rgba(96, 243, 211, 0.14), transparent 68%),
+        linear-gradient(180deg, rgba(7, 10, 16, 0.5) 0%, rgba(4, 6, 10, 0.76) 100%),
+        var(--bg);
+}
+
+.update-logs-shell {
+    border-color: rgba(124, 140, 255, 0.28);
+    background: rgba(6, 8, 14, 0.9);
+}
+
+.update-log-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+}
+
+.update-log-card {
+    border-color: rgba(124, 140, 255, 0.26);
+    background:
+        linear-gradient(160deg, rgba(124, 140, 255, 0.14), rgba(7, 10, 16, 0.2) 45%, rgba(8, 12, 20, 0.55));
+}
+
+.update-log-card h2 {
+    margin-bottom: 10px;
+}
+
+.update-log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(124, 140, 255, 0.3);
+}
+
+.update-log-version {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: #d9e1ff;
+    border: 1px solid rgba(124, 140, 255, 0.55);
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: rgba(124, 140, 255, 0.2);
+}
+
+.update-log-date {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #a7b6df;
+    letter-spacing: 0.4px;
+}
+
 .about-close {
     position: fixed;
     left: 18px;
@@ -2553,16 +2611,17 @@ body.zen-active .zen-inline {
     .home-mini-top { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
     .home-mini-transport { grid-column: 1 / -1; justify-content: center; }
     .home-mini-utils { grid-column: 1 / -1; justify-content: center; }
-    .home-mini-queue-btn { padding: 0 8px !important; }
     .home-mini-time { font-size: 10px; }
     .home-mini-cover-wrap { width: 42px; height: 42px; }
     .home-mini-vol-bar { width: 56px; }
+    .home-mini-queue-btn { padding: 0 8px !important; }
     .playlist-detail-actions { width: 100%; }
     .playlist-action-btn { flex: 1 1 160px; justify-content: center; }
     .about-readme { padding: 14px; }
     .about-readme-shell { padding: 18px; border-radius: 18px; gap: 12px; }
     .about-grid { grid-template-columns: 1fr; }
     .about-table { min-width: 480px; }
+    .update-log-head { flex-direction: column; align-items: flex-start; }
     .about-close { left: 12px; top: 12px; }
 }
 
@@ -2577,9 +2636,9 @@ body.zen-active .zen-inline {
     .home-search-box input { font-size: 12px; }
     .home-mini-meta strong { font-size: 12px; }
     .home-mini-meta span { font-size: 11px; }
-    .home-mini-player { bottom: env(safe-area-inset-bottom, 0px); left: 6px; right: 6px; }
     .home-mini-queue-btn span { display: none; }
     .home-mini-queue-btn { width: 34px !important; padding: 0 !important; }
+    .home-mini-player { bottom: env(safe-area-inset-bottom, 0px); left: 6px; right: 6px; }
     .playlist-action-btn { flex: 1 1 100%; }
     .bulk-select-bar { left: 6px; right: 6px; }
     .about-summary { font-size: 13px; }

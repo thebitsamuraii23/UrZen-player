@@ -3682,7 +3682,7 @@ window.applyRightQueueVisibility = (hidden, persist = false) => {
     document.body.classList.toggle('right-queue-hidden', state.hideRightQueue);
     const rightPanel = document.querySelector('.right');
     if (rightPanel && !state.hideRightQueue) {
-        if (state.currentTab === 'navidrome' || state.currentTab === 'about') {
+        if (state.currentTab === 'navidrome' || state.currentTab === 'about' || state.currentTab === 'update-logs') {
             rightPanel.style.display = 'none';
         } else {
             rightPanel.style.display = 'flex';
@@ -4767,10 +4767,10 @@ window.switchTab = (tab) => {
     state.searchQuery = '';  // Clear search when switching tabs
     state.navidromeSearchQuery = '';  // Clear Navidrome search
 
-    // Hide left About close button when switching away from About
+    // Hide left About close button when switching away from About/Update logs
     try {
         const aboutCloseBtn = document.getElementById('aboutCloseBtn');
-        if (tab !== 'about' && aboutCloseBtn) aboutCloseBtn.style.display = 'none';
+        if (tab !== 'about' && tab !== 'update-logs' && aboutCloseBtn) aboutCloseBtn.style.display = 'none';
     } catch (e) {}
     
     // Сбросить shuffle порядок при переключении табов/плейлистов
@@ -4792,6 +4792,7 @@ window.switchTab = (tab) => {
     
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     const playlistDetailSection = document.getElementById('playlistDetailSection');
+    const updateLogsContainer = document.getElementById('updateLogsContainer');
     if (playlistDetailSection && typeof tab !== 'number') {
         playlistDetailSection.style.display = 'none';
     }
@@ -4815,6 +4816,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.remove('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
@@ -4844,6 +4846,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.remove('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
@@ -4871,6 +4874,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.remove('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
@@ -4900,6 +4904,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.remove('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
@@ -4935,6 +4940,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.add('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'none';
         if (rightPanel) rightPanel.style.display = 'none';
         if (playerControls) playerControls.style.display = 'none';
@@ -4974,6 +4980,7 @@ window.switchTab = (tab) => {
         const topSearch = document.getElementById('topSearch');
         
         if (aboutContainer) aboutContainer.style.display = 'flex';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         // Ensure left-side close button exists and is visible only for About
         try {
             let btn = document.getElementById('aboutCloseBtn');
@@ -5016,6 +5023,54 @@ window.switchTab = (tab) => {
                 aboutCloseBtn.title = closeLabel;
             }
         } catch (e) {}
+    } else if (tab === 'update-logs') {
+        document.getElementById('nav-update-logs')?.classList.add('active');
+        document.getElementById('nav-update-logs-mobile')?.classList.add('active');
+        console.log('[TAB] Switched to Update logs');
+
+        const aboutContainer = document.getElementById('aboutContainer');
+        const navidromeContainer = document.getElementById('navidromeContainer');
+        const mainContent = document.getElementById('mainContent');
+        const rightPanel = document.querySelector('.right');
+        const playerControls = document.getElementById('playerControls');
+        const topSearch = document.getElementById('topSearch');
+
+        if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'flex';
+        // Reuse the same close button behavior as About pages
+        try {
+            let btn = document.getElementById('aboutCloseBtn');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = 'aboutCloseBtn';
+                btn.className = 'about-close';
+                btn.type = 'button';
+                btn.innerHTML = '<i data-lucide="x"></i>';
+                btn.onclick = () => { window.switchTab('all'); };
+                document.body.appendChild(btn);
+                refreshIcons();
+            }
+            const closeLabel = t('about_close', 'Close About');
+            btn.setAttribute('aria-label', closeLabel);
+            btn.title = closeLabel;
+            btn.style.display = 'block';
+        } catch (e) {}
+
+        if (navidromeContainer) {
+            navidromeContainer.style.display = 'none';
+            navidromeContainer.classList.remove('music-tab-visible');
+        }
+        if (mainContent) mainContent.style.display = 'none';
+        if (rightPanel) rightPanel.style.display = 'none';
+        if (playerControls) playerControls.style.display = 'none';
+        if (topSearch) topSearch.style.display = 'none';
+        if (playlistDetailSection) playlistDetailSection.style.display = 'none';
+        const rightQueueShow = document.getElementById('rightQueueShowBtn');
+        if (rightQueueShow) rightQueueShow.style.display = 'none';
+
+        if (window.localizePageContent) {
+            window.localizePageContent();
+        }
     } else {
         // Playlist tab
         console.log('[TAB] Switched to playlist:', tab);
@@ -5032,6 +5087,7 @@ window.switchTab = (tab) => {
             navidromeContainer.classList.remove('music-tab-visible');
         }
         if (aboutContainer) aboutContainer.style.display = 'none';
+        if (updateLogsContainer) updateLogsContainer.style.display = 'none';
         if (mainContent) mainContent.style.display = 'flex';
         if (rightPanel) rightPanel.style.display = 'flex';
         if (playerControls) playerControls.style.display = 'flex';
@@ -6219,7 +6275,7 @@ function initKeybinds() {
             case 'Escape':
                 if (state.isZen) {
                     window.toggleZen(false);
-                } else if (state.currentTab === 'about') {
+                } else if (state.currentTab === 'about' || state.currentTab === 'update-logs') {
                     window.switchTab('all');
                 }
                 break;

@@ -31,7 +31,7 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="/css/main.css?v=20260215-3">
+    <link rel="stylesheet" href="/css/main.css?v=20260215-4">
 </head>
 <body class="lang-ru">
 
@@ -58,6 +58,12 @@
         </div>
         <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music" data-t-title="navidrome_music">
             <i data-lucide="music"></i> <span data-t="music">Music</span>
+        </div>
+        <div class="nav-item" id="nav-about-mobile" onclick="window.switchTab('about'); window.closeMobileMenu();" title="About">
+            <i data-lucide="info"></i> <span>About</span>
+        </div>
+        <div class="nav-item" id="nav-update-logs-mobile" onclick="window.switchTab('update-logs'); window.closeMobileMenu();" title="Update logs">
+            <i data-lucide="scroll-text"></i> <span>Update logs</span>
         </div>
     </nav>
     <nav class="sidebar-section">
@@ -252,6 +258,9 @@
         <button class="settings-btn" onclick="window.switchTab('about'); window.toggleSettings();" style="width:100%; background: #1a1a1a; color: #d0d0d0; border: 1px solid var(--border); padding: 14px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); transition: all 0.3s ease;" onmouseover="this.style.background='#252525'; this.style.borderColor='#ff6f91'; this.style.color='#ff6f91'; this.style.boxShadow='0 4px 16px rgba(255, 107, 107, 0.2)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#1a1a1a'; this.style.borderColor='var(--border)'; this.style.color='#d0d0d0'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.2)'; this.style.transform='translateY(0)';">
             <i data-lucide="info" style="width: 18px; height: 18px;"></i> <span data-t="about">О сайте</span>
         </button>
+        <button class="settings-btn" onclick="window.switchTab('update-logs'); window.toggleSettings();" style="width:100%; background: #171b24; color: #cfe0ff; border: 1px solid rgba(124, 140, 255, 0.35); padding: 14px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); transition: all 0.3s ease;" onmouseover="this.style.background='#1f2633'; this.style.borderColor='#7c8cff'; this.style.color='#eaf0ff'; this.style.boxShadow='0 6px 18px rgba(124, 140, 255, 0.24)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#171b24'; this.style.borderColor='rgba(124, 140, 255, 0.35)'; this.style.color='#cfe0ff'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.25)'; this.style.transform='translateY(0)';">
+            <i data-lucide="scroll-text" style="width: 18px; height: 18px;"></i> <span>Update logs</span>
+        </button>
         
         <div class="setting-group">
             <div class="setting-row">
@@ -428,6 +437,12 @@
             </div>
             <div class="nav-item" id="nav-navidrome" onclick="window.switchTab('navidrome')">
                 <i data-lucide="music"></i> <span data-t="music">Music</span>
+            </div>
+            <div class="nav-item" id="nav-about" onclick="window.switchTab('about')">
+                <i data-lucide="info"></i> <span>About</span>
+            </div>
+            <div class="nav-item" id="nav-update-logs" onclick="window.switchTab('update-logs')">
+                <i data-lucide="scroll-text"></i> <span>Update logs</span>
             </div>
         </nav>
 
@@ -841,6 +856,18 @@ Auth: JWT + user scopes</code></pre>
             </section>
 
             <section class="about-card">
+                <h2>## Новые функции</h2>
+                <ul class="about-list">
+                    <li>Полная миграция проекта на TypeScript: frontend, backend и модули.</li>
+                    <li>AI Playlist Builder: создаёт плейлисты по описанию (жанры, артисты, настроение, количество треков).</li>
+                    <li>Smart Shuffle: подбирает и ставит в очередь релевантные треки из вашей Navidrome-библиотеки.</li>
+                    <li>Mini Queue с drag-and-drop: можно менять порядок треков прямо перетаскиванием.</li>
+                    <li>Мобильный режим без старого fullscreen-плеера: упор на mini player + стабильный скролл.</li>
+                    <li>Полностраничный mobile scroll: Home и плейлисты скроллятся как единый экран.</li>
+                </ul>
+            </section>
+
+            <section class="about-card">
                 <h2 data-t="about_shortcuts_title">## Shortcuts</h2>
                 <div class="about-table-wrap">
                     <table class="about-table">
@@ -890,6 +917,66 @@ Auth: JWT + user scopes</code></pre>
                 </p>
                 <p class="about-foot-sub" data-t="about_footer_sub">© 2026 UrZen • Open source music player</p>
             </footer>
+        </div>
+    </div>
+
+    <div id="updateLogsContainer" class="about-readme update-logs-page" style="display: none;">
+        <div class="about-readme-shell update-logs-shell">
+            <header class="about-head">
+                <p class="about-path">CHANGELOG.md</p>
+                <h1>Update logs</h1>
+                <p class="about-summary">Журнал обновлений UrZen. Здесь фиксируем все важные релизы и доработки интерфейса, AI и плеера.</p>
+                <div class="about-badges">
+                    <span class="about-badge">Release Notes</span>
+                    <span class="about-badge">TypeScript</span>
+                    <span class="about-badge">AI Features</span>
+                    <span class="about-badge">Mobile UX</span>
+                </div>
+            </header>
+
+            <section class="update-log-list">
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.0</span>
+                        <span class="update-log-date">February 15, 2026</span>
+                    </div>
+                    <h2>TypeScript Migration + AI System</h2>
+                    <ul class="about-list">
+                        <li>Полный перенос кода на TypeScript и удаление legacy JS-слоя.</li>
+                        <li>Добавлены AI endpoint-ы: `POST /api/ai/create-playlist` и `POST /api/ai/smart-shuffle`.</li>
+                        <li>Встроен интерфейс `Create playlist using AI` внутри сайта (без браузерного prompt).</li>
+                        <li>Улучшена обработка ошибок Navidrome/Groq и fallback-сценарии.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.1</span>
+                        <span class="update-log-date">February 15, 2026</span>
+                    </div>
+                    <h2>Mini Player, Queue, Playback Order</h2>
+                    <ul class="about-list">
+                        <li>Добавлен Queue в mini player и отдельная mini queue modal.</li>
+                        <li>Очередь показывает фактический порядок ближайшего воспроизведения.</li>
+                        <li>Smart Shuffle-треки и обычные queue-треки корректно работают в одной очереди.</li>
+                        <li>Перестановка треков в queue через drag-and-drop.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.2</span>
+                        <span class="update-log-date">February 15, 2026</span>
+                    </div>
+                    <h2>Mobile UX Refresh</h2>
+                    <ul class="about-list">
+                        <li>Удалён старый fullscreen mobile player.</li>
+                        <li>Мобильная версия полностью переведена на mini player UX.</li>
+                        <li>Исправлен скролл: теперь прокручивается вся мобильная страница (Home, плейлисты и др.).</li>
+                        <li>Стабилизировано отображение очереди и навигации на мобильных экранах.</li>
+                    </ul>
+                </article>
+            </section>
         </div>
     </div>
 
