@@ -1,23 +1,10 @@
 /* Media queries и адаптив - Spotify-like дизайн для мобильных */
 
 /* Desktop (1025px and above) - стандартный интерфейс */
-@media (min-width: 1025px) {
-  #mobilePlayerView {
-    display: none !important;
-  }
-  
+@media (min-width: 1025px) {  
   #mobileLibraryView {
     display: none !important;
-  }
-  
-  #mobileTrackName {
-    display: none !important;
-  }
-  
-  #mobileArtistName {
-    display: none !important;
-  }
-  
+  }    
   #trackName {
     display: block !important;
   }
@@ -52,12 +39,7 @@
   
   .right {
     display: none;
-  }
-  
-  #mobilePlayerView {
-    display: flex !important;
-  }
-  
+  }  
   #mobileLibraryView {
     display: none;
   }
@@ -68,16 +50,7 @@
   
   #artistName {
     display: none !important;
-  }
-  
-  #mobileTrackName {
-    display: block !important;
-  }
-  
-  #mobileArtistName {
-    display: block !important;
-  }
-  
+  }    
   .master-controls {
     display: none !important;
   }
@@ -85,24 +58,6 @@
 
 /* Mobile (600px and below) - компактный Spotify-like плеер */
 @media (max-width: 600px) {
-  #mobilePlayerView {
-    padding: 12px !important;
-    padding-bottom: 100px !important;
-  }
-  
-  #mobileVinylContainer {
-    width: 220px !important;
-    height: 220px !important;
-  }
-  
-  #mobileTrackName {
-    font-size: 22px !important;
-  }
-  
-  #mobileArtistName {
-    font-size: 13px !important;
-  }
-  
   .play-main {
     width: 60px !important;
     height: 60px !important;
@@ -125,24 +80,6 @@
 
 /* Small phones (max 400px) - очень компактный интерфейс */
 @media (max-width: 400px) {
-  #mobilePlayerView {
-    padding: 8px !important;
-    padding-bottom: 80px !important;
-  }
-  
-  #mobileVinylContainer {
-    width: 180px !important;
-    height: 180px !important;
-  }
-  
-  #mobileTrackName {
-    font-size: 18px !important;
-  }
-  
-  #mobileArtistName {
-    font-size: 12px !important;
-  }
-  
   .play-main {
     width: 56px !important;
     height: 56px !important;

@@ -1,6 +1,7 @@
+// @ts-nocheck
 // Модуль для импорта музыки
-import { state, dom } from '../state.js';
-import { loadLibraryFromDB } from './library-manager.js';
+import { state, dom } from '../state.ts';
+import { loadLibraryFromDB } from './library-manager.ts';
 
 export async function handleFileImport(files) {
     if (files.length === 0) return;
@@ -17,10 +18,13 @@ export async function handleFileImport(files) {
         const result = await window.db.songs.add({ 
             title: meta.title, 
             artist: meta.artist, 
+            album: meta.album || '',
             cover: meta.cover, 
             isFavorite: false, 
             source: 'local',
             fileBlob: file,
+            originalFileName: file.name || '',
+            mimeType: file.type || '',
             order: currentCount + i
         });
         console.log('[IMPORT] Added to DB with id:', result);

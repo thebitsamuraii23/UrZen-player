@@ -1,7 +1,9 @@
+// @ts-nocheck
 // Global application state
 export const state = {
     library: [],  // Только локальные песни + сыгранные Navidrome
     navidromeSongs: [],  // ВСЕ Navidrome песни для отображения в меню
+    homeAlbumSongs: [],
     playlists: [],
     currentTab: 'all',
     currentIndex: -1,
@@ -31,6 +33,13 @@ export const state = {
     shuffledOrder: [],  // Массив индексов в перемешанном порядке
     shufflePosition: 0,  // Текущая позиция в перемешанном порядке
     nextOverrideId: null,
+    playbackTab: 'all',
+    lockPlaybackContext: false,
+    queueReturnAnchorId: null,
+    smartShuffleEnabled: false,
+    smartShuffleBusy: false,
+    smartShuffleLastFillAt: 0,
+    smartShuffleQueueIds: [],
     theme: 'night-sky'
 };
 

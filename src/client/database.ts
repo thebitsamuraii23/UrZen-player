@@ -1,6 +1,7 @@
+// @ts-nocheck
 // Dexie/IndexedDB setup
 import Dexie from 'dexie';
-import { DB_NAME, DB_VERSION } from './constants.js';
+import { DB_NAME, DB_VERSION } from './constants.ts';
 
 export const db = new Dexie(DB_NAME);
 

@@ -1,5 +1,6 @@
-import { t } from './settings.js';
-import { showToast } from './helpers.js';
+// @ts-nocheck
+import { t } from './settings.ts';
+import { showToast } from './helpers.ts';
 
 /**
  * Navidrome API Integration
@@ -11,7 +12,7 @@ const NAVIDROME_URL_DEFAULT = 'https://music.youtubemusicdownloader.life';
 const NAVIDROME_USER_DEFAULT = 'guest';
 const NAVIDROME_PASS_DEFAULT = 'guest';
 const API_VERSION = '1.16.1';
-const APP_NAME = 'Z-Testing';
+const APP_NAME = 'UrZen';
 const SUBSONIC_CACHE_PREFIX = 'subsonic_cache_';
 const SUBSONIC_CACHE_DEFAULT = 6 * 60 * 1000;
 const SUBSONIC_TIMEOUT = 8000;
@@ -163,6 +164,7 @@ function mapSubsonicSong(song) {
   return {
     id: song.id,
     navidromeId: song.id,
+    albumId: song.albumId || '',
     title: song.title || t('unknown_title', 'Unknown'),
     artist: song.artist || t('unknown_artist', 'Unknown Artist'),
     album: song.album || '',
@@ -207,6 +209,7 @@ const searchNavidrome = async function(query) {
       
       return {
         id: song.id,
+        albumId: song.albumId || '',
         title: song.title || t('unknown_title', 'Unknown'),
         artist: song.artist || t('unknown_artist', 'Unknown Artist'),
         album: song.album || '',
@@ -247,6 +250,7 @@ const getSongDetails = async function(songId) {
       id: song.id,
       title: song.title || t('unknown_title', 'Unknown'),
       artist: song.artist || t('unknown_artist', 'Unknown Artist'),
+      albumId: song.albumId || '',
       album: song.album || '',
       duration: song.duration || 0,
       coverUrl: song.coverArt ? getNavidromeCoverArtUrl(song.coverArt, 300) : null,
@@ -366,6 +370,11 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
   try {
     console.log('[NAVIDROME] playNavidromeSong called with:', { songId, title, artist, album, coverUrl });
 
+    if (window.state && !window.state.lockPlaybackContext) {
+      window.state.playbackTab = window.state.currentTab;
+      window.state.queueReturnAnchorId = null;
+    }
+
     const isUrl = typeof songId === 'string' && /^https?:\/\//i.test(songId);
     let derivedId = isUrl ? null : songId;
     if (isUrl) {
@@ -400,6 +409,7 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     const finalTitle = title || songDetails?.title || t('unknown_title', 'Unknown');
     const finalArtist = artist || songDetails?.artist || t('unknown_artist', 'Unknown Artist');
     const finalAlbum = album || songDetails?.album || '';
+    const finalAlbumId = songDetails?.albumId || '';
     const finalCoverUrl = coverUrl || songDetails?.coverUrl || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100';
     const finalGenre = songDetails?.genre || '';
     console.log('🎬 LOG_3: Final metadata =', { finalTitle, finalArtist, finalAlbum });
@@ -409,6 +419,7 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
       id: derivedId || songId,
       title: finalTitle,
       artist: finalArtist,
+      albumId: finalAlbumId,
       album: finalAlbum,
       duration: songDetails?.duration || 0,
       url: streamUrl,
@@ -427,10 +438,11 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
         // Сохраняем в IndexedDB для персистентности (используем глобальный db)
         try {
           if (window.db && window.db.songs) {
-            // Используем существующую БД из app.js
+            // Используем существующую БД из app.ts
             window.db.songs.add({
               title: finalTitle,
               artist: finalArtist,
+              albumId: finalAlbumId,
               album: finalAlbum,
               duration: songDetails?.duration || 0,
               url: streamUrl,
@@ -574,6 +586,9 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     if (window.logPlayHistory) {
       window.logPlayHistory(song);
     }
+    if (window.updateHomeMiniPlayer) {
+      window.updateHomeMiniPlayer();
+    }
     if (window.updateHomeVisibility) {
       window.updateHomeVisibility();
     }
@@ -584,6 +599,12 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     }
     if (window.renderSidebarQueue) {
       window.renderSidebarQueue();
+    }
+
+    if (window.state?.smartShuffleEnabled && typeof window.maybeExtendSmartShuffleQueue === 'function') {
+      setTimeout(() => {
+        window.maybeExtendSmartShuffleQueue(false).catch(() => {});
+      }, 80);
     }
     
     // Close Navidrome UI and go back to library only if we were in Navidrome tab
@@ -722,6 +743,7 @@ const getAllNavidromeSongs = async function() {
       title: song.title || t('unknown_title', 'Unknown'),
       artist: song.artist || t('unknown_artist', 'Unknown Artist'),
       album: song.album || '',
+      albumId: song.albumId || '',
       duration: song.duration || 0,
       url: getNavidromeStreamUrl(song.id),
       cover: song.coverArt ? buildNavidromeUrl('getCoverArt.view', {

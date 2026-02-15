@@ -1,7 +1,8 @@
+// @ts-nocheck
 // Настройки приложения
-import { state, dom } from './state.js';
-import { I18N } from './i18n.js?v=20260209-2';
-import { refreshIcons, showToast } from './helpers.js';
+import { state, dom } from './state.ts';
+import { I18N } from './i18n.ts?v=20260209-2';
+import { refreshIcons, showToast } from './helpers.ts';
 
 const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? `http://localhost:3001`
@@ -17,7 +18,7 @@ const AVAILABLE_THEMES = [
     { id: 'dot-grid', label: 'Dot Grid' },
     { id: 'aurora', label: 'Aurora' }
 ];
-const DEFAULT_THEME = 'night-sky';
+const DEFAULT_THEME = 'classic';
 
 // Определяет язык браузера и возвращает поддерживаемый язык
 function detectBrowserLanguage() {
@@ -326,6 +327,14 @@ export function applyLanguage() {
     
     // Обновляем атрибут lang для HTML документа
     document.documentElement.lang = lang;
+
+    if (typeof window.updateHomeWelcome === 'function') {
+        try {
+            window.updateHomeWelcome();
+        } catch (e) {
+            console.warn('[SETTINGS] Failed to update home welcome:', e);
+        }
+    }
     
     refreshIcons();
 }

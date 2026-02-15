@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Вспомогательные функции
 export function formatTime(s) {
     const m = Math.floor(s/60);

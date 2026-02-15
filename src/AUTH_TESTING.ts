@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Authentication Testing & Demo
  * Run these in the browser console to test the auth system
@@ -337,7 +338,7 @@ UI Functions (call directly):
 📚 DOCUMENTATION:
   • QUICKSTART.md - 5-minute setup guide
   • AUTH_SETUP.md - Complete configuration guide
-  • js/navidrome-integration.js - Navidrome API examples
+  • js/navidrome-integration.ts - Navidrome API examples
 
   `);
 }

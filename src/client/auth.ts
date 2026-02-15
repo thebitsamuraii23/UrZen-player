@@ -1,9 +1,10 @@
+// @ts-nocheck
 /**
  * Authentication Module
  * Handles login, registration, and JWT token management
  */
 
-import { t } from './settings.js';
+import { t } from './settings.ts';
 
 // Dynamic API URL - use same domain in production, localhost in development
 const AUTH_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -228,6 +229,14 @@ function updateAuthNavItem(username) {
     // Refresh icons if lucide is available
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
       setTimeout(() => window.lucide.createIcons(), 0);
+    }
+  }
+
+  if (typeof window.updateHomeWelcome === 'function') {
+    try {
+      window.updateHomeWelcome(username || null);
+    } catch (e) {
+      console.warn('[AUTH] Failed to update home welcome:', e);
     }
   }
 }

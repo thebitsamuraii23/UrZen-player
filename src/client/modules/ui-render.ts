@@ -1,8 +1,9 @@
+// @ts-nocheck
 // Модуль для отрисовки UI компонентов
-import { state, dom } from '../state.js';
-import { refreshIcons } from '../helpers.js';
-import { t } from '../settings.js';
-import { getCurrentListView } from './library-manager.js';
+import { state, dom } from '../state.ts';
+import { refreshIcons } from '../helpers.ts';
+import { t } from '../settings.ts';
+import { getCurrentListView } from './library-manager.ts';
 
 // Экспортируем основные функции рендеринга
 export function resetUI() {

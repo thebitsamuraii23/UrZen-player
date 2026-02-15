@@ -1,5 +1,6 @@
+// @ts-nocheck
 // Модуль для управления плейлистами
-import { state, dom } from '../state.js';
+import { state, dom } from '../state.ts';
 
 export async function addSongToPlaylist(playlistId, songId, track, source = 'local') {
     const playlist = await window.db.playlists.get(playlistId);
@@ -51,14 +52,21 @@ export async function removeSongFromPlaylist(playlistId, songId, source = 'local
     
     if (source === 'navidrome') {
         const isUrl = typeof songId === 'string' && /^https?:\/\//i.test(songId);
+        const songIdStr = String(songId);
         pl.navidromeSongs = Array.isArray(pl.navidromeSongs)
-            ? pl.navidromeSongs.filter(s => isUrl ? s.url !== songId : s.navidromeId !== songId)
+            ? pl.navidromeSongs.filter((s) => {
+                if (isUrl) return String(s.url || '') !== songIdStr;
+                return String(s.navidromeId || '') !== songIdStr && String(s.url || '') !== songIdStr;
+            })
             : [];
         pl.navidromeSongIds = pl.navidromeSongs
             .map(s => s.navidromeId)
             .filter(id => id !== undefined && id !== null);
     } else {
-        pl.songIds = Array.isArray(pl.songIds) ? pl.songIds.filter(id => id !== songId) : [];
+        const songIdStr = String(songId);
+        pl.songIds = Array.isArray(pl.songIds)
+            ? pl.songIds.filter(id => String(id) !== songIdStr)
+            : [];
     }
     
     await window.db.playlists.update(playlistId, { 

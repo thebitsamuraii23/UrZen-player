@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Lightweight glue file for playlist utilities.
 // Attaches a `playlistUtils` object to `window` that points to the inline functions
 // defined in `player-standalone.html` (the file keeps working standalone).

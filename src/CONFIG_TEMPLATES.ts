@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Configuration Templates for Different Deployment Scenarios
  * 
@@ -149,7 +150,7 @@ const HerokuConfig = {
 /**
  * Railway Configuration
  * - Simple git-push deployment
- * - Auto-detects Node.js apps
+ * - Auto-detects Node apps
  * - Built-in environment variables
  */
 const RailwayConfig = {
@@ -235,12 +236,12 @@ const SelfHostedConfig = {
  *   }
  * }
  * 
- * PM2 Ecosystem Config (ecosystem.config.js):
+ * PM2 Ecosystem Config (ecosystem.config.ts):
  * 
  * module.exports = {
  *   apps: [{
  *     name: 'z-beta-auth',
- *     script: './server.js',
+ *     script: './server.ts',
  *     instances: 'max',
  *     exec_mode: 'cluster',
  *     env: {
@@ -252,7 +253,7 @@ const SelfHostedConfig = {
  * };
  * 
  * Start with PM2:
- *   pm2 start ecosystem.config.js
+ *   pm2 start ecosystem.config.ts
  *   pm2 save
  */
 
@@ -324,7 +325,7 @@ module.exports = {
 // ============================================
 
 /**
- * For frontend, create a config.js or update index.html:
+ * For frontend, create a config.ts or update index.html:
  * 
  * <script>
  *   // Environment detection

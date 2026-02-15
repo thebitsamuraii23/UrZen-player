@@ -12,6 +12,7 @@ data/
 logs/
 *.db
 *.log
+User/Downloads/
 .vscode/
 .idea/
 *.swp

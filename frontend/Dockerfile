@@ -6,7 +6,7 @@ COPY package*.json ./
 
 RUN npm ci
 
-COPY index.html css js assets ./
+COPY index.html css assets ./
 
 RUN npm run build 2>/dev/null || true
 

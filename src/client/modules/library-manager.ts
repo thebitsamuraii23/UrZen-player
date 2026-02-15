@@ -1,5 +1,6 @@
+// @ts-nocheck
 // Модуль для управления библиотекой песен
-import { state, dom } from '../state.js';
+import { state, dom } from '../state.ts';
 
 /**
  * Вспомогательная функция для генерации URL stream
@@ -9,7 +10,7 @@ function buildNavidromeStreamUrl(songId) {
     const NAVIDROME_USER = 'guest';
     const NAVIDROME_PASS = 'guest';
     const API_VERSION = '1.16.1';
-    const APP_NAME = 'Z-Testing';
+    const APP_NAME = 'UrZen';
     
     const baseParams = {
         u: NAVIDROME_USER,
@@ -42,18 +43,40 @@ export async function loadLibraryFromDB() {
     // Загружаем ВСЕ песни: локальные и Navidrome
     const allSongs = saved
         .map(s => {
-            // Если это локальная песня с fileBlob
-            if (s.fileBlob) {
-                try {
-                    return { 
-                        ...s, 
-                        url: URL.createObjectURL(s.fileBlob),
-                        source: 'local'
-                    };
-                } catch (err) {
-                    console.warn('[LIBRARY] Failed to create URL for:', s.title, err);
+            // Локальная песня: либо хранится как Blob, либо уже синхронизирована и имеет remoteUrl
+            if (s.source !== 'navidrome') {
+                let playbackUrl = '';
+                if (s.fileBlob) {
+                    try {
+                        playbackUrl = URL.createObjectURL(s.fileBlob);
+                    } catch (err) {
+                        console.warn('[LIBRARY] Failed to create blob URL for:', s.title, err);
+                    }
+                }
+                if (!playbackUrl && s.remoteUrl) {
+                    playbackUrl = s.remoteUrl;
+                }
+                if (!playbackUrl && s.url && typeof s.url === 'string' && /^https?:\/\//i.test(s.url)) {
+                    playbackUrl = s.url;
+                }
+                if (!playbackUrl && s.url && typeof s.url === 'string' && s.url.startsWith('/api/user/local-tracks/')) {
+                    playbackUrl = s.url;
+                }
+                if (playbackUrl && typeof playbackUrl === 'string' && playbackUrl.includes('/api/user/local-tracks/')) {
+                    const token = localStorage.getItem('auth_token');
+                    if (token && !playbackUrl.includes('token=')) {
+                        const joiner = playbackUrl.includes('?') ? '&' : '?';
+                        playbackUrl = `${playbackUrl}${joiner}token=${encodeURIComponent(token)}`;
+                    }
+                }
+                if (!playbackUrl) {
                     return null;
                 }
+                return {
+                    ...s,
+                    url: playbackUrl,
+                    source: 'local'
+                };
             }
             // Если это Navidrome песня
             else if (s.source === 'navidrome' && s.navidromeId) {
@@ -73,6 +96,7 @@ export async function loadLibraryFromDB() {
                     id: s.id,
                     title: s.title,
                     artist: s.artist,
+                    albumId: s.albumId || '',
                     album: s.album,
                     duration: s.duration || 0,
                     cover: s.cover,
@@ -93,23 +117,28 @@ export async function loadLibraryFromDB() {
     if (window.renderLibrary) window.renderLibrary();
 }
 
-export function getCurrentListView() {
+export function getCurrentListView(tabOverride = state.currentTab, applySearch = true) {
     let list = state.library;
-    if (state.currentTab === 'fav') {
+    if (tabOverride === 'fav') {
         list = state.library.filter(t => t.isFavorite);
     }
-    else if (typeof state.currentTab === 'number') {
-        const pl = state.playlists.find(p => p.id === state.currentTab);
-        console.log('[PLAYLIST VIEW] Getting list for playlist id:', state.currentTab, 'playlist:', pl);
+    else if (tabOverride === 'home-album') {
+        list = Array.isArray(state.homeAlbumSongs) ? state.homeAlbumSongs : [];
+    }
+    else if (typeof tabOverride === 'number') {
+        const pl = state.playlists.find(p => p.id === tabOverride);
+        console.log('[PLAYLIST VIEW] Getting list for playlist id:', tabOverride, 'playlist:', pl);
         if (pl) {
             console.log('[PLAYLIST VIEW] songIds:', pl.songIds, 'navidromeSongs count:', pl.navidromeSongs?.length || 0);
-            // Объединяем локальные и Navidrome песни из плейлиста
-            // Нормализуем songIds - сравниваем оба как Numbers
-            const normalizedSongIds = (pl.songIds || []).map(id => Number(id));
-            const localSongs = state.library.filter(t => {
-                const trackId = Number(t.id);
-                return normalizedSongIds.includes(trackId);
+            // Локальные песни в порядке songIds (не в глобальном порядке библиотеки)
+            const localById = new Map();
+            state.library.forEach((track) => {
+                const trackId = Number(track.id);
+                if (!Number.isNaN(trackId)) localById.set(trackId, track);
             });
+            const localSongs = (pl.songIds || [])
+                .map((id) => localById.get(Number(id)))
+                .filter(Boolean);
             console.log('[PLAYLIST VIEW] Found local songs:', localSongs.length);
             // Используем сохранённые в БД Navidrome песни
             const navidromeSongs = pl.navidromeSongs || [];
@@ -118,7 +147,7 @@ export function getCurrentListView() {
         }
     }
     // Apply search filter if present
-    if (state.searchQuery && state.searchQuery.trim().length > 0) {
+    if (applySearch && state.searchQuery && state.searchQuery.trim().length > 0) {
         const q = state.searchQuery.toLowerCase();
         list = list.filter(t => (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q));
     }
@@ -185,12 +214,15 @@ export function saveQueueState() {
                 title: s.title,
                 artist: s.artist,
                 album: s.album,
+                albumId: s.albumId || '',
                 duration: s.duration,
                 cover: s.cover,
                 url: derivedUrl || s.url
             };
         }),
-        currentIndex: state.currentIndex
+        currentIndex: state.currentIndex,
+        playbackTab: state.playbackTab,
+        smartShuffleQueueIds: Array.isArray(state.smartShuffleQueueIds) ? state.smartShuffleQueueIds.slice(0, 400) : []
     };
     localStorage.setItem('queueState', JSON.stringify(queueState));
     console.log('[LIBRARY] Queue state saved');
@@ -243,6 +275,7 @@ export async function restoreQueueState() {
                             navidromeId: navId,
                             title: entry.title || '',
                             artist: entry.artist || '',
+                            albumId: entry.albumId || '',
                             album: entry.album || '',
                             duration: entry.duration || 0,
                             cover: entry.cover || '',
@@ -288,6 +321,7 @@ export async function restoreQueueState() {
                             await window.db.songs.add({
                                 title: track.title || '',
                                 artist: track.artist || '',
+                                albumId: track.albumId || '',
                                 album: track.album || '',
                                 duration: track.duration || 0,
                                 url: track.url || '',
@@ -308,6 +342,13 @@ export async function restoreQueueState() {
             state.currentIndex = queueState.currentIndex;
             if (state.currentIndex >= state.library.length) state.currentIndex = -1;
         }
+        if (queueState.playbackTab !== undefined) {
+            state.playbackTab = queueState.playbackTab;
+        }
+        state.smartShuffleQueueIds = Array.isArray(queueState.smartShuffleQueueIds)
+            ? queueState.smartShuffleQueueIds.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+        state.queueReturnAnchorId = null;
         console.log('[LIBRARY] Queue state restored, currentIndex:', state.currentIndex);
     } catch (err) {
         console.warn('[LIBRARY] Failed to restore queue state:', err);
