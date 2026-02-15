@@ -59,12 +59,6 @@
         <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music" data-t-title="navidrome_music">
             <i data-lucide="music"></i> <span data-t="music">Music</span>
         </div>
-        <div class="nav-item" id="nav-about-mobile" onclick="window.switchTab('about'); window.closeMobileMenu();" title="About">
-            <i data-lucide="info"></i> <span>About</span>
-        </div>
-        <div class="nav-item" id="nav-update-logs-mobile" onclick="window.switchTab('update-logs'); window.closeMobileMenu();" title="Update logs">
-            <i data-lucide="scroll-text"></i> <span>Update logs</span>
-        </div>
     </nav>
     <nav class="sidebar-section">
         <span class="section-label" style="display: flex; justify-content: space-between; align-items: center; padding-right: 8px;">
@@ -259,7 +253,7 @@
             <i data-lucide="info" style="width: 18px; height: 18px;"></i> <span data-t="about">О сайте</span>
         </button>
         <button class="settings-btn" onclick="window.switchTab('update-logs'); window.toggleSettings();" style="width:100%; background: #171b24; color: #cfe0ff; border: 1px solid rgba(124, 140, 255, 0.35); padding: 14px 16px; border-radius: 12px; cursor: pointer; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); transition: all 0.3s ease;" onmouseover="this.style.background='#1f2633'; this.style.borderColor='#7c8cff'; this.style.color='#eaf0ff'; this.style.boxShadow='0 6px 18px rgba(124, 140, 255, 0.24)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#171b24'; this.style.borderColor='rgba(124, 140, 255, 0.35)'; this.style.color='#cfe0ff'; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.25)'; this.style.transform='translateY(0)';">
-            <i data-lucide="scroll-text" style="width: 18px; height: 18px;"></i> <span>Update logs</span>
+            <i data-lucide="scroll-text" style="width: 18px; height: 18px;"></i> <span data-t="update_logs">Update logs</span>
         </button>
         
         <div class="setting-group">
@@ -437,12 +431,6 @@
             </div>
             <div class="nav-item" id="nav-navidrome" onclick="window.switchTab('navidrome')">
                 <i data-lucide="music"></i> <span data-t="music">Music</span>
-            </div>
-            <div class="nav-item" id="nav-about" onclick="window.switchTab('about')">
-                <i data-lucide="info"></i> <span>About</span>
-            </div>
-            <div class="nav-item" id="nav-update-logs" onclick="window.switchTab('update-logs')">
-                <i data-lucide="scroll-text"></i> <span>Update logs</span>
             </div>
         </nav>
 
@@ -924,13 +912,13 @@ Auth: JWT + user scopes</code></pre>
         <div class="about-readme-shell update-logs-shell">
             <header class="about-head">
                 <p class="about-path">CHANGELOG.md</p>
-                <h1>Update logs</h1>
-                <p class="about-summary">Журнал обновлений UrZen. Здесь фиксируем все важные релизы и доработки интерфейса, AI и плеера.</p>
+                <h1 data-t="update_logs_title">Update logs</h1>
+                <p class="about-summary" data-t="update_logs_summary">UrZen update journal. This is where we track key releases and interface, AI, and player improvements.</p>
                 <div class="about-badges">
-                    <span class="about-badge">Release Notes</span>
-                    <span class="about-badge">TypeScript</span>
-                    <span class="about-badge">AI Features</span>
-                    <span class="about-badge">Mobile UX</span>
+                    <span class="about-badge" data-t="update_logs_badge_release">Release Notes</span>
+                    <span class="about-badge" data-t="update_logs_badge_ts">TypeScript</span>
+                    <span class="about-badge" data-t="update_logs_badge_ai">AI Features</span>
+                    <span class="about-badge" data-t="update_logs_badge_mobile">Mobile UX</span>
                 </div>
             </header>
 
@@ -938,42 +926,42 @@ Auth: JWT + user scopes</code></pre>
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.0</span>
-                        <span class="update-log-date">February 15, 2026</span>
+                        <span class="update-log-date" data-t="update_logs_date_2026_02_15">February 15, 2026</span>
                     </div>
-                    <h2>TypeScript Migration + AI System</h2>
+                    <h2 data-t="update_logs_v260_title">TypeScript Migration + AI System</h2>
                     <ul class="about-list">
-                        <li>Полный перенос кода на TypeScript и удаление legacy JS-слоя.</li>
-                        <li>Добавлены AI endpoint-ы: `POST /api/ai/create-playlist` и `POST /api/ai/smart-shuffle`.</li>
-                        <li>Встроен интерфейс `Create playlist using AI` внутри сайта (без браузерного prompt).</li>
-                        <li>Улучшена обработка ошибок Navidrome/Groq и fallback-сценарии.</li>
+                        <li data-t="update_logs_v260_item_1">Full codebase migration to TypeScript and legacy JS cleanup.</li>
+                        <li data-t="update_logs_v260_item_2">Added AI endpoints: `POST /api/ai/create-playlist` and `POST /api/ai/smart-shuffle`.</li>
+                        <li data-t="update_logs_v260_item_3">Integrated in-app `Create playlist using AI` flow (without browser prompt UI).</li>
+                        <li data-t="update_logs_v260_item_4">Improved Navidrome/Groq error handling and fallback behavior.</li>
                     </ul>
                 </article>
 
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.1</span>
-                        <span class="update-log-date">February 15, 2026</span>
+                        <span class="update-log-date" data-t="update_logs_date_2026_02_15">February 15, 2026</span>
                     </div>
-                    <h2>Mini Player, Queue, Playback Order</h2>
+                    <h2 data-t="update_logs_v261_title">Mini Player, Queue, Playback Order</h2>
                     <ul class="about-list">
-                        <li>Добавлен Queue в mini player и отдельная mini queue modal.</li>
-                        <li>Очередь показывает фактический порядок ближайшего воспроизведения.</li>
-                        <li>Smart Shuffle-треки и обычные queue-треки корректно работают в одной очереди.</li>
-                        <li>Перестановка треков в queue через drag-and-drop.</li>
+                        <li data-t="update_logs_v261_item_1">Added Queue controls into mini player and a dedicated mini queue modal.</li>
+                        <li data-t="update_logs_v261_item_2">Queue now reflects the actual next playback order.</li>
+                        <li data-t="update_logs_v261_item_3">Smart Shuffle tracks and regular queue tracks now coexist correctly.</li>
+                        <li data-t="update_logs_v261_item_4">Added drag-and-drop reordering for queue tracks.</li>
                     </ul>
                 </article>
 
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.2</span>
-                        <span class="update-log-date">February 15, 2026</span>
+                        <span class="update-log-date" data-t="update_logs_date_2026_02_15">February 15, 2026</span>
                     </div>
-                    <h2>Mobile UX Refresh</h2>
+                    <h2 data-t="update_logs_v262_title">Mobile UX Refresh</h2>
                     <ul class="about-list">
-                        <li>Удалён старый fullscreen mobile player.</li>
-                        <li>Мобильная версия полностью переведена на mini player UX.</li>
-                        <li>Исправлен скролл: теперь прокручивается вся мобильная страница (Home, плейлисты и др.).</li>
-                        <li>Стабилизировано отображение очереди и навигации на мобильных экранах.</li>
+                        <li data-t="update_logs_v262_item_1">Removed the old fullscreen mobile player.</li>
+                        <li data-t="update_logs_v262_item_2">Mobile playback is now fully mini-player-first.</li>
+                        <li data-t="update_logs_v262_item_3">Fixed scrolling so entire mobile pages scroll properly (Home, playlists, etc.).</li>
+                        <li data-t="update_logs_v262_item_4">Stabilized queue visibility and mobile navigation behavior.</li>
                     </ul>
                 </article>
             </section>
