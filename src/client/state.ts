@@ -5,7 +5,7 @@ export const state = {
     navidromeSongs: [],  // ВСЕ Navidrome песни для отображения в меню
     homeAlbumSongs: [],
     playlists: [],
-    currentTab: 'all',
+    currentTab: 'home',
     currentIndex: -1,
     audioCtx: null,
     analyser: null,
@@ -33,13 +33,15 @@ export const state = {
     shuffledOrder: [],  // Массив индексов в перемешанном порядке
     shufflePosition: 0,  // Текущая позиция в перемешанном порядке
     nextOverrideId: null,
-    playbackTab: 'all',
+    nextOverrideQueueIds: [],
+    playbackTab: 'home',
     lockPlaybackContext: false,
     queueReturnAnchorId: null,
     smartShuffleEnabled: false,
     smartShuffleBusy: false,
     smartShuffleLastFillAt: 0,
     smartShuffleQueueIds: [],
+    mobileFullscreenPlayerOpen: false,
     theme: 'night-sky'
 };
 

@@ -31,62 +31,29 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="/css/main.css?v=20260215-4">
+    <link rel="stylesheet" href="/css/main.css?v=20260216-1">
 </head>
 <body class="lang-ru">
 
-<button class="mobile-menu-trigger" aria-label="Open menu" title="Menu" data-t-aria-label="open_menu" data-t-title="menu">
-    <i data-lucide="menu"></i>
-</button>
-<nav class="mobile-sidebar">
-    <button class="mobile-sidebar-close" title="Close menu" data-t-title="close_menu">
-        <i data-lucide="x"></i>
-    </button>
-    <div class="nav-brand">
-        <img src="https://thebitsamuraii23.github.io/urzen-sitefaviconpage/urzenscaled.png" alt="UrZen" style="height: 40px; width: auto;">
-    </div>
-    <nav class="sidebar-section">
-        <span class="section-label">Разделы</span>
-        <div class="nav-item" id="nav-home-mobile" onclick="window.switchTab('home'); window.closeMobileMenu();" title="Home" data-t-title="home">
-            <i data-lucide="home"></i> <span data-t="home">Home</span>
-        </div>
-        <div class="nav-item" id="nav-all-mobile" onclick="window.switchTab('all'); window.closeMobileMenu();" title="Library" data-t-title="library">
-            <i data-lucide="layout-grid"></i> <span data-t="library">Фонотека</span>
-        </div>
-        <div class="nav-item" id="nav-fav-mobile" onclick="window.switchTab('fav'); window.closeMobileMenu();" title="Favorites" data-t-title="favorites">
-            <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
-        </div>
-        <div class="nav-item" id="nav-navidrome-mobile" onclick="window.switchTab('navidrome'); window.closeMobileMenu();" title="Navidrome Music" data-t-title="navidrome_music">
-            <i data-lucide="music"></i> <span data-t="music">Music</span>
-        </div>
-    </nav>
-    <nav class="sidebar-section">
-        <span class="section-label" style="display: flex; justify-content: space-between; align-items: center; padding-right: 8px;">
-            <span data-t="playlists">Коллекции</span>
-            <span style="display:inline-flex; align-items:center; gap:8px;">
-                <i data-lucide="sparkles" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.createPlaylistUsingAI()" title="Create playlist using AI"></i>
-                <i data-lucide="plus-circle" style="width:18px; cursor:pointer; color: var(--accent);" onclick="window.togglePlaylistModal()" title="New playlist" data-t-title="create_playlist"></i>
+<div class="mobile-playlists-sheet-overlay" id="mobilePlaylistsSheetOverlay" onclick="window.closeMobileMenu()">
+    <div class="mobile-playlists-sheet" id="mobilePlaylistsSheet" onclick="event.stopPropagation()">
+        <div class="mobile-playlists-sheet-header">
+            <strong>Playlists</strong>
+            <span style="display:inline-flex; align-items:center; gap:10px;">
+                <button class="mini-btn" type="button" onclick="window.closeMobileMenu(); window.createPlaylistUsingAI();" title="Create playlist using AI">
+                    <i data-lucide="sparkles"></i>
+                </button>
+                <button class="mini-btn" type="button" onclick="window.closeMobileMenu(); window.togglePlaylistModal();" title="New playlist" data-t-title="create_playlist">
+                    <i data-lucide="plus-circle"></i>
+                </button>
+                <button class="mini-btn" type="button" onclick="window.closeMobileMenu()" title="Close" data-t-title="close_menu">
+                    <i data-lucide="x"></i>
+                </button>
             </span>
-        </span>
+        </div>
         <div id="playlistNav-mobile"></div>
-    </nav>
-    <nav class="sidebar-section">
-        <span class="section-label" data-t="queue">Очередь</span>
-        <div class="list-container" id="sidebarQueueList-mobile"></div>
-    </nav>
-    <div style="padding: 0 8px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-        <div class="nav-item" onclick="document.getElementById('fileInput').click()" title="Import tracks" data-t-title="import_tracks">
-            <i data-lucide="upload-cloud"></i> <span data-t="add_files">Загрузить</span>
-        </div>
-        <div class="nav-item" onclick="window.toggleSettings()" title="Settings" data-t-title="settings">
-            <i data-lucide="sliders"></i> <span data-t="settings">Настройки</span>
-        </div>
     </div>
-    <div class="credits-footer">
-        <span data-t="made_by">Made by</span> <span class="credits-name">thebitsamurai</span>
-    </div>
-</nav>
-<div class="mobile-sidebar-overlay" onclick="window.closeMobileMenu()"></div>
+</div>
 
 <div class="loader-overlay" id="appLoader">
     <img src="https://thebitsamuraii23.github.io/urzen-sitefaviconpage/urzenscaled.png" alt="UrZen" style="width: 100%; height: auto; max-width: 250px; margin-bottom: 25px;">
@@ -113,6 +80,29 @@
 <button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks" data-t-title="import_tracks">
     <i data-lucide="plus-circle"></i>
 </button>
+
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+    <button class="mobile-bottom-item" id="nav-library-mobile" type="button" onclick="window.switchTab('all')">
+        <i data-lucide="library"></i>
+        <span>Library</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-favourites-mobile" type="button" onclick="window.switchTab('fav')">
+        <i data-lucide="heart"></i>
+        <span>Favourites</span>
+    </button>
+    <button class="mobile-bottom-item active" id="nav-home-mobile" type="button" onclick="window.switchTab('home')">
+        <i data-lucide="house"></i>
+        <span>Home</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-playlists-mobile" type="button" onclick="window.openMobileMenu()">
+        <i data-lucide="list-music"></i>
+        <span>Playlists</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-settings-mobile" type="button" onclick="window.toggleSettings()">
+        <i data-lucide="settings-2"></i>
+        <span>Settings</span>
+    </button>
+</nav>
 
 <div class="modal-overlay" id="playlistPickerOverlay">
     <div class="modal-content modal-animate">
@@ -219,7 +209,7 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="miniQueueModal" style="z-index: 1600;" onclick="if (event.target === this) window.closeMiniQueueModal()">
+<div class="modal-overlay" id="miniQueueModal" style="z-index: 3600;" onclick="if (event.target === this) window.closeMiniQueueModal()">
     <div class="modal-content mini-queue-modal">
         <div class="mini-queue-modal-header">
             <h3 data-t="queue">Queue</h3>
@@ -688,6 +678,17 @@
                             <span data-t="shuffle">Shuffle</span>
                         </button>
                     </div>
+                    <div class="playlist-detail-search">
+                        <i data-lucide="search" style="width:14px; height:14px;"></i>
+                        <input
+                            type="search"
+                            id="playlistDetailSearchInput"
+                            placeholder="Search in playlist..."
+                            aria-label="Search in playlist"
+                            data-t-placeholder="search_library_placeholder"
+                            data-t-aria-label="search_label"
+                        >
+                    </div>
                 </div>
             </div>
             <div class="list-container home-album-list" id="playlistDetailList"></div>
@@ -925,6 +926,22 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.3</span>
+                        <span class="update-log-date">February 16, 2026</span>
+                    </div>
+                    <h2>Mobile Full Player + Thumbnail Peek</h2>
+                    <ul class="about-list">
+                        <li>Redesigned mobile navigation: bottom labels (`Library`, `Favourites`, `Home`, `Playlists`, `Settings`) and Home is now default on app start.</li>
+                        <li>Updated mobile fullscreen player with queue-on-top behavior (queue modal now opens above fullscreen player).</li>
+                        <li>Added thumbnail peek while swiping the cover: left/right swipe shows adjacent cover previews and releasing switches track.</li>
+                        <li>Added swipe-down-to-close animation for fullscreen mobile player and improved transition states.</li>
+                        <li>Added animated mini equalizer under fullscreen player controls (Play/Shuffle/Repeat row).</li>
+                        <li>Bug fixes: playlist-detail search (desktop + mobile), smart-shuffle tracks visible in queue, play-next order handling improvements, mobile add button hidden in playlist-detail context, and mobile queue/sidebar visibility stability fixes.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.2</span>
                         <span class="update-log-date" data-t="update_logs_date_2026_02_15">February 15, 2026</span>
                     </div>
@@ -1098,7 +1115,7 @@ Auth: JWT + user scopes</code></pre>
         return;
     }
 
-    const { initApp } = await import('/ts/app.ts?v=20260214-1');
+    const { initApp } = await import('/ts/app.ts?v=20260216-1');
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', initApp, { once: true });
     } else {
@@ -1132,47 +1149,47 @@ Auth: JWT + user scopes</code></pre>
 </script>
 
 <script>
-// Мобильное меню - улучшено для предотвращения случайного закрытия
-const menuBtn = document.querySelector('.mobile-menu-trigger');
-const sidebar = document.querySelector('.mobile-sidebar');
-const overlay = document.querySelector('.mobile-sidebar-overlay');
-const closeBtn = document.querySelector('.mobile-sidebar-close');
+const playlistSheetOverlay = document.getElementById('mobilePlaylistsSheetOverlay');
 
 window.openMobileMenu = function() {
-    if (sidebar) {
-        sidebar.classList.add('active');
-    }
-}
+    if (!playlistSheetOverlay) return;
+    playlistSheetOverlay.classList.add('active');
+    document.body.classList.add('mobile-sheet-open');
+    document.getElementById('nav-playlists-mobile')?.classList.add('active');
+};
 
 window.closeMobileMenu = function() {
-    if (sidebar) {
-        sidebar.classList.remove('active');
+    if (!playlistSheetOverlay) return;
+    playlistSheetOverlay.classList.remove('active');
+    document.body.classList.remove('mobile-sheet-open');
+    if (typeof window.state === 'undefined' || typeof window.state.currentTab !== 'number') {
+        document.getElementById('nav-playlists-mobile')?.classList.remove('active');
     }
-}
+};
 
-// Event listeners
-menuBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    window.openMobileMenu();
+window.updateMobileBottomNav = function(tab) {
+    const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
+    ids.forEach((id) => document.getElementById(id)?.classList.remove('active'));
+    if (tab === 'home' || tab === 'home-album') {
+        document.getElementById('nav-home-mobile')?.classList.add('active');
+    } else if (tab === 'all') {
+        document.getElementById('nav-library-mobile')?.classList.add('active');
+    } else if (tab === 'fav') {
+        document.getElementById('nav-favourites-mobile')?.classList.add('active');
+    } else if (typeof tab === 'number') {
+        document.getElementById('nav-playlists-mobile')?.classList.add('active');
+    }
+};
+
+document.getElementById('nav-settings-mobile')?.addEventListener('click', () => {
+    document.getElementById('nav-settings-mobile')?.classList.add('active');
+    setTimeout(() => {
+        document.getElementById('nav-settings-mobile')?.classList.remove('active');
+    }, 220);
 });
 
-overlay?.addEventListener('click', window.closeMobileMenu);
-closeBtn?.addEventListener('click', window.closeMobileMenu);
-
-// Close menu when clicking on nav items
-document.querySelectorAll('.mobile-sidebar .nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-        setTimeout(window.closeMobileMenu, 200);
-    });
-});
-
-// Prevent menu from closing when clicking on buttons inside menu
-document.querySelectorAll('.mobile-sidebar button').forEach(btn => {
-    if (!btn.classList.contains('mobile-sidebar-close')) {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') window.closeMobileMenu();
 });
 </script>
 
