@@ -453,6 +453,7 @@ function scoreTrackCandidate(track, plan = {}) {
   if (!track) return 0;
   const artists = normalizeTagList(plan.artists || [], 8).map((item) => item.toLowerCase());
   const genres = normalizeTagList(plan.genres || [], 8).map((item) => item.toLowerCase());
+  const albums = normalizeTagList(plan.albums || [], 8).map((item) => item.toLowerCase());
   const mood = String(plan.mood || '').toLowerCase();
   const prompt = String(plan.prompt || '').toLowerCase();
   const title = String(track.title || '').toLowerCase();
@@ -461,8 +462,15 @@ function scoreTrackCandidate(track, plan = {}) {
   const genre = String(track.genre || '').toLowerCase();
 
   let score = 0;
-  if (artists.some((item) => artist.includes(item))) score += 45;
-  if (genres.some((item) => genre.includes(item))) score += 32;
+  const artistMatch = artists.some((item) => artist.includes(item));
+  const genreMatch = genres.some((item) => genre.includes(item));
+  const albumMatch = albums.some((item) => album.includes(item));
+
+  if (artistMatch) score += 45;
+  if (genreMatch) score += 32;
+  if (albumMatch) score += 28;
+  if (artistMatch && albumMatch) score += 8;
+  if (genreMatch && albumMatch) score += 6;
   if (mood && (title.includes(mood) || album.includes(mood) || genre.includes(mood))) score += 10;
 
   const promptParts = prompt.split(/[^a-zA-Z0-9а-яА-ЯёЁ]+/).filter((item) => item.length > 3).slice(0, 10);
@@ -1538,9 +1546,10 @@ app.post('/api/ai/smart-shuffle', verifyToken, async (req, res) => {
   try {
     const artists = normalizeTagList(seedTracks.map((track) => track.artist).filter(Boolean), 6);
     const genres = normalizeTagList(seedTracks.map((track) => track.genre).filter(Boolean), 6);
+    const albums = normalizeTagList(seedTracks.map((track) => track.album).filter(Boolean), 6);
     const promptHint = seedTracks
       .slice(0, 4)
-      .map((track) => `${track.artist} ${track.genre}`.trim())
+      .map((track) => `${track.artist} ${track.album} ${track.genre}`.trim())
       .filter(Boolean)
       .join(' ');
 
@@ -1578,6 +1587,7 @@ app.post('/api/ai/smart-shuffle', verifyToken, async (req, res) => {
         _score: scoreTrackCandidate(track, {
           artists,
           genres,
+          albums,
           mood: '',
           prompt: promptHint
         })
@@ -1585,7 +1595,7 @@ app.post('/api/ai/smart-shuffle', verifyToken, async (req, res) => {
       .sort((a, b) => b._score - a._score);
 
     const ranked = await rankTracksWithAI(
-      `Smart shuffle continuation. Seed artists: ${artists.join(', ') || 'none'}. Seed genres: ${genres.join(', ') || 'none'}.`,
+      `Smart shuffle continuation. Seed artists: ${artists.join(', ') || 'none'}. Seed albums: ${albums.join(', ') || 'none'}. Seed genres: ${genres.join(', ') || 'none'}.`,
       scored,
       limit
     );

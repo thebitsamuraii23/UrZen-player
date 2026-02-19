@@ -160,6 +160,12 @@ Both endpoints require authentication.
 - User auth uses hashed passwords and JWT.
 - No mandatory cloud sync layer.
 
+## My Other Projects
+
+- 🤖 Music Jacker Bot — [t.me/ytdlpload_bot](https://t.me/ytdlpload_bot) - Telegram bot for music
+- 🌐 Music Jacker Website — [musicjacker-site.onrender.com](https://musicjacker-site.onrender.com)
+- 📄 My Resume — [samuraizz-resume.githuib.io/samuraizz-resume](https://samuraizz-resume.githuib.io/samuraizz-resume)
+
 ## License
 
 MIT License. See [LICENSE](./LICENSE).

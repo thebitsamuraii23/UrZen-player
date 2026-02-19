@@ -117,6 +117,112 @@ export async function loadLibraryFromDB() {
     if (window.renderLibrary) window.renderLibrary();
 }
 
+function getPlaylistOrderKeyFromTrack(track) {
+    if (!track) return '';
+    if (track.source === 'navidrome') {
+        let key = String(track.navidromeId || track.id || track.url || '').trim();
+        if (!track.navidromeId && /^https?:\/\//i.test(key)) {
+            try {
+                const parsed = new URL(key);
+                parsed.searchParams.delete('f');
+                key = parsed.toString();
+            } catch (e) {}
+        }
+        return key ? `navidrome:${key}` : '';
+    }
+    const localId = Number(track.id);
+    return Number.isFinite(localId) ? `local:${localId}` : '';
+}
+
+function normalizePlaylistOrderEntry(entry) {
+    if (typeof entry === 'string') {
+        return entry.trim();
+    }
+    if (!entry || typeof entry !== 'object') return '';
+    const source = entry.source === 'navidrome' ? 'navidrome' : 'local';
+    if (source === 'navidrome') {
+        let key = String(entry.navidromeId || entry.id || entry.url || '').trim();
+        if (!entry.navidromeId && /^https?:\/\//i.test(key)) {
+            try {
+                const parsed = new URL(key);
+                parsed.searchParams.delete('f');
+                key = parsed.toString();
+            } catch (e) {}
+        }
+        return key ? `navidrome:${key}` : '';
+    }
+    const localId = Number(entry.id);
+    return Number.isFinite(localId) ? `local:${localId}` : '';
+}
+
+function takePlaylistTrackByKey(map, key) {
+    const list = map.get(key);
+    if (!Array.isArray(list) || !list.length) return null;
+    const track = list.shift() || null;
+    if (!list.length) map.delete(key);
+    return track;
+}
+
+function getOrderedPlaylistTracks(playlist) {
+    if (!playlist) return [];
+
+    const localById = new Map();
+    state.library.forEach((track) => {
+        const trackId = Number(track.id);
+        if (!Number.isNaN(trackId)) localById.set(trackId, track);
+    });
+    const localSongs = (playlist.songIds || [])
+        .map((id) => localById.get(Number(id)))
+        .filter(Boolean);
+    const navidromeSongs = Array.isArray(playlist.navidromeSongs)
+        ? playlist.navidromeSongs.map((track) => ({ ...track, source: 'navidrome' }))
+        : [];
+
+    const localByKey = new Map();
+    localSongs.forEach((track) => {
+        const key = getPlaylistOrderKeyFromTrack(track);
+        if (!key) return;
+        const list = localByKey.get(key) || [];
+        list.push(track);
+        localByKey.set(key, list);
+    });
+
+    const navByKey = new Map();
+    navidromeSongs.forEach((track) => {
+        const key = getPlaylistOrderKeyFromTrack(track);
+        if (!key) return;
+        const list = navByKey.get(key) || [];
+        list.push(track);
+        navByKey.set(key, list);
+    });
+
+    const ordered = [];
+    const consumed = new Set();
+    const trackOrder = Array.isArray(playlist.trackOrder) ? playlist.trackOrder : [];
+    trackOrder.forEach((entry) => {
+        const key = normalizePlaylistOrderEntry(entry);
+        if (!key) return;
+        let track = takePlaylistTrackByKey(localByKey, key);
+        if (!track) track = takePlaylistTrackByKey(navByKey, key);
+        if (!track || consumed.has(track)) return;
+        consumed.add(track);
+        ordered.push(track);
+    });
+
+    localSongs.forEach((track) => {
+        if (consumed.has(track)) return;
+        consumed.add(track);
+        ordered.push(track);
+    });
+    navidromeSongs.forEach((track) => {
+        if (consumed.has(track)) return;
+        consumed.add(track);
+        ordered.push(track);
+    });
+
+    return ordered;
+}
+
 export function getCurrentListView(tabOverride = state.currentTab, applySearch = true) {
     let list = state.library;
     if (tabOverride === 'fav') {
@@ -130,19 +236,7 @@ export function getCurrentListView(tabOverride = state.currentTab, applySearch =
         console.log('[PLAYLIST VIEW] Getting list for playlist id:', tabOverride, 'playlist:', pl);
         if (pl) {
             console.log('[PLAYLIST VIEW] songIds:', pl.songIds, 'navidromeSongs count:', pl.navidromeSongs?.length || 0);
-            // Локальные песни в порядке songIds (не в глобальном порядке библиотеки)
-            const localById = new Map();
-            state.library.forEach((track) => {
-                const trackId = Number(track.id);
-                if (!Number.isNaN(trackId)) localById.set(trackId, track);
-            });
-            const localSongs = (pl.songIds || [])
-                .map((id) => localById.get(Number(id)))
-                .filter(Boolean);
-            console.log('[PLAYLIST VIEW] Found local songs:', localSongs.length);
-            // Используем сохранённые в БД Navidrome песни
-            const navidromeSongs = pl.navidromeSongs || [];
-            list = [...localSongs, ...navidromeSongs];
+            list = getOrderedPlaylistTracks(pl);
             console.log('[PLAYLIST VIEW] Final list size:', list.length);
         }
     }
@@ -222,7 +316,8 @@ export function saveQueueState() {
         }),
         currentIndex: state.currentIndex,
         playbackTab: state.playbackTab,
-        smartShuffleQueueIds: Array.isArray(state.smartShuffleQueueIds) ? state.smartShuffleQueueIds.slice(0, 400) : []
+        smartShuffleQueueIds: Array.isArray(state.smartShuffleQueueIds) ? state.smartShuffleQueueIds.slice(0, 400) : [],
+        nextOverrideQueueIds: Array.isArray(state.nextOverrideQueueIds) ? state.nextOverrideQueueIds.slice(0, 200) : []
     };
     localStorage.setItem('queueState', JSON.stringify(queueState));
     console.log('[LIBRARY] Queue state saved');
@@ -348,6 +443,13 @@ export async function restoreQueueState() {
         state.smartShuffleQueueIds = Array.isArray(queueState.smartShuffleQueueIds)
             ? queueState.smartShuffleQueueIds.map((id) => String(id || '').trim()).filter(Boolean)
             : [];
+        state.nextOverrideQueueIds = Array.isArray(queueState.nextOverrideQueueIds)
+            ? queueState.nextOverrideQueueIds.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+        if (!state.nextOverrideQueueIds.length && queueState.nextOverrideId) {
+            state.nextOverrideQueueIds = [String(queueState.nextOverrideId).trim()].filter(Boolean);
+        }
+        state.nextOverrideId = state.nextOverrideQueueIds[0] || null;
         state.queueReturnAnchorId = null;
         console.log('[LIBRARY] Queue state restored, currentIndex:', state.currentIndex);
     } catch (err) {

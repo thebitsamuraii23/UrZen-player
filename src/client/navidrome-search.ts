@@ -429,6 +429,10 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
       genre: finalGenre
     };
 
+    if (typeof window.removeNextOverrideTrackId === 'function') {
+      window.removeNextOverrideTrackId(derivedId || streamUrl);
+    }
+
     // Add to library/queue if not already there
     if (window.state?.library) {
       const exists = window.state.library.some(s => s.navidromeId === (derivedId || songId) || s.url === streamUrl);

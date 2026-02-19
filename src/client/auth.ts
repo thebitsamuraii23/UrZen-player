@@ -397,11 +397,32 @@ window.openAuthModal = function(tab = 'login') {
 /**
  * Show music section restriction overlay
  */
-window.showMusicRestrictionOverlay = function() {
+window.showMusicRestrictionOverlay = function(options = {}) {
   const overlay = document.getElementById('musicRestrictionOverlay');
-  if (overlay) {
-    overlay.classList.add('active');
+  if (!overlay) return;
+
+  const titleEl = document.getElementById('restrictionTitle');
+  const messageEl = document.getElementById('restrictionMessage');
+  const registerBtn = document.getElementById('musicRegisterBtn');
+
+  const title = options?.title || t('music_restricted_title', 'Access Restricted');
+  const message = options?.message || t('music_restricted_message', 'Register to use Music section');
+  const authTab = options?.authTab === 'login' ? 'login' : 'register';
+
+  if (titleEl) titleEl.textContent = title;
+  if (messageEl) messageEl.textContent = message;
+  if (registerBtn) {
+    registerBtn.onclick = () => {
+      if (typeof window.closeMusicRestrictionOverlay === 'function') {
+        window.closeMusicRestrictionOverlay();
+      }
+      if (typeof window.openAuthModal === 'function') {
+        window.openAuthModal(authTab);
+      }
+    };
   }
+
+  overlay.classList.add('active');
 };
 
 /**

@@ -920,9 +920,50 @@ Auth: JWT + user scopes</code></pre>
                     <span class="about-badge" data-t="update_logs_badge_ai">AI Features</span>
                     <span class="about-badge" data-t="update_logs_badge_mobile">Mobile UX</span>
                 </div>
+                <a
+                    class="about-github-btn"
+                    href="https://github.com/thebitsamuraii23/UrZen-player/commits/tests/updates/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    <i data-lucide="github" style="width: 16px; height: 16px;"></i>
+                    <span data-t="about_more_github">More on GitHub</span>
+                </a>
             </header>
 
             <section class="update-log-list">
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.4</span>
+                        <span class="update-log-date">February 19, 2026</span>
+                    </div>
+                    <h2>Queue Stability + Auth UX</h2>
+                    <ul class="about-list">
+                        <li>Fixed queue reordering logic so drag-and-drop and move up/down keep the real playback order stable.</li>
+                        <li>Fixed mixed playlist ordering (local + Navidrome) so queue order no longer jumps or resets after reordering.</li>
+                        <li>Home tab now allows guest browsing and search, but playback requires registration with the `Register to play music` prompt.</li>
+                        <li>Smart Shuffle is now registration-only and avoids adding tracks already present in the active playlist context.</li>
+                        <li>Expanded queue actions (`Play next`, `Add to playlist`, `Favorite`, `Delete`) for faster queue management.</li>
+                        <li>Closing `About` or `Update logs` now returns to the previous tab context (with `Home` fallback).</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.3</span>
+                        <span class="update-log-date">February 16, 2026</span>
+                    </div>
+                    <h2>Mobile Full Player + Thumbnail Peek</h2>
+                    <ul class="about-list">
+                        <li>Redesigned mobile navigation: bottom labels (`Library`, `Favourites`, `Home`, `Playlists`, `Settings`) and Home is now default on app start.</li>
+                        <li>Updated mobile fullscreen player with queue-on-top behavior (queue modal now opens above fullscreen player).</li>
+                        <li>Added thumbnail peek while swiping the cover: left/right swipe shows adjacent cover previews and releasing switches track.</li>
+                        <li>Added swipe-down-to-close animation for fullscreen mobile player and improved transition states.</li>
+                        <li>Added animated mini equalizer under fullscreen player controls (Play/Shuffle/Repeat row).</li>
+                        <li>Bug fixes: playlist-detail search (desktop + mobile), smart-shuffle tracks visible in queue, play-next order handling improvements, mobile add button hidden in playlist-detail context, and mobile queue/sidebar visibility stability fixes.</li>
+                    </ul>
+                </article>
+
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.2</span>
