@@ -590,6 +590,22 @@
             </div>
         </div>
 
+        <div id="homePlaylistsSection" class="home-album-section home-playlists-section">
+            <div class="home-album-header">
+                <button class="home-action-btn" type="button" onclick="window.switchTab('home')">
+                    <i data-lucide="arrow-left" style="width: 16px;"></i>
+                    <span data-t="back">Back</span>
+                </button>
+            </div>
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3>All playlists</h3>
+                    <span class="home-search-status" id="homeAllPlaylistsCount"></span>
+                </div>
+                <div class="home-all-playlists-grid" id="homeAllPlaylistsGrid"></div>
+            </div>
+        </div>
+
         <div id="homeAlbumSection" class="home-album-section">
             <div class="home-album-header">
                 <button class="home-action-btn" type="button" onclick="window.closeHomeAlbumTab()">
@@ -676,6 +692,10 @@
                         <button class="playlist-action-btn" id="playlistDetailShufflePlayBtn" type="button" onclick="window.shufflePlaylistDetail()">
                             <i data-lucide="shuffle" style="width: 16px; height: 16px;"></i>
                             <span data-t="shuffle">Shuffle</span>
+                        </button>
+                        <button class="playlist-action-btn playlist-action-btn-ai" id="playlistDetailAddAIBtn" type="button" onclick="window.addSongsToCurrentPlaylistUsingAI()">
+                            <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i>
+                            <span id="playlistDetailAddAIBtnText">Add songs using AI</span>
                         </button>
                     </div>
                     <div class="playlist-detail-search">
@@ -935,6 +955,23 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.5</span>
+                        <span class="update-log-date">February 20, 2026</span>
+                    </div>
+                    <h2>Playlist AI Expansion + Mobile/Responsive Fixes</h2>
+                    <ul class="about-list">
+                        <li>Added <strong>Add songs using AI</strong> in playlist detail mode: AI now appends tracks into an existing playlist without deleting current songs.</li>
+                        <li>AI playlist append now prevents duplicates (by Navidrome ID/URL) and highlights newly added tracks in the playlist list.</li>
+                        <li>Fixed mobile fullscreen thumbnail peek behavior: previous/next cover preview logic is now correct and right-swipe track switching works again.</li>
+                        <li>Fixed queue reordering on mobile touch devices by adding touch-friendly drag-and-drop fallback (long-press + move).</li>
+                        <li>Improved responsive layout for small screens so action buttons fit reliably across widths (Home actions, playlist actions, bottom nav labels).</li>
+                        <li>Updated left playlist sidebar behavior: when playlists exceed three, sidebar shows first items plus <strong>Show more</strong>, which opens a full playlists view.</li>
+                        <li>Added dedicated <strong>All playlists</strong> page with quick navigation to any playlist.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.4</span>
                         <span class="update-log-date">February 19, 2026</span>
                     </div>
@@ -1187,7 +1224,10 @@ window.closeMobileMenu = function() {
     if (!playlistSheetOverlay) return;
     playlistSheetOverlay.classList.remove('active');
     document.body.classList.remove('mobile-sheet-open');
-    if (typeof window.state === 'undefined' || typeof window.state.currentTab !== 'number') {
+    if (
+        typeof window.state === 'undefined'
+        || (typeof window.state.currentTab !== 'number' && window.state.currentTab !== 'home-playlists')
+    ) {
         document.getElementById('nav-playlists-mobile')?.classList.remove('active');
     }
 };
@@ -1201,7 +1241,7 @@ window.updateMobileBottomNav = function(tab) {
         document.getElementById('nav-library-mobile')?.classList.add('active');
     } else if (tab === 'fav') {
         document.getElementById('nav-favourites-mobile')?.classList.add('active');
-    } else if (typeof tab === 'number') {
+    } else if (tab === 'home-playlists' || typeof tab === 'number') {
         document.getElementById('nav-playlists-mobile')?.classList.add('active');
     }
 };

@@ -19,7 +19,8 @@ import {
     syncPlaylistsWithServer,
     ensureLocalTrackOnServer,
     createAIPlaylistFromPrompt,
-    fetchAISmartShuffleTracks
+    fetchAISmartShuffleTracks,
+    fetchAITracksForPlaylistPrompt
 } from './modules/server-playlist-manager.ts';
 import { I18N } from './i18n.ts?v=20260209-2';
 import { formatTime, showToast, refreshIcons } from './helpers.ts';
@@ -49,7 +50,7 @@ function applyImgFallback(img, src = '') {
 }
 
 function isHomePlaybackTab(tab = state.currentTab) {
-    return tab === 'home' || tab === 'home-album';
+    return tab === 'home' || tab === 'home-album' || tab === 'home-playlists';
 }
 
 function showRegistrationRequiredOverlay(reason = 'playback') {
@@ -109,6 +110,9 @@ const MOBILE_FULL_SWIPE_X_THRESHOLD = 24;
 const MOBILE_FULL_SWIPE_CLOSE_THRESHOLD = 88;
 let aiPlaylistPromptResolver = null;
 let aiPlaylistPromptKeyHandler = null;
+let playlistAIPending = false;
+const playlistDetailAIHighlightKeys = new Set();
+let playlistDetailAIHighlightTimer = null;
 let queueDragFromIndex = -1;
 let queueDragSuppressClickUntil = 0;
 let mobileCoverSwipeLockUntil = 0;
@@ -121,6 +125,7 @@ function isInfoTab(tab) {
 function isRestorableMainTab(tab) {
     return tab === 'home'
         || tab === 'home-album'
+        || tab === 'home-playlists'
         || tab === 'all'
         || tab === 'fav'
         || tab === 'navidrome'
@@ -1080,6 +1085,44 @@ function initPlaylistDetailSearchInput() {
     });
 }
 
+function getPlaylistTrackVisualKey(track) {
+    if (!track) return '';
+    return getPlaylistTrackOrderKey(track);
+}
+
+function markPlaylistDetailAITracks(tracks = []) {
+    if (playlistDetailAIHighlightTimer) {
+        clearTimeout(playlistDetailAIHighlightTimer);
+        playlistDetailAIHighlightTimer = null;
+    }
+    playlistDetailAIHighlightKeys.clear();
+    tracks.forEach((track) => {
+        const key = getPlaylistTrackVisualKey(track);
+        if (key) playlistDetailAIHighlightKeys.add(key);
+    });
+    if (!playlistDetailAIHighlightKeys.size) return;
+    playlistDetailAIHighlightTimer = setTimeout(() => {
+        playlistDetailAIHighlightKeys.clear();
+        if (typeof state.currentTab === 'number') {
+            renderPlaylistDetailView(state.currentTab);
+        }
+    }, 6200);
+}
+
+function setPlaylistAIActionState(pending = false) {
+    playlistAIPending = !!pending;
+    const button = document.getElementById('playlistDetailAddAIBtn');
+    const label = document.getElementById('playlistDetailAddAIBtnText');
+    if (!button) return;
+    button.disabled = playlistAIPending;
+    button.classList.toggle('is-loading', playlistAIPending);
+    if (label) {
+        label.textContent = playlistAIPending
+            ? t('ai_playlist_adding_short', 'Adding...')
+            : t('add_songs_using_ai', 'Add songs using AI');
+    }
+}
+
 function renderPlaylistDetailView(playlistId) {
     const section = document.getElementById('playlistDetailSection');
     const listEl = document.getElementById('playlistDetailList');
@@ -1088,6 +1131,7 @@ function renderPlaylistDetailView(playlistId) {
     const coverEl = document.getElementById('playlistDetailCover');
     const playBtn = document.getElementById('playlistDetailPlayBtn');
     const shuffleBtn = document.getElementById('playlistDetailShufflePlayBtn');
+    const aiAddBtn = document.getElementById('playlistDetailAddAIBtn');
     const searchInput = document.getElementById('playlistDetailSearchInput');
     if (!section || !listEl || !titleEl || !subtitleEl || !coverEl) return;
 
@@ -1095,6 +1139,11 @@ function renderPlaylistDetailView(playlistId) {
     if (playlistDetailSearchPlaylistId !== playlistId) {
         playlistDetailSearchPlaylistId = playlistId;
         playlistDetailSearchQuery = '';
+        playlistDetailAIHighlightKeys.clear();
+        if (playlistDetailAIHighlightTimer) {
+            clearTimeout(playlistDetailAIHighlightTimer);
+            playlistDetailAIHighlightTimer = null;
+        }
     }
     if (searchInput) {
         searchInput.value = playlistDetailSearchQuery;
@@ -1120,6 +1169,8 @@ function renderPlaylistDetailView(playlistId) {
     applyImgFallback(coverEl, coverTrack?.cover || DEFAULT_COVER);
     if (playBtn) playBtn.disabled = tracks.length === 0;
     if (shuffleBtn) shuffleBtn.disabled = tracks.length === 0;
+    if (aiAddBtn) aiAddBtn.disabled = playlistAIPending;
+    setPlaylistAIActionState(playlistAIPending);
 
     listEl.innerHTML = '';
     if (!tracks.length) {
@@ -1164,7 +1215,8 @@ function renderPlaylistDetailView(playlistId) {
         const div = document.createElement('div');
         const selectionKey = buildSelectionKey(rawTrackId, source);
         const isSelected = bulkSelectionMode && selectionKey && state.selectedTracks.has(selectionKey);
-        div.className = `song-item ${isActive ? 'active' : ''} ${bulkSelectionMode ? 'select-mode' : ''} ${isSelected ? 'bulk-selected' : ''}`;
+        const isAiAdded = playlistDetailAIHighlightKeys.has(getPlaylistTrackVisualKey(track));
+        div.className = `song-item ${isActive ? 'active' : ''} ${bulkSelectionMode ? 'select-mode' : ''} ${isSelected ? 'bulk-selected' : ''} ${isAiAdded ? 'ai-added-track' : ''}`;
         div.dataset.id = safeTrackId;
 
         let playAction = '';
@@ -1580,6 +1632,51 @@ function getHomePlaylistTracks(playlist) {
     return [...localTracks, ...normalizedNavTracks];
 }
 
+function createHomePlaylistCard(playlist) {
+    const tracks = getHomePlaylistTracks(playlist);
+    const title = playlist.name || t('playlist', 'Playlist');
+    const countText = `${tracks.length} ${t('tracks', 'tracks')}`;
+    const disabled = tracks.length === 0;
+    const coverTrack = tracks.find((track) => track?.cover) || null;
+
+    const card = document.createElement('div');
+    card.className = 'home-playlist-card';
+    card.onclick = () => window.switchTab(playlist.id);
+    card.innerHTML = `
+        <img class="home-playlist-cover" src="${resolveCover(coverTrack?.cover)}" alt="${title}" onerror="this.src='${DEFAULT_COVER}'">
+        <div class="home-playlist-meta">
+            <strong title="${title}">${title}</strong>
+            <span>${countText}</span>
+            <div class="home-playlist-actions">
+                <button class="mini-btn" type="button" ${disabled ? 'disabled' : ''} title="${t('play', 'Play')}">
+                    <i data-lucide="play" style="width:14px; height:14px;"></i>
+                </button>
+                <button class="mini-btn" type="button" ${disabled ? 'disabled' : ''} title="${t('shuffle', 'Shuffle')}">
+                    <i data-lucide="shuffle" style="width:14px; height:14px;"></i>
+                </button>
+            </div>
+        </div>
+    `;
+
+    const buttons = card.querySelectorAll('.home-playlist-actions .mini-btn');
+    const playBtn = buttons[0];
+    const shuffleBtn = buttons[1];
+    if (playBtn) {
+        playBtn.onclick = (event) => {
+            event.stopPropagation();
+            window.playPlaylistFromHome(playlist.id, false);
+        };
+    }
+    if (shuffleBtn) {
+        shuffleBtn.onclick = (event) => {
+            event.stopPropagation();
+            window.playPlaylistFromHome(playlist.id, true);
+        };
+    }
+
+    return card;
+}
+
 function renderHomePlaylists() {
     const grid = document.getElementById('homePlaylistsGrid');
     if (!grid) return;
@@ -1594,48 +1691,31 @@ function renderHomePlaylists() {
     }
 
     state.playlists.forEach((playlist) => {
-        const tracks = getHomePlaylistTracks(playlist);
-        const title = playlist.name || t('playlist', 'Playlist');
-        const countText = `${tracks.length} ${t('tracks', 'tracks')}`;
-        const disabled = tracks.length === 0;
-        const coverTrack = tracks.find((track) => track?.cover) || null;
+        grid.appendChild(createHomePlaylistCard(playlist));
+    });
+    refreshIcons();
+}
 
-        const card = document.createElement('div');
-        card.className = 'home-playlist-card';
-        card.onclick = () => window.switchTab(playlist.id);
-        card.innerHTML = `
-            <img class="home-playlist-cover" src="${resolveCover(coverTrack?.cover)}" alt="${title}" onerror="this.src='${DEFAULT_COVER}'">
-            <div class="home-playlist-meta">
-                <strong title="${title}">${title}</strong>
-                <span>${countText}</span>
-                <div class="home-playlist-actions">
-                    <button class="mini-btn" type="button" ${disabled ? 'disabled' : ''} title="${t('play', 'Play')}">
-                        <i data-lucide="play" style="width:14px; height:14px;"></i>
-                    </button>
-                    <button class="mini-btn" type="button" ${disabled ? 'disabled' : ''} title="${t('shuffle', 'Shuffle')}">
-                        <i data-lucide="shuffle" style="width:14px; height:14px;"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+function renderHomeAllPlaylistsView() {
+    const grid = document.getElementById('homeAllPlaylistsGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const playlists = Array.isArray(state.playlists) ? state.playlists : [];
+    const countLabel = document.getElementById('homeAllPlaylistsCount');
+    if (countLabel) {
+        countLabel.textContent = `${playlists.length} ${t('playlists', 'playlists')}`;
+    }
 
-        const buttons = card.querySelectorAll('.home-playlist-actions .mini-btn');
-        const playBtn = buttons[0];
-        const shuffleBtn = buttons[1];
-        if (playBtn) {
-            playBtn.onclick = (event) => {
-                event.stopPropagation();
-                window.playPlaylistFromHome(playlist.id, false);
-            };
-        }
-        if (shuffleBtn) {
-            shuffleBtn.onclick = (event) => {
-                event.stopPropagation();
-                window.playPlaylistFromHome(playlist.id, true);
-            };
-        }
+    if (!playlists.length) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('home_playlists_empty', 'Create playlists to control playback from Home.');
+        grid.appendChild(empty);
+        return;
+    }
 
-        grid.appendChild(card);
+    playlists.forEach((playlist) => {
+        grid.appendChild(createHomePlaylistCard(playlist));
     });
     refreshIcons();
 }
@@ -1924,38 +2004,46 @@ function closeAIPlaylistPromptModal(value = '') {
     if (typeof resolver === 'function') resolver(String(value || ''));
 }
 
-function openAIPlaylistPromptModal() {
+function openAIPlaylistPromptModal(options = {}) {
     return new Promise((resolve) => {
         const overlay = document.getElementById('aiPlaylistPromptModal');
         const input = document.getElementById('aiPlaylistPromptInput');
         const title = document.getElementById('aiPlaylistPromptTitle');
         const hint = document.getElementById('aiPlaylistPromptHint');
         const confirmBtn = document.getElementById('aiPlaylistPromptConfirmBtn');
+        const mode = options?.mode === 'append' ? 'append' : 'create';
+        const titleText = mode === 'append'
+            ? t('ai_add_modal_title', 'Add songs using AI')
+            : t('create_playlist_ai', 'Create playlist using AI');
+        const hintText = mode === 'append'
+            ? t(
+                'ai_add_prompt',
+                'Describe what to add to this playlist: genre, artists, mood, etc. Example: "Dream pop with female vocals, 12 tracks"'
+            )
+            : t(
+                'ai_playlist_prompt',
+                'Describe playlist: genre, artists, mood, etc. Example: "Synthwave night drive, Kavinsky and Carpenter Brut, 20 tracks"'
+            );
+        const placeholderText = mode === 'append'
+            ? t('ai_add_prompt_placeholder', 'Example: Dream pop with female vocals, 12 tracks')
+            : t(
+                'ai_playlist_prompt_placeholder',
+                'Example: Synthwave night drive, Kavinsky and Carpenter Brut, 20 tracks'
+            );
+        const confirmText = mode === 'append'
+            ? t('ai_add_confirm', 'Add songs')
+            : t('create', 'Create');
 
         if (!overlay || !input) {
-            const fallback = window.prompt(
-                t(
-                    'ai_playlist_prompt',
-                    'Describe playlist: genre, artists, mood, etc. Example: "Synthwave night drive, Kavinsky and Carpenter Brut, 20 tracks"'
-                ),
-                ''
-            );
+            const fallback = window.prompt(hintText, '');
             resolve(String(fallback || ''));
             return;
         }
 
-        if (title) title.textContent = t('create_playlist_ai', 'Create playlist using AI');
-        if (hint) {
-            hint.textContent = t(
-                'ai_playlist_prompt',
-                'Describe playlist: genre, artists, mood, etc. Example: "Synthwave night drive, Kavinsky and Carpenter Brut, 20 tracks"'
-            );
-        }
-        input.placeholder = t(
-            'ai_playlist_prompt_placeholder',
-            'Example: Synthwave night drive, Kavinsky and Carpenter Brut, 20 tracks'
-        );
-        if (confirmBtn) confirmBtn.textContent = t('create', 'Create');
+        if (title) title.textContent = titleText;
+        if (hint) hint.textContent = hintText;
+        input.placeholder = placeholderText;
+        if (confirmBtn) confirmBtn.textContent = confirmText;
 
         aiPlaylistPromptResolver = resolve;
         overlay.classList.add('active');
@@ -2002,6 +2090,40 @@ window.cancelAIPlaylistPrompt = () => {
     closeAIPlaylistPromptModal('');
 };
 
+function normalizeAIPlaylistTrack(track) {
+    if (!track) return null;
+    const navidromeId = String(track.navidrome_id || track.navidromeId || track.id || '').trim();
+    const generatedUrl = navidromeId && window.getNavidromeStreamUrl
+        ? String(window.getNavidromeStreamUrl(navidromeId) || '').trim()
+        : '';
+    const trackUrl = String(track.track_url || track.trackUrl || track.url || generatedUrl || '').trim();
+    if (!navidromeId && !trackUrl) return null;
+    return {
+        navidromeId: navidromeId || null,
+        title: track.title || t('unknown_title', 'Unknown'),
+        artist: track.artist || t('unknown_artist', 'Unknown Artist'),
+        album: track.album || '',
+        duration: Number(track.duration || 0) || 0,
+        cover: resolveCover(track.cover_art_id || track.cover || ''),
+        url: trackUrl,
+        source: 'navidrome',
+        genre: track.genre || ''
+    };
+}
+
+function buildPlaylistAISeedTracks(tracks = []) {
+    return (tracks || [])
+        .map((track) => ({
+            navidrome_id: String(track?.navidromeId || track?.id || '').trim(),
+            title: String(track?.title || ''),
+            artist: String(track?.artist || ''),
+            album: String(track?.album || ''),
+            genre: String(track?.genre || '')
+        }))
+        .filter((track) => track.title || track.artist || track.album || track.genre || track.navidrome_id)
+        .slice(0, 320);
+}
+
 window.createPlaylistUsingAI = async () => {
     if (!isUserAuthenticated()) {
         showToast(t('login_required', 'Please sign in first'));
@@ -2009,7 +2131,7 @@ window.createPlaylistUsingAI = async () => {
         return;
     }
 
-    const promptText = await openAIPlaylistPromptModal();
+    const promptText = await openAIPlaylistPromptModal({ mode: 'create' });
     if (!promptText || !promptText.trim()) return;
     const requestedTrackCount = extractRequestedTrackCount(promptText);
     const targetTrackCount = Math.max(1, Math.min(2000, Number(requestedTrackCount || 20)));
@@ -2061,6 +2183,164 @@ window.createPlaylistUsingAI = async () => {
         showToast(`${t('playlist_create_error', 'Failed to create playlist')}: ${error.message || error}`);
     } finally {
         if (homeStatus) homeStatus.textContent = '';
+    }
+};
+
+window.addSongsToCurrentPlaylistUsingAI = async () => {
+    const playlistId = state.currentTab;
+    if (typeof playlistId !== 'number') return;
+    if (playlistAIPending) return;
+
+    if (!isUserAuthenticated()) {
+        showToast(t('login_required', 'Please sign in first'));
+        if (window.toggleAuthModal) window.toggleAuthModal();
+        return;
+    }
+
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    if (!playlist) {
+        showToast(t('playlist_not_found', 'Playlist not found'));
+        return;
+    }
+
+    const promptText = await openAIPlaylistPromptModal({ mode: 'append' });
+    if (!promptText || !promptText.trim()) return;
+
+    setPlaylistAIActionState(true);
+
+    try {
+        const baseTracks = getCurrentListView(playlistId, false);
+        const seedTracks = buildPlaylistAISeedTracks(baseTracks);
+        const requestedTrackCount = extractRequestedTrackCount(promptText);
+        const targetTrackCount = Math.max(1, Math.min(800, Number(requestedTrackCount || 12)));
+        const candidateLimit = Math.max(220, Math.min(3600, targetTrackCount * 10));
+        const excludeIds = Array.from(
+            new Set(
+                baseTracks
+                    .filter((track) => track?.source === 'navidrome')
+                    .map((track) => String(track?.navidromeId || track?.id || '').trim())
+                    .filter(Boolean)
+            )
+        );
+
+        let candidateTracks = buildAICandidateTracks(baseTracks, candidateLimit, {
+            excludeIds,
+            requireContextMatch: false
+        });
+        if (!candidateTracks.length && typeof window.getAllNavidromeSongs === 'function') {
+            try {
+                const songs = await window.getAllNavidromeSongs();
+                if (Array.isArray(songs) && songs.length) {
+                    state.navidromeSongs = songs;
+                    candidateTracks = buildAICandidateTracks(baseTracks, candidateLimit, {
+                        excludeIds,
+                        requireContextMatch: false
+                    });
+                }
+            } catch (error) {
+                console.warn('[AI] Failed to preload Navidrome songs for playlist add:', error);
+            }
+        }
+        if (!candidateTracks.length) {
+            showToast(t('ai_no_catalog', 'AI catalog is empty. Open Music tab to load Navidrome songs first.'));
+            return;
+        }
+
+        const aiTracks = await fetchAITracksForPlaylistPrompt({
+            prompt: promptText.trim(),
+            trackCount: targetTrackCount,
+            seedTracks,
+            excludeIds,
+            candidateTracks
+        });
+        if (!Array.isArray(aiTracks) || !aiTracks.length) {
+            showToast(t('ai_no_new_tracks', 'AI did not find matching tracks.'));
+            return;
+        }
+
+        const freshPlaylist = await db.playlists.get(playlistId);
+        if (!freshPlaylist) {
+            showToast(t('playlist_not_found', 'Playlist not found'));
+            return;
+        }
+
+        freshPlaylist.songIds = Array.isArray(freshPlaylist.songIds) ? freshPlaylist.songIds : [];
+        freshPlaylist.navidromeSongIds = Array.isArray(freshPlaylist.navidromeSongIds) ? freshPlaylist.navidromeSongIds : [];
+        freshPlaylist.navidromeSongs = Array.isArray(freshPlaylist.navidromeSongs) ? freshPlaylist.navidromeSongs : [];
+        freshPlaylist.trackOrder = Array.isArray(freshPlaylist.trackOrder) ? freshPlaylist.trackOrder : [];
+
+        const navIdSet = new Set(
+            freshPlaylist.navidromeSongIds
+                .map((id) => String(id || '').trim())
+                .filter(Boolean)
+        );
+        const navUrlSet = new Set(
+            freshPlaylist.navidromeSongs
+                .map((track) => String(track?.url || '').trim())
+                .filter(Boolean)
+        );
+        const trackOrderSet = new Set(
+            freshPlaylist.trackOrder
+                .map((entry) => String(entry || '').trim())
+                .filter(Boolean)
+        );
+
+        const addedTracks = [];
+        aiTracks.forEach((rawTrack) => {
+            const normalized = normalizeAIPlaylistTrack(rawTrack);
+            if (!normalized) return;
+
+            const navidromeId = String(normalized.navidromeId || '').trim();
+            const trackUrl = String(normalized.url || '').trim();
+            const alreadyExists = (navidromeId && navIdSet.has(navidromeId))
+                || (trackUrl && navUrlSet.has(trackUrl));
+            if (alreadyExists) return;
+
+            if (navidromeId) {
+                navIdSet.add(navidromeId);
+                freshPlaylist.navidromeSongIds.push(navidromeId);
+            }
+            if (trackUrl) {
+                navUrlSet.add(trackUrl);
+            }
+
+            freshPlaylist.navidromeSongs.push(normalized);
+            const orderKey = getPlaylistTrackOrderKey(normalized);
+            if (orderKey && !trackOrderSet.has(orderKey)) {
+                trackOrderSet.add(orderKey);
+                freshPlaylist.trackOrder.push(orderKey);
+            }
+            addedTracks.push(normalized);
+        });
+
+        if (!addedTracks.length) {
+            showToast(t('ai_no_unique_tracks', 'All suggested tracks are already in this playlist.'));
+            return;
+        }
+
+        await db.playlists.update(playlistId, {
+            songIds: freshPlaylist.songIds,
+            navidromeSongIds: freshPlaylist.navidromeSongIds,
+            navidromeSongs: freshPlaylist.navidromeSongs,
+            trackOrder: freshPlaylist.trackOrder
+        });
+
+        await loadPlaylistsFromDB();
+        if (isUserAuthenticated()) {
+            await syncPlaylistsWithServer(state.playlists, db);
+            await loadPlaylistsFromDB();
+        }
+
+        markPlaylistDetailAITracks(addedTracks);
+        if (state.currentTab === playlistId) {
+            renderPlaylistDetailView(playlistId);
+        }
+        showToast(t('ai_tracks_added', `AI added ${addedTracks.length} new tracks`));
+    } catch (error) {
+        console.error('[AI] Failed to add tracks to playlist:', error);
+        showToast(`${t('playlist_create_error', 'Failed to create playlist')}: ${error.message || error}`);
+    } finally {
+        setPlaylistAIActionState(false);
     }
 };
 
@@ -2258,37 +2538,70 @@ function setVolumeFromMobileFullscreenBar(clientX) {
 }
 
 function getMobileFullscreenAdjacentTracks() {
-    const queue = getQueueDisplayList();
-    if (!Array.isArray(queue) || queue.length === 0) {
-        return { prev: null, next: null };
-    }
-
     const currentTrack = state.currentIndex >= 0 ? state.library[state.currentIndex] : null;
-    const currentTrackId = getTrackPlaybackId(currentTrack);
-    let currentQueueIdx = currentTrackId
-        ? queue.findIndex((item) => trackMatchesPlaybackId(item, currentTrackId))
-        : -1;
+    if (!currentTrack) return { prev: null, next: null };
 
-    if (currentQueueIdx === -1 && currentTrack) {
-        currentQueueIdx = queue.findIndex((item) => (
-            trackMatchesPlaybackId(item, currentTrack.id) ||
-            trackMatchesPlaybackId(item, currentTrack.navidromeId) ||
-            trackMatchesPlaybackId(item, currentTrack.url)
-        ));
+    const queue = getQueueDisplayList();
+    let queuePrev = null;
+    let queueNext = null;
+
+    if (Array.isArray(queue) && queue.length) {
+        const currentTrackId = getTrackPlaybackId(currentTrack);
+        let currentQueueIdx = currentTrackId
+            ? queue.findIndex((item) => trackMatchesPlaybackId(item, currentTrackId))
+            : -1;
+
+        if (currentQueueIdx === -1) {
+            currentQueueIdx = queue.findIndex((item) => (
+                trackMatchesPlaybackId(item, currentTrack.id) ||
+                trackMatchesPlaybackId(item, currentTrack.navidromeId) ||
+                trackMatchesPlaybackId(item, currentTrack.url)
+            ));
+        }
+
+        if (currentQueueIdx === -1) {
+            queueNext = queue[0] || null;
+        } else {
+            const lastIndex = queue.length - 1;
+            queueNext = currentQueueIdx < lastIndex
+                ? queue[currentQueueIdx + 1]
+                : (state.repeat === 'all' ? queue[0] : null);
+            queuePrev = currentQueueIdx > 0
+                ? queue[currentQueueIdx - 1]
+                : (state.repeat === 'all' ? queue[lastIndex] : null);
+        }
     }
 
-    if (currentQueueIdx === -1) {
-        return { prev: null, next: queue[0] || null };
+    const playbackView = getPlaybackListView();
+    let playbackPrev = null;
+    let playbackNext = null;
+    if (Array.isArray(playbackView) && playbackView.length) {
+        const currentTrackId = getTrackPlaybackId(currentTrack);
+        let playbackIdx = currentTrackId
+            ? playbackView.findIndex((item) => trackMatchesPlaybackId(item, currentTrackId))
+            : -1;
+        if (playbackIdx === -1) {
+            playbackIdx = playbackView.findIndex((item) => (
+                trackMatchesPlaybackId(item, currentTrack.id) ||
+                trackMatchesPlaybackId(item, currentTrack.navidromeId) ||
+                trackMatchesPlaybackId(item, currentTrack.url)
+            ));
+        }
+        if (playbackIdx !== -1) {
+            const playbackLast = playbackView.length - 1;
+            playbackNext = playbackIdx < playbackLast
+                ? playbackView[playbackIdx + 1]
+                : (state.repeat === 'all' ? playbackView[0] : null);
+            playbackPrev = playbackIdx > 0
+                ? playbackView[playbackIdx - 1]
+                : (state.repeat === 'all' ? playbackView[playbackLast] : null);
+        }
     }
 
-    const lastIndex = queue.length - 1;
-    const next = currentQueueIdx < lastIndex
-        ? queue[currentQueueIdx + 1]
-        : (state.repeat === 'all' ? queue[0] : null);
-    const prev = currentQueueIdx > 0
-        ? queue[currentQueueIdx - 1]
-        : (state.repeat === 'all' ? queue[lastIndex] : null);
-    return { prev, next };
+    return {
+        prev: queuePrev || playbackPrev || null,
+        next: queueNext || playbackNext || null
+    };
 }
 
 function setMobileFullscreenPeekTrack(peekEl, imgEl, track) {
@@ -2447,13 +2760,13 @@ function initMobileFullscreenPlayer() {
             if (!withOpacity) return;
             const intensity = Math.min(1, Math.abs(offsetX) / (width * 0.6));
             artMain.style.opacity = `${Math.max(0.72, 1 - intensity * 0.28)}`;
-            if (peekNext) {
-                peekNext.style.opacity = (offsetX > 0 && swipePreview.next)
+            if (peekPrev) {
+                peekPrev.style.opacity = (offsetX > 0 && swipePreview.prev)
                     ? `${0.12 + intensity * 0.88}`
                     : '0';
             }
-            if (peekPrev) {
-                peekPrev.style.opacity = (offsetX < 0 && swipePreview.prev)
+            if (peekNext) {
+                peekNext.style.opacity = (offsetX < 0 && swipePreview.next)
                     ? `${0.12 + intensity * 0.88}`
                     : '0';
             }
@@ -2513,19 +2826,19 @@ function initMobileFullscreenPlayer() {
             const width = Math.max(1, art.clientWidth || 1);
             const edge = Math.min(width, 180);
             let clamped = Math.max(-edge, Math.min(edge, dx));
-            if (clamped > 0 && !swipePreview.next) clamped *= 0.26;
-            if (clamped < 0 && !swipePreview.prev) clamped *= 0.26;
+            if (clamped > 0 && !swipePreview.prev) clamped *= 0.26;
+            if (clamped < 0 && !swipePreview.next) clamped *= 0.26;
             art.classList.add('dragging');
             artMain.style.transition = 'none';
             if (peekPrev) peekPrev.style.transition = 'none';
             if (peekNext) peekNext.style.transition = 'none';
             setPanelsOffset(clamped, true);
             if (clamped > 0) {
-                art.classList.add('peek-next');
-                art.classList.remove('peek-prev');
-            } else if (clamped < 0) {
                 art.classList.add('peek-prev');
                 art.classList.remove('peek-next');
+            } else if (clamped < 0) {
+                art.classList.add('peek-next');
+                art.classList.remove('peek-prev');
             } else {
                 clearArtPeekState();
             }
@@ -2536,8 +2849,8 @@ function initMobileFullscreenPlayer() {
             const dx = event.clientX - startX;
             const dy = event.clientY - startY;
             const horizontalIntent = Math.abs(dx) > Math.abs(dy) * 1.12;
-            const goNext = horizontalIntent && dx > MOBILE_FULL_SWIPE_X_THRESHOLD && !!swipePreview.next;
-            const goPrev = horizontalIntent && dx < -MOBILE_FULL_SWIPE_X_THRESHOLD && !!swipePreview.prev;
+            const goPrev = horizontalIntent && dx > MOBILE_FULL_SWIPE_X_THRESHOLD && !!swipePreview.prev;
+            const goNext = horizontalIntent && dx < -MOBILE_FULL_SWIPE_X_THRESHOLD && !!swipePreview.next;
             clearPointerState();
             try { artMain.releasePointerCapture(event.pointerId); } catch (e) {}
 
@@ -2560,7 +2873,7 @@ function initMobileFullscreenPlayer() {
 
             clearArtPeekState();
             const width = Math.max(1, art.clientWidth || 1);
-            const targetOffset = goNext ? width : -width;
+            const targetOffset = goPrev ? width : -width;
             artMain.style.transition = 'transform 0.16s ease, opacity 0.16s ease';
             if (peekPrev) peekPrev.style.transition = 'transform 0.16s ease, opacity 0.16s ease';
             if (peekNext) peekNext.style.transition = 'transform 0.16s ease, opacity 0.16s ease';
@@ -2570,8 +2883,8 @@ function initMobileFullscreenPlayer() {
             if (peekNext) peekNext.style.opacity = goNext ? '1' : '0';
 
             setTimeout(() => {
-                if (goNext) window.nextTrack();
-                else window.prevTrack();
+                if (goPrev) window.prevTrack();
+                else window.nextTrack();
             }, 55);
 
             setTimeout(() => {
@@ -3031,13 +3344,16 @@ window.updateHomeWelcome = updateHomeWelcome;
 function updateHomeVisibility(force = false) {
     const isHomeTab = state.currentTab === 'home';
     const isHomeAlbumTab = state.currentTab === 'home-album';
+    const isHomePlaylistsTab = state.currentTab === 'home-playlists';
     const isPlaylistDetailTab = typeof state.currentTab === 'number';
-    const shouldShow = isHomeTab || isHomeAlbumTab;
+    const shouldShow = isHomeTab || isHomeAlbumTab || isHomePlaylistsTab;
     document.body.classList.toggle('home-visible', shouldShow);
     const homeSection = document.getElementById('homeSection');
     if (homeSection) homeSection.style.display = isHomeTab ? 'flex' : 'none';
     const homeAlbumSection = document.getElementById('homeAlbumSection');
     if (homeAlbumSection) homeAlbumSection.style.display = isHomeAlbumTab ? 'flex' : 'none';
+    const homePlaylistsSection = document.getElementById('homePlaylistsSection');
+    if (homePlaylistsSection) homePlaylistsSection.style.display = isHomePlaylistsTab ? 'flex' : 'none';
     const playlistDetailSection = document.getElementById('playlistDetailSection');
     if (playlistDetailSection) playlistDetailSection.style.display = isPlaylistDetailTab ? 'flex' : 'none';
     if (!shouldShow) closeHomeContextMenu();
@@ -3047,6 +3363,7 @@ function updateHomeVisibility(force = false) {
     if (shouldShow || isPlaylistDetailTab) {
         updateHomeWelcome();
         if (isHomeTab) renderHomePlaylists();
+        if (isHomePlaylistsTab) renderHomeAllPlaylistsView();
         initHomeSearchInput();
         const homeSearchInput = document.getElementById('homeSearchInput');
         if (homeSearchInput && homeSearchInput.value !== homeSearchQuery) {
@@ -3153,6 +3470,7 @@ window.refreshHome = async (force = false) => {
         renderHomeGrid('homeRecommendationsGrid', recommended, t('home_reco_empty', 'We need more listening data.'));
         renderHomeGrid('homeNewGrid', newList, t('home_new_empty', 'No new releases found.'));
         renderHomePlaylists();
+        renderHomeAllPlaylistsView();
         if (homeSearchQuery.length >= HOME_SEARCH_MIN_LENGTH) {
             runHomeSearch(homeSearchQuery);
         }
@@ -3219,6 +3537,7 @@ async function loadPlaylistsFromDB() {
     });
     renderPlaylistNav();
     renderHomePlaylists();
+    renderHomeAllPlaylistsView();
 }
 
 function renderPlaylistNav() {
@@ -3226,6 +3545,9 @@ function renderPlaylistNav() {
     containers.forEach(container => {
         if (!container) return;
         container.innerHTML = "";
+        const isDesktopSidebar = container.id === 'playlistNav';
+        const hasOverflowPlaylists = isDesktopSidebar && state.playlists.length > 3;
+        const visiblePlaylists = hasOverflowPlaylists ? state.playlists.slice(0, 3) : state.playlists;
 
         const aiCreate = document.createElement('div');
         aiCreate.className = 'nav-item';
@@ -3237,7 +3559,7 @@ function renderPlaylistNav() {
         container.appendChild(aiCreate);
         
         // Add playlists
-        state.playlists.forEach(pl => {
+        visiblePlaylists.forEach(pl => {
             const div = document.createElement('div');
             div.className = `nav-item ${state.currentTab === pl.id ? 'active' : ''}`;
             div.onclick = (event) => {
@@ -3270,6 +3592,17 @@ function renderPlaylistNav() {
             div.appendChild(actions);
             container.appendChild(div);
         });
+
+        if (hasOverflowPlaylists) {
+            const showMoreDiv = document.createElement('div');
+            showMoreDiv.className = `nav-item ${state.currentTab === 'home-playlists' ? 'active' : ''}`;
+            showMoreDiv.innerHTML = `<i data-lucide="ellipsis"></i> <span>${t('show_more', 'Show more')}</span>`;
+            showMoreDiv.onclick = () => {
+                window.switchTab('home-playlists');
+                if (window.innerWidth <= 1024) window.closeMobileMenu();
+            };
+            container.appendChild(showMoreDiv);
+        }
     });
     refreshIcons();
 }
@@ -5055,6 +5388,155 @@ function bindQueueDragAndDrop(row, viewIndex, onDropDone = null) {
         row.style.borderBottom = '';
         queueDragFromIndex = -1;
     });
+
+    // Mobile/touch fallback: HTML5 drag events are unreliable on touch devices.
+    let touchPointerId = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchDragActive = false;
+    let touchHoldTimer = null;
+    let touchDropIndex = -1;
+    let touchDropAfter = false;
+    let touchMoveBlocked = false;
+
+    const clearTouchDropDecor = () => {
+        const listEl = row.parentElement;
+        if (!listEl) return;
+        Array.from(listEl.children).forEach((item) => {
+            if (!(item instanceof HTMLElement)) return;
+            item.style.borderTop = '';
+            item.style.borderBottom = '';
+        });
+    };
+
+    const clearTouchState = () => {
+        if (touchHoldTimer) {
+            clearTimeout(touchHoldTimer);
+            touchHoldTimer = null;
+        }
+        touchPointerId = null;
+        touchStartX = 0;
+        touchStartY = 0;
+        touchDragActive = false;
+        touchDropIndex = -1;
+        touchDropAfter = false;
+        touchMoveBlocked = false;
+        row.style.opacity = '';
+        row.style.transform = '';
+        row.style.zIndex = '';
+        row.style.boxShadow = '';
+        row.style.background = '';
+        row.style.transition = '';
+        queueDragFromIndex = -1;
+        clearTouchDropDecor();
+    };
+
+    const beginTouchDrag = () => {
+        touchDragActive = true;
+        queueDragFromIndex = viewIndex;
+        row.style.transition = 'none';
+        row.style.opacity = '0.55';
+        row.style.transform = 'scale(0.99)';
+        row.style.zIndex = '4';
+        row.style.background = 'rgba(var(--accent-rgb), 0.16)';
+        row.style.boxShadow = '0 8px 24px rgba(0,0,0,0.35)';
+    };
+
+    const updateTouchDropTarget = (clientY) => {
+        const listEl = row.parentElement;
+        if (!listEl) return;
+        const rows = Array.from(listEl.children).filter((item) => item instanceof HTMLElement);
+        if (!rows.length) return;
+        let targetRow = rows[rows.length - 1];
+        for (const candidate of rows) {
+            const rect = candidate.getBoundingClientRect();
+            if (clientY < rect.top + rect.height / 2) {
+                targetRow = candidate;
+                break;
+            }
+        }
+        const targetIndex = rows.indexOf(targetRow);
+        if (targetIndex < 0) return;
+        const rect = targetRow.getBoundingClientRect();
+        const placeAfter = clientY > (rect.top + rect.height / 2);
+
+        clearTouchDropDecor();
+        targetRow.style.borderTop = placeAfter ? '' : '1px dashed rgba(var(--accent-rgb),0.85)';
+        targetRow.style.borderBottom = placeAfter ? '1px dashed rgba(var(--accent-rgb),0.85)' : '';
+
+        touchDropIndex = targetIndex;
+        touchDropAfter = placeAfter;
+    };
+
+    row.addEventListener('pointerdown', (event) => {
+        const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen';
+        if (!isTouch) return;
+        if (event.target.closest('button, .mini-btn, .song-actions')) return;
+
+        touchPointerId = event.pointerId;
+        touchStartX = event.clientX;
+        touchStartY = event.clientY;
+        touchMoveBlocked = false;
+        touchDragActive = false;
+        touchDropIndex = -1;
+        touchDropAfter = false;
+
+        try { row.setPointerCapture(event.pointerId); } catch (e) {}
+        touchHoldTimer = setTimeout(() => {
+            if (touchPointerId !== event.pointerId || touchMoveBlocked) return;
+            beginTouchDrag();
+            updateTouchDropTarget(touchStartY);
+        }, 170);
+    });
+
+    row.addEventListener('pointermove', (event) => {
+        const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen';
+        if (!isTouch) return;
+        if (touchPointerId === null || event.pointerId !== touchPointerId) return;
+
+        const dx = event.clientX - touchStartX;
+        const dy = event.clientY - touchStartY;
+        if (!touchDragActive && Math.hypot(dx, dy) > 10) {
+            if (touchHoldTimer) {
+                clearTimeout(touchHoldTimer);
+                touchHoldTimer = null;
+            }
+            // Regular scroll gesture before long-press should not trigger drag.
+            touchMoveBlocked = true;
+        }
+
+        if (!touchDragActive) return;
+        event.preventDefault();
+        updateTouchDropTarget(event.clientY);
+    });
+
+    row.addEventListener('pointerup', async (event) => {
+        const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen';
+        if (!isTouch) return;
+        if (touchPointerId === null || event.pointerId !== touchPointerId) return;
+        try { row.releasePointerCapture(event.pointerId); } catch (e) {}
+
+        const shouldDrop = touchDragActive && queueDragFromIndex !== -1 && touchDropIndex !== -1;
+        const fromIndex = queueDragFromIndex;
+        const toIndex = Number(touchDropIndex) + (touchDropAfter ? 1 : 0);
+        clearTouchState();
+
+        if (!shouldDrop) return;
+        if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex)) return;
+        if (fromIndex < 0 || toIndex < 0) return;
+
+        await window.moveQueueTrackToIndex(fromIndex, toIndex, { insertMode: true });
+        queueDragSuppressClickUntil = Date.now() + 320;
+        if (typeof onDropDone === 'function') onDropDone();
+    });
+
+    row.addEventListener('pointercancel', (event) => {
+        const isTouch = event.pointerType === 'touch' || event.pointerType === 'pen';
+        if (!isTouch) return;
+        if (touchPointerId === null || event.pointerId !== touchPointerId) return;
+        try { row.releasePointerCapture(event.pointerId); } catch (e) {}
+        clearTouchState();
+    });
 }
 
 function applyReorderedSubsetToBaseView(baseView, originalSubset, reorderedSubset) {
@@ -5258,6 +5740,7 @@ window.moveQueueTrackToIndex = async (fromViewIndex, toViewIndex, options = {}) 
 
     if (typeof state.currentTab === 'number') renderPlaylistDetailView(state.currentTab);
     else if (state.currentTab === 'home-album') renderHomeAlbumTab();
+    else if (state.currentTab === 'home' || state.currentTab === 'home-playlists') updateHomeVisibility();
     else renderLibrary();
     renderSidebarQueue();
     renderMiniQueueModal();
@@ -5892,7 +6375,7 @@ function updateMobileBottomNavState(tab) {
     if (tab === 'home' || tab === 'home-album') document.getElementById(map.home)?.classList.add('active');
     else if (tab === 'all') document.getElementById(map.all)?.classList.add('active');
     else if (tab === 'fav') document.getElementById(map.fav)?.classList.add('active');
-    else if (typeof tab === 'number') document.getElementById(map.playlists)?.classList.add('active');
+    else if (tab === 'home-playlists' || typeof tab === 'number') document.getElementById(map.playlists)?.classList.add('active');
 }
 
 function updateMobileAddButtonVisibility(tab = state.currentTab) {
@@ -5943,7 +6426,7 @@ window.switchTab = (tab) => {
     state.shuffledOrder = [];
     state.shufflePosition = 0;
     
-    const persistedTab = tab === 'home-album' ? 'home' : tab;
+    const persistedTab = (tab === 'home-album' || tab === 'home-playlists') ? 'home' : tab;
     localStorage.setItem('currentTab', JSON.stringify(persistedTab));
     
     // Update search input placeholder
@@ -5964,8 +6447,10 @@ window.switchTab = (tab) => {
     }
     
     // Обработка переключения вкладок
-    if (tab === 'home' || tab === 'home-album') {
-        document.getElementById('nav-home')?.classList.add('active');
+    if (tab === 'home' || tab === 'home-album' || tab === 'home-playlists') {
+        if (tab === 'home' || tab === 'home-album') {
+            document.getElementById('nav-home')?.classList.add('active');
+        }
         console.log('[TAB] Switched to Home mode:', tab);
 
         const navidromeContainer = document.getElementById('navidromeContainer');
@@ -5991,6 +6476,9 @@ window.switchTab = (tab) => {
 
         if (tab === 'home-album') {
             renderHomeAlbumTab();
+        } else if (tab === 'home-playlists') {
+            renderHomeAllPlaylistsView();
+            renderPlaylistNav();
         }
         updateHomeVisibility(true);
         return;
@@ -6060,6 +6548,7 @@ window.switchTab = (tab) => {
         const rightQueueShow = document.getElementById('rightQueueShowBtn');
         const homeSection = document.getElementById('homeSection');
         const homeAlbumSection = document.getElementById('homeAlbumSection');
+        const homePlaylistsSection = document.getElementById('homePlaylistsSection');
         const mobileLibraryView = document.getElementById('mobileLibraryView');
 
         if (navidromeContainer) {
@@ -6075,6 +6564,7 @@ window.switchTab = (tab) => {
         if (rightQueueShow) rightQueueShow.style.display = 'none';
         if (homeSection) homeSection.style.display = 'none';
         if (homeAlbumSection) homeAlbumSection.style.display = 'none';
+        if (homePlaylistsSection) homePlaylistsSection.style.display = 'none';
         if (mobileLibraryView) mobileLibraryView.style.display = 'none';
         if (playlistDetailSection) playlistDetailSection.style.display = 'flex';
 
@@ -7134,7 +7624,7 @@ function initAudioEvents() {
         document.body.classList.add('playing'); 
         updatePlayIcon(true);
         updateHomeMiniPlayer();
-        if (state.currentTab === 'home' || state.currentTab === 'home-album') updateHomeVisibility();
+        if (state.currentTab === 'home' || state.currentTab === 'home-album' || state.currentTab === 'home-playlists') updateHomeVisibility();
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'playing';
         }
@@ -7144,7 +7634,7 @@ function initAudioEvents() {
         document.body.classList.remove('playing'); 
         updatePlayIcon(false);
         updateHomeMiniPlayer();
-        if (state.currentTab === 'home' || state.currentTab === 'home-album') updateHomeVisibility();
+        if (state.currentTab === 'home' || state.currentTab === 'home-album' || state.currentTab === 'home-playlists') updateHomeVisibility();
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
         }
@@ -7189,7 +7679,7 @@ function initAudioEvents() {
             clearPlaybackProgress(currentTrack);
         }
         updateHomeMiniPlayer();
-        if (state.currentTab === 'home' || state.currentTab === 'home-album') updateHomeVisibility();
+        if (state.currentTab === 'home' || state.currentTab === 'home-album' || state.currentTab === 'home-playlists') updateHomeVisibility();
     });
 }
 
@@ -7707,7 +8197,7 @@ export async function initApp() {
             console.warn('[APP] Playlists load failed:', err);
             state.playlists = [];
         }
-        if (state.currentTab === 'home' || state.currentTab === 'home-album') {
+        if (state.currentTab === 'home' || state.currentTab === 'home-album' || state.currentTab === 'home-playlists') {
             updateHomeVisibility(true);
         }
         if (state.smartShuffleEnabled) {

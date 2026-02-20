@@ -1,5 +1,32 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-20 - v2.6.5
+
+### Playlist AI + Mobile + Responsive
+- Added `Add songs using AI` action in playlist detail so AI can append tracks to an existing playlist.
+- Existing playlist tracks are preserved during AI append.
+- Duplicate protection added for AI-added tracks (Navidrome ID / URL dedupe).
+- Newly AI-added tracks are visually highlighted in playlist detail.
+
+### Thumbnail Peek / Swipe Fixes
+- Fixed mobile fullscreen thumbnail-peek direction logic.
+- Restored right-swipe track switching when previewing adjacent covers.
+- Improved adjacent track preview consistency.
+
+### Mobile Queue Reordering
+- Added touch fallback for queue reordering on mobile (long-press + drag).
+- Improved drag/drop feedback and drop-target stability in mobile queue modal.
+
+### Small-Screen UI Optimization
+- Reworked Home action buttons layout to fit narrow screens.
+- Improved playlist action button wrapping/sizing on tablet and phone breakpoints.
+- Tuned bottom mobile nav labels so controls fit reliably on small widths.
+
+### Playlist Sidebar UX
+- Updated left playlist sector: if playlists are more than 3, show `Show more`.
+- `Show more` opens a dedicated full playlists page with all user playlists.
+- Home playlists row keeps full playlist visibility.
+
 ## Latest Updates
 
 ### 1. **Playlist Management UI Modals**
