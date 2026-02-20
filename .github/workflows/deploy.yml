@@ -17,10 +17,13 @@ jobs:
           mkdir -p \~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > \~/.ssh/id_rsa
           chmod 600 \~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> \~/.ssh/known_hosts || true
+          # Добавляем свежий host key, чтоб не было verification failed
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> \~/.ssh/known_hosts
+          chmod 644 \~/.ssh/known_hosts
+          # Config для игнора строгой проверки (на всякий случай)
           echo "Host *" > \~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> \~/.ssh/config
-          echo "  UserKnownHostsFile /dev/null" >> \~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> \~/.ssh/config
+          echo "  UserKnownHostsFile \~/.ssh/known_hosts" >> \~/.ssh/config
 
       - name: Deployment Execution
         run: |
@@ -41,14 +44,12 @@ jobs:
               git clean -fd
             fi
 
-            # Проверяем, что код свежий (для дебага)
+            # Для дебага: покажем последний коммит
             git log -1 --pretty=format:"Последний коммит: %h %s %cr"
 
             echo "➡️ Работа с Docker..."
             docker stop z-player || true
             docker rm z-player || true
-
-            # Жёстко удаляем старый имидж, чтоб не жрал кэш
             docker rmi z-player || true
 
             echo "➡️ Билд с уникальным тегом..."
