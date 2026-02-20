@@ -648,6 +648,11 @@ aside {
     overflow: hidden; 
 }
 
+aside:not(.right) {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 aside.right { 
     border-right: none; 
     border-left: 1px solid var(--border); 
@@ -1202,6 +1207,8 @@ main {
 
 #homeAlbumSection,
 #homePlaylistsSection,
+#albumsSection,
+#artistsSection,
 #playlistDetailSection {
     display: none;
     flex: 1;
@@ -1442,6 +1449,30 @@ body.home-visible #mobileLibraryView .vinyl-container {
     background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.3), rgba(0, 0, 0, 0.6));
 }
 
+.home-album-card .home-card-chip {
+    border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.home-artist-card {
+    align-items: center;
+    text-align: center;
+}
+
+.home-artist-card img {
+    width: min(132px, 70%);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--accent-rgb), 0.32);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
+}
+
+.home-artist-card .home-card-title,
+.home-artist-card .home-card-subtitle {
+    width: 100%;
+    text-align: center;
+}
+
 .home-card-title {
     font-size: 14px;
     font-weight: 700;
@@ -1547,6 +1578,37 @@ body.home-visible #mobileLibraryView .vinyl-container {
 
 .home-all-playlists-grid .home-playlist-card {
     min-height: 96px;
+}
+
+.home-catalog-section {
+    gap: 18px;
+}
+
+.home-catalog-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background:
+        radial-gradient(420px 180px at 10% 0%, rgba(var(--accent-rgb), 0.16), transparent 68%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.3));
+}
+
+.home-catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.home-catalog-grid .home-card {
+    min-height: 230px;
+}
+
+.home-catalog-grid .home-empty {
+    grid-column: 1 / -1;
 }
 
 .home-empty {
@@ -2920,7 +2982,7 @@ body.zen-active .zen-inline {
     bottom: 0;
     z-index: 5400;
     display: none;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0;
     padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
     background: rgba(8, 10, 13, 0.96);
@@ -2950,7 +3012,7 @@ body.zen-active .zen-inline {
 }
 
 .mobile-bottom-item span {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.1px;
     max-width: 100%;
@@ -3208,6 +3270,8 @@ body.playlist-detail-active .mobile-add-btn {
     .home-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .home-action-btn { padding: 10px 12px; font-size: 10px; }
     .home-all-playlists-grid { grid-template-columns: 1fr; }
+    .home-catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .home-catalog-hero { align-items: stretch; flex-direction: column; }
     .playlist-detail-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .playlist-detail-search { width: 100%; }
     .playlist-action-btn { width: 100%; justify-content: center; padding: 11px 12px; }
@@ -3224,12 +3288,15 @@ body.playlist-detail-active .mobile-add-btn {
     #homeSection { padding: 0 0 220px; }
     #homeAlbumSection,
     #homePlaylistsSection,
+    #albumsSection,
+    #artistsSection,
     #playlistDetailSection { padding: 0 0 220px; }
     .home-title { font-size: 24px; }
     .home-row-grid { grid-auto-columns: minmax(150px, 1fr); }
     .home-search-box { padding: 0 10px; }
     .home-search-box input { font-size: 12px; }
     .home-actions { grid-template-columns: 1fr; }
+    .home-catalog-grid { grid-template-columns: 1fr; }
     .home-row-link-btn { width: 100%; justify-content: center; }
     .home-mini-meta strong { font-size: 12px; }
     .home-mini-meta span { font-size: 11px; }

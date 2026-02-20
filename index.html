@@ -84,23 +84,31 @@
 <nav class="mobile-bottom-nav" id="mobileBottomNav">
     <button class="mobile-bottom-item" id="nav-library-mobile" type="button" onclick="window.switchTab('all')">
         <i data-lucide="library"></i>
-        <span>Library</span>
+        <span data-t="library">Library</span>
     </button>
     <button class="mobile-bottom-item" id="nav-favourites-mobile" type="button" onclick="window.switchTab('fav')">
         <i data-lucide="heart"></i>
-        <span>Favourites</span>
+        <span data-t="favorites">Favourites</span>
     </button>
     <button class="mobile-bottom-item active" id="nav-home-mobile" type="button" onclick="window.switchTab('home')">
         <i data-lucide="house"></i>
-        <span>Home</span>
+        <span data-t="home">Home</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-albums-mobile" type="button" onclick="window.switchTab('albums')">
+        <i data-lucide="disc-3"></i>
+        <span data-t="albums">Albums</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-artists-mobile" type="button" onclick="window.switchTab('artists')">
+        <i data-lucide="mic-2"></i>
+        <span data-t="artists">Artists</span>
     </button>
     <button class="mobile-bottom-item" id="nav-playlists-mobile" type="button" onclick="window.openMobileMenu()">
         <i data-lucide="list-music"></i>
-        <span>Playlists</span>
+        <span data-t="playlists">Playlists</span>
     </button>
     <button class="mobile-bottom-item" id="nav-settings-mobile" type="button" onclick="window.toggleSettings()">
         <i data-lucide="settings-2"></i>
-        <span>Settings</span>
+        <span data-t="settings">Settings</span>
     </button>
 </nav>
 
@@ -419,6 +427,12 @@
             <div class="nav-item" id="nav-fav" onclick="window.switchTab('fav')">
                 <i data-lucide="heart"></i> <span data-t="favorites">Любимое</span>
             </div>
+            <div class="nav-item" id="nav-albums" onclick="window.switchTab('albums')">
+                <i data-lucide="disc-3"></i> <span data-t="albums">Albums</span>
+            </div>
+            <div class="nav-item" id="nav-artists" onclick="window.switchTab('artists')">
+                <i data-lucide="mic-2"></i> <span data-t="artists">Artists</span>
+            </div>
             <div class="nav-item" id="nav-navidrome" onclick="window.switchTab('navidrome')">
                 <i data-lucide="music"></i> <span data-t="music">Music</span>
             </div>
@@ -603,6 +617,46 @@
                     <span class="home-search-status" id="homeAllPlaylistsCount"></span>
                 </div>
                 <div class="home-all-playlists-grid" id="homeAllPlaylistsGrid"></div>
+            </div>
+        </div>
+
+        <div id="albumsSection" class="home-album-section home-catalog-section">
+            <div class="home-catalog-hero">
+                <div>
+                    <p class="home-eyebrow">Navidrome</p>
+                    <h2 class="home-title" data-t="albums">Albums</h2>
+                </div>
+                <button class="home-action-btn" type="button" onclick="window.refreshMediaCatalog('albums', true)">
+                    <i data-lucide="refresh-cw" style="width: 16px;"></i>
+                    <span data-t="refresh">Refresh</span>
+                </button>
+            </div>
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="albums">Albums</h3>
+                    <span class="home-search-status" id="albumsCatalogCount"></span>
+                </div>
+                <div class="home-catalog-grid" id="albumsCatalogGrid"></div>
+            </div>
+        </div>
+
+        <div id="artistsSection" class="home-album-section home-catalog-section">
+            <div class="home-catalog-hero">
+                <div>
+                    <p class="home-eyebrow">Navidrome</p>
+                    <h2 class="home-title" data-t="artists">Artists</h2>
+                </div>
+                <button class="home-action-btn" type="button" onclick="window.refreshMediaCatalog('artists', true)">
+                    <i data-lucide="refresh-cw" style="width: 16px;"></i>
+                    <span data-t="refresh">Refresh</span>
+                </button>
+            </div>
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="artists">Artists</h3>
+                    <span class="home-search-status" id="artistsCatalogCount"></span>
+                </div>
+                <div class="home-catalog-grid" id="artistsCatalogGrid"></div>
             </div>
         </div>
 
@@ -955,6 +1009,26 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.6</span>
+                        <span class="update-log-date">February 20, 2026</span>
+                    </div>
+                    <h2>Albums/Artists Navigation Refactor + Mobile Labels</h2>
+                    <ul class="about-list">
+                        <li>Moved <strong>Albums</strong> and <strong>Artists</strong> into the same main left navigation group as <strong>Home / Library / Favorites</strong>.</li>
+                        <li>Removed Albums/Artists preview blocks from the playlist-adjacent sidebar area to match the requested information architecture.</li>
+                        <li>Added dedicated full pages for <strong>Albums</strong> and <strong>Artists</strong> with cohesive UrZen styling (hero header + responsive card grid).</li>
+                        <li>Albums page now loads an extended Navidrome catalog (paged `getAlbumList2`) and shows complete album cards with cover, artist, and track count.</li>
+                        <li>Artists page now builds a full artist catalog from loaded albums (with fallback strategy) and supports direct jump to Home artist search flow.</li>
+                        <li>Integrated new tabs into routing and visibility system (`switchTab`, tab restore, mini-player-compatible Home-mode layout).</li>
+                        <li>Added mobile bottom-nav labels/buttons for <strong>Albums</strong> and <strong>Artists</strong>, including active-state logic for both new tabs.</li>
+                        <li>Localized mobile nav labels via existing i18n keys (`home`, `library`, `favorites`, `albums`, `artists`, `playlists`, `settings`).</li>
+                        <li>Updated mobile bottom bar layout to fit seven labeled actions while preserving small-screen usability.</li>
+                        <li>Added catalog refresh hooks so language changes and Navidrome reloads update Albums/Artists pages correctly.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.5</span>
                         <span class="update-log-date">February 20, 2026</span>
                     </div>
@@ -1233,10 +1307,14 @@ window.closeMobileMenu = function() {
 };
 
 window.updateMobileBottomNav = function(tab) {
-    const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
+    const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-albums-mobile', 'nav-artists-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
     ids.forEach((id) => document.getElementById(id)?.classList.remove('active'));
     if (tab === 'home' || tab === 'home-album') {
         document.getElementById('nav-home-mobile')?.classList.add('active');
+    } else if (tab === 'albums') {
+        document.getElementById('nav-albums-mobile')?.classList.add('active');
+    } else if (tab === 'artists') {
+        document.getElementById('nav-artists-mobile')?.classList.add('active');
     } else if (tab === 'all') {
         document.getElementById('nav-library-mobile')?.classList.add('active');
     } else if (tab === 'fav') {

@@ -50,7 +50,11 @@ function applyImgFallback(img, src = '') {
 }
 
 function isHomePlaybackTab(tab = state.currentTab) {
-    return tab === 'home' || tab === 'home-album' || tab === 'home-playlists';
+    return tab === 'home'
+        || tab === 'home-album'
+        || tab === 'home-playlists'
+        || tab === 'albums'
+        || tab === 'artists';
 }
 
 function showRegistrationRequiredOverlay(reason = 'playback') {
@@ -108,6 +112,7 @@ const SMART_SHUFFLE_MIN_INTERVAL_MS = 12000;
 const MOBILE_FULLSCREEN_BREAKPOINT = 768;
 const MOBILE_FULL_SWIPE_X_THRESHOLD = 24;
 const MOBILE_FULL_SWIPE_CLOSE_THRESHOLD = 88;
+const MEDIA_CATALOG_FETCH_LIMIT = 2800;
 let aiPlaylistPromptResolver = null;
 let aiPlaylistPromptKeyHandler = null;
 let playlistAIPending = false;
@@ -117,6 +122,8 @@ let queueDragFromIndex = -1;
 let queueDragSuppressClickUntil = 0;
 let mobileCoverSwipeLockUntil = 0;
 let lastNonInfoTab = 'home';
+let mediaAlbumsCatalogCache = [];
+let mediaArtistsCatalogCache = [];
 
 function isInfoTab(tab) {
     return tab === 'about' || tab === 'update-logs';
@@ -126,6 +133,8 @@ function isRestorableMainTab(tab) {
     return tab === 'home'
         || tab === 'home-album'
         || tab === 'home-playlists'
+        || tab === 'albums'
+        || tab === 'artists'
         || tab === 'all'
         || tab === 'fav'
         || tab === 'navidrome'
@@ -646,6 +655,134 @@ async function fetchNewFromServer(limit = 10) {
         return mapAlbumSong(song, album);
     }));
     return results.filter(Boolean);
+}
+
+function mapHomeAlbumCard(album) {
+    if (!album?.id) return null;
+    return {
+        id: String(album.id),
+        title: album.name || album.title || t('unknown_album', 'Unknown album'),
+        artist: album.artist || t('unknown_artist', 'Unknown Artist'),
+        cover: getNavidromeCoverArtUrl(album.coverArt, 300) || DEFAULT_COVER,
+        songCount: Number(album.songCount || album.song_count || 0) || 0
+    };
+}
+
+function deriveAlbumsFromNavidromeSongs(limit = 12) {
+    const songs = Array.isArray(state.navidromeSongs) ? state.navidromeSongs : [];
+    if (!songs.length) return [];
+    const byAlbum = new Map();
+    songs.forEach((song) => {
+        const albumName = String(song?.album || '').trim();
+        const albumId = String(song?.albumId || song?.id || '').trim();
+        if (!albumName || !albumId) return;
+        const key = `${albumName.toLowerCase()}::${String(song?.artist || '').toLowerCase()}`;
+        if (!byAlbum.has(key)) {
+            byAlbum.set(key, {
+                id: albumId,
+                title: albumName,
+                artist: song?.artist || t('unknown_artist', 'Unknown Artist'),
+                cover: song?.cover || DEFAULT_COVER,
+                songCount: 0
+            });
+        }
+        byAlbum.get(key).songCount += 1;
+    });
+    return Array.from(byAlbum.values()).slice(0, limit);
+}
+
+function deriveArtistsFromNavidromeSongs(limit = 12) {
+    const songs = Array.isArray(state.navidromeSongs) ? state.navidromeSongs : [];
+    if (!songs.length) return [];
+    const byArtist = new Map();
+    songs.forEach((song) => {
+        const name = String(song?.artist || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (!byArtist.has(key)) {
+            byArtist.set(key, {
+                name,
+                cover: song?.cover || DEFAULT_COVER,
+                albumCount: 0,
+                _albums: new Set()
+            });
+        }
+        const entry = byArtist.get(key);
+        const albumKey = String(song?.album || '').trim().toLowerCase();
+        if (albumKey && !entry._albums.has(albumKey)) {
+            entry._albums.add(albumKey);
+            entry.albumCount += 1;
+        }
+    });
+    return Array.from(byArtist.values())
+        .map((item) => ({
+            name: item.name,
+            cover: item.cover,
+            albumCount: item.albumCount
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, limit);
+}
+
+async function fetchAlbumsFromServer(limit = 12) {
+    try {
+        const fetchSize = Math.max(limit * 3, 36);
+        const albums = await getNavidromeAlbumList('newest', fetchSize);
+        if (!Array.isArray(albums) || !albums.length) return [];
+        const results = [];
+        const seen = new Set();
+        albums.forEach((album) => {
+            const normalized = mapHomeAlbumCard(album);
+            if (!normalized?.id || seen.has(normalized.id)) return;
+            seen.add(normalized.id);
+            results.push(normalized);
+        });
+        return results.slice(0, limit);
+    } catch (error) {
+        console.warn('[HOME] Failed to fetch albums from server:', error);
+        return [];
+    }
+}
+
+async function fetchArtistsFromServer(limit = 12) {
+    try {
+        const fetchSize = Math.max(limit * 8, 80);
+        let albums = await getNavidromeAlbumList('alphabeticalByArtist', fetchSize);
+        if (!albums.length) {
+            albums = await getNavidromeAlbumList('newest', fetchSize);
+        }
+        if (!Array.isArray(albums) || !albums.length) return [];
+        const artists = new Map();
+        albums.forEach((album) => {
+            const artistName = String(album?.artist || '').trim();
+            if (!artistName) return;
+            const key = artistName.toLowerCase();
+            if (!artists.has(key)) {
+                artists.set(key, {
+                    name: artistName,
+                    cover: getNavidromeCoverArtUrl(album.coverArt, 300) || DEFAULT_COVER,
+                    albumCount: 0,
+                    _albumIds: new Set()
+                });
+            }
+            const entry = artists.get(key);
+            const albumId = String(album?.id || '').trim();
+            if (albumId && !entry._albumIds.has(albumId)) {
+                entry._albumIds.add(albumId);
+                entry.albumCount += 1;
+            }
+        });
+        return Array.from(artists.values())
+            .map((item) => ({
+                name: item.name,
+                cover: item.cover,
+                albumCount: item.albumCount
+            }))
+            .slice(0, limit);
+    } catch (error) {
+        console.warn('[HOME] Failed to fetch artists from server:', error);
+        return [];
+    }
 }
 
 async function fetchRecommendations(profile, history) {
@@ -1506,6 +1643,42 @@ window.openHomeAlbumTab = async (trackInput = null) => {
     window.switchTab('home-album');
 };
 
+window.openHomeAlbumById = async (albumId, albumMeta = null) => {
+    const safeAlbumId = String(albumId || '').trim();
+    if (!safeAlbumId) {
+        showToast(t('album_not_found', 'Album not found'));
+        return;
+    }
+    const album = await getNavidromeAlbum(safeAlbumId);
+    if (!album) {
+        showToast(t('album_not_found', 'Album not found'));
+        return;
+    }
+    const songs = Array.isArray(album.song) ? album.song.map(song => getAlbumSongTrack(song, album)).filter(Boolean) : [];
+    songs.forEach(cacheHomeNavidromeTrack);
+    homeAlbumState = {
+        id: album.id || safeAlbumId,
+        name: album.name || album.title || albumMeta?.title || '',
+        artist: album.artist || albumMeta?.artist || '',
+        cover: getNavidromeCoverArtUrl(album.coverArt, 300) || albumMeta?.cover || '',
+        songs
+    };
+    renderHomeAlbumTab();
+    window.switchTab('home-album');
+};
+
+window.openHomeArtist = async (artistName = '') => {
+    const query = String(artistName || '').trim();
+    if (!query) return;
+    const input = document.getElementById('homeSearchInput');
+    if (input) input.value = query;
+    await runHomeSearch(query);
+    const row = document.getElementById('homeSearchResultsRow');
+    if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+};
+
 window.closeHomeAlbumTab = () => {
     state.homeAlbumSongs = [];
     window.switchTab('home');
@@ -1608,6 +1781,289 @@ function renderHomeGrid(containerId, items, emptyText) {
         container.appendChild(card);
     });
 }
+
+function renderHomeAlbumShelf(albums = []) {
+    const container = document.getElementById('homeAlbumsGrid');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = Array.isArray(albums) ? albums : [];
+    if (!list.length) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('home_albums_empty', 'No albums found in Navidrome.');
+        container.appendChild(empty);
+        return;
+    }
+
+    list.forEach((album) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'home-card home-album-card';
+        card.innerHTML = `
+            <img src="${resolveCover(album.cover)}" alt="${album.title}" onerror="this.src='${DEFAULT_COVER}'">
+            <div class="home-card-title">${album.title || t('unknown_album', 'Unknown album')}</div>
+            <div class="home-card-subtitle">${album.artist || t('unknown_artist', 'Unknown Artist')}</div>
+            <div class="home-card-chip">${Math.max(0, Number(album.songCount || 0))} ${t('tracks', 'tracks')}</div>
+        `;
+        card.onclick = () => window.openHomeAlbumById(album.id, album);
+        container.appendChild(card);
+    });
+}
+
+function renderHomeArtistShelf(artists = []) {
+    const container = document.getElementById('homeArtistsGrid');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = Array.isArray(artists) ? artists : [];
+    if (!list.length) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('home_artists_empty', 'No artists found in Navidrome.');
+        container.appendChild(empty);
+        return;
+    }
+
+    list.forEach((artist) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'home-card home-artist-card';
+        card.innerHTML = `
+            <img src="${resolveCover(artist.cover)}" alt="${artist.name}" onerror="this.src='${DEFAULT_COVER}'">
+            <div class="home-card-title">${artist.name || t('unknown_artist', 'Unknown Artist')}</div>
+            <div class="home-card-subtitle">${Math.max(0, Number(artist.albumCount || 0))} ${t('albums', 'Albums')}</div>
+            <div class="home-card-chip">Navidrome</div>
+        `;
+        card.onclick = () => window.openHomeArtist(artist.name);
+        container.appendChild(card);
+    });
+}
+
+function mapArtistsFromAlbums(albums = []) {
+    const byArtist = new Map();
+    (albums || []).forEach((album) => {
+        const name = String(album?.artist || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (!byArtist.has(key)) {
+            byArtist.set(key, {
+                name,
+                cover: resolveCover(album.cover || ''),
+                albumCount: 0,
+                _albums: new Set()
+            });
+        }
+        const entry = byArtist.get(key);
+        const albumId = String(album?.id || '').trim();
+        if (albumId && !entry._albums.has(albumId)) {
+            entry._albums.add(albumId);
+            entry.albumCount += 1;
+        }
+    });
+    return Array.from(byArtist.values())
+        .map((entry) => ({
+            name: entry.name,
+            cover: entry.cover,
+            albumCount: entry.albumCount
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function createHomeAlbumCatalogCard(album) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-card home-album-card';
+    const cover = document.createElement('img');
+    cover.alt = album.title || t('unknown_album', 'Unknown album');
+    applyImgFallback(cover, album.cover);
+    const title = document.createElement('div');
+    title.className = 'home-card-title';
+    title.textContent = album.title || t('unknown_album', 'Unknown album');
+    const subtitle = document.createElement('div');
+    subtitle.className = 'home-card-subtitle';
+    subtitle.textContent = album.artist || t('unknown_artist', 'Unknown Artist');
+    const chip = document.createElement('div');
+    chip.className = 'home-card-chip';
+    chip.textContent = `${Math.max(0, Number(album.songCount || 0))} ${t('tracks', 'tracks')}`;
+    card.appendChild(cover);
+    card.appendChild(title);
+    card.appendChild(subtitle);
+    card.appendChild(chip);
+    card.onclick = () => window.openHomeAlbumById(album.id, album);
+    return card;
+}
+
+function createHomeArtistCatalogCard(artist) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'home-card home-artist-card';
+    const cover = document.createElement('img');
+    cover.alt = artist.name || t('unknown_artist', 'Unknown Artist');
+    applyImgFallback(cover, artist.cover);
+    const title = document.createElement('div');
+    title.className = 'home-card-title';
+    title.textContent = artist.name || t('unknown_artist', 'Unknown Artist');
+    const subtitle = document.createElement('div');
+    subtitle.className = 'home-card-subtitle';
+    subtitle.textContent = `${Math.max(0, Number(artist.albumCount || 0))} ${t('albums', 'Albums')}`;
+    const chip = document.createElement('div');
+    chip.className = 'home-card-chip';
+    chip.textContent = 'Navidrome';
+    card.appendChild(cover);
+    card.appendChild(title);
+    card.appendChild(subtitle);
+    card.appendChild(chip);
+    card.onclick = async () => {
+        window.switchTab('home');
+        await window.openHomeArtist(artist.name);
+    };
+    return card;
+}
+
+function renderAlbumsCatalog(albums = [], loading = false) {
+    const grid = document.getElementById('albumsCatalogGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const count = document.getElementById('albumsCatalogCount');
+    if (count) {
+        count.textContent = loading
+            ? t('loading_status', 'Loading...')
+            : `${albums.length} ${t('albums', 'Albums')}`;
+    }
+
+    if (loading) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('loading_status', 'Loading...');
+        grid.appendChild(empty);
+        return;
+    }
+
+    if (!albums.length) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('home_albums_empty', 'No albums found in Navidrome.');
+        grid.appendChild(empty);
+        return;
+    }
+
+    albums.forEach((album) => {
+        grid.appendChild(createHomeAlbumCatalogCard(album));
+    });
+}
+
+function renderArtistsCatalog(artists = [], loading = false) {
+    const grid = document.getElementById('artistsCatalogGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const count = document.getElementById('artistsCatalogCount');
+    if (count) {
+        count.textContent = loading
+            ? t('loading_status', 'Loading...')
+            : `${artists.length} ${t('artists', 'Artists')}`;
+    }
+
+    if (loading) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('loading_status', 'Loading...');
+        grid.appendChild(empty);
+        return;
+    }
+
+    if (!artists.length) {
+        const empty = document.createElement('div');
+        empty.className = 'home-empty';
+        empty.textContent = t('home_artists_empty', 'No artists found in Navidrome.');
+        grid.appendChild(empty);
+        return;
+    }
+
+    artists.forEach((artist) => {
+        grid.appendChild(createHomeArtistCatalogCard(artist));
+    });
+}
+
+async function fetchAllAlbumsCatalog(limit = MEDIA_CATALOG_FETCH_LIMIT) {
+    const safeLimit = Math.max(30, Math.min(3000, Number(limit || MEDIA_CATALOG_FETCH_LIMIT)));
+    const batchSize = 200;
+    const seen = new Set();
+    const collected = [];
+
+    const collectByType = async (type) => {
+        let offset = 0;
+        for (let page = 0; page < 14 && collected.length < safeLimit; page += 1) {
+            const batch = await getNavidromeAlbumList(type, batchSize, { offset });
+            if (!Array.isArray(batch) || !batch.length) break;
+            const before = collected.length;
+            batch.forEach((album) => {
+                const mapped = mapHomeAlbumCard(album);
+                if (!mapped?.id || seen.has(mapped.id)) return;
+                seen.add(mapped.id);
+                collected.push(mapped);
+            });
+            offset += batch.length;
+            if (batch.length < batchSize || collected.length === before) break;
+        }
+    };
+
+    await collectByType('alphabeticalByName');
+    if (!collected.length) {
+        await collectByType('newest');
+    }
+    if (!collected.length) {
+        return deriveAlbumsFromNavidromeSongs(safeLimit);
+    }
+    return collected
+        .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')))
+        .slice(0, safeLimit);
+}
+
+function invalidateMediaCatalogCache() {
+    mediaAlbumsCatalogCache = [];
+    mediaArtistsCatalogCache = [];
+}
+
+async function refreshMediaCatalog(kind = 'albums', force = false) {
+    const tab = kind === 'artists' ? 'artists' : 'albums';
+    const shouldShowLoading = force
+        || (tab === 'albums' ? !mediaAlbumsCatalogCache.length : !mediaArtistsCatalogCache.length);
+    if (shouldShowLoading) {
+        if (tab === 'albums') {
+            renderAlbumsCatalog(mediaAlbumsCatalogCache, true);
+        } else {
+            renderArtistsCatalog(mediaArtistsCatalogCache, true);
+        }
+    }
+
+    try {
+        if (force || !mediaAlbumsCatalogCache.length) {
+            mediaAlbumsCatalogCache = await fetchAllAlbumsCatalog(MEDIA_CATALOG_FETCH_LIMIT);
+        }
+        if (force || !mediaArtistsCatalogCache.length) {
+            mediaArtistsCatalogCache = mapArtistsFromAlbums(mediaAlbumsCatalogCache);
+            if (!mediaArtistsCatalogCache.length) {
+                const fallbackArtists = await fetchArtistsFromServer(Math.min(MEDIA_CATALOG_FETCH_LIMIT, 500));
+                mediaArtistsCatalogCache = Array.isArray(fallbackArtists) ? fallbackArtists : [];
+            }
+        }
+
+        if (tab === 'artists') {
+            renderArtistsCatalog(mediaArtistsCatalogCache, false);
+        } else {
+            renderAlbumsCatalog(mediaAlbumsCatalogCache, false);
+        }
+        refreshIcons();
+    } catch (error) {
+        console.error(`[CATALOG] Failed to refresh ${tab}:`, error);
+        if (tab === 'artists') {
+            renderArtistsCatalog([], false);
+        } else {
+            renderAlbumsCatalog([], false);
+        }
+    }
+}
+
+window.refreshMediaCatalog = (kind = 'albums', force = false) => refreshMediaCatalog(kind, force);
 
 function getHomePlaylistTracks(playlist) {
     if (!playlist) return [];
@@ -2147,6 +2603,7 @@ window.createPlaylistUsingAI = async () => {
                 const songs = await window.getAllNavidromeSongs();
                 if (Array.isArray(songs) && songs.length) {
                     state.navidromeSongs = songs;
+                    invalidateMediaCatalogCache();
                     candidateTracks = buildAICandidateTracks([], candidateLimit);
                 }
             } catch (e) {
@@ -2232,6 +2689,7 @@ window.addSongsToCurrentPlaylistUsingAI = async () => {
                 const songs = await window.getAllNavidromeSongs();
                 if (Array.isArray(songs) && songs.length) {
                     state.navidromeSongs = songs;
+                    invalidateMediaCatalogCache();
                     candidateTracks = buildAICandidateTracks(baseTracks, candidateLimit, {
                         excludeIds,
                         requireContextMatch: false
@@ -3345,8 +3803,10 @@ function updateHomeVisibility(force = false) {
     const isHomeTab = state.currentTab === 'home';
     const isHomeAlbumTab = state.currentTab === 'home-album';
     const isHomePlaylistsTab = state.currentTab === 'home-playlists';
+    const isAlbumsTab = state.currentTab === 'albums';
+    const isArtistsTab = state.currentTab === 'artists';
     const isPlaylistDetailTab = typeof state.currentTab === 'number';
-    const shouldShow = isHomeTab || isHomeAlbumTab || isHomePlaylistsTab;
+    const shouldShow = isHomeTab || isHomeAlbumTab || isHomePlaylistsTab || isAlbumsTab || isArtistsTab;
     document.body.classList.toggle('home-visible', shouldShow);
     const homeSection = document.getElementById('homeSection');
     if (homeSection) homeSection.style.display = isHomeTab ? 'flex' : 'none';
@@ -3354,6 +3814,10 @@ function updateHomeVisibility(force = false) {
     if (homeAlbumSection) homeAlbumSection.style.display = isHomeAlbumTab ? 'flex' : 'none';
     const homePlaylistsSection = document.getElementById('homePlaylistsSection');
     if (homePlaylistsSection) homePlaylistsSection.style.display = isHomePlaylistsTab ? 'flex' : 'none';
+    const albumsSection = document.getElementById('albumsSection');
+    if (albumsSection) albumsSection.style.display = isAlbumsTab ? 'flex' : 'none';
+    const artistsSection = document.getElementById('artistsSection');
+    if (artistsSection) artistsSection.style.display = isArtistsTab ? 'flex' : 'none';
     const playlistDetailSection = document.getElementById('playlistDetailSection');
     if (playlistDetailSection) playlistDetailSection.style.display = isPlaylistDetailTab ? 'flex' : 'none';
     if (!shouldShow) closeHomeContextMenu();
@@ -3364,10 +3828,18 @@ function updateHomeVisibility(force = false) {
         updateHomeWelcome();
         if (isHomeTab) renderHomePlaylists();
         if (isHomePlaylistsTab) renderHomeAllPlaylistsView();
-        initHomeSearchInput();
-        const homeSearchInput = document.getElementById('homeSearchInput');
-        if (homeSearchInput && homeSearchInput.value !== homeSearchQuery) {
-            homeSearchInput.value = homeSearchQuery;
+        if (isAlbumsTab) {
+            window.refreshMediaCatalog('albums', force && !mediaAlbumsCatalogCache.length);
+        }
+        if (isArtistsTab) {
+            window.refreshMediaCatalog('artists', force && !mediaArtistsCatalogCache.length);
+        }
+        if (isHomeTab) {
+            initHomeSearchInput();
+            const homeSearchInput = document.getElementById('homeSearchInput');
+            if (homeSearchInput && homeSearchInput.value !== homeSearchQuery) {
+                homeSearchInput.value = homeSearchQuery;
+            }
         }
         const playerControls = document.getElementById('playerControls');
         const rightPanel = document.querySelector('.right');
@@ -3459,6 +3931,14 @@ window.refreshHome = async (force = false) => {
             const fresh = await getNavidromeRandomSongs({ size: 10, fromYear: year - 1, toYear: year });
             newList = fresh.length ? fresh : pickRandomLocal(10);
         }
+        let albumShelf = await fetchAlbumsFromServer(12);
+        if (!albumShelf.length) {
+            albumShelf = deriveAlbumsFromNavidromeSongs(12);
+        }
+        let artistShelf = await fetchArtistsFromServer(12);
+        if (!artistShelf.length) {
+            artistShelf = deriveArtistsFromNavidromeSongs(12);
+        }
 
         continueList = dedupeTracks(continueList);
         recentList = dedupeTracks(recentList, continueList);
@@ -3468,6 +3948,8 @@ window.refreshHome = async (force = false) => {
         renderHomeGrid('homeContinueGrid', continueList, t('home_continue_empty', 'Start playing music to see history here.'));
         renderHomeGrid('homeRecentGrid', recentList, t('home_recent_empty', 'No recent plays yet.'));
         renderHomeGrid('homeRecommendationsGrid', recommended, t('home_reco_empty', 'We need more listening data.'));
+        renderHomeAlbumShelf(albumShelf);
+        renderHomeArtistShelf(artistShelf);
         renderHomeGrid('homeNewGrid', newList, t('home_new_empty', 'No new releases found.'));
         renderHomePlaylists();
         renderHomeAllPlaylistsView();
@@ -4283,6 +4765,10 @@ function updateNavidromeSongs() {
             grid.appendChild(loadingMsg);
             window.getAllNavidromeSongs().then((songs) => {
                 state.navidromeSongs = songs;
+                invalidateMediaCatalogCache();
+                if (state.currentTab === 'albums' || state.currentTab === 'artists') {
+                    window.refreshMediaCatalog(state.currentTab, true);
+                }
                 grid.innerHTML = '';
                 if (songs.length === 0) {
                     const emptyMsg = document.createElement('div');
@@ -6369,10 +6855,14 @@ function updateMobileBottomNavState(tab) {
         all: 'nav-library-mobile',
         fav: 'nav-favourites-mobile',
         home: 'nav-home-mobile',
+        albums: 'nav-albums-mobile',
+        artists: 'nav-artists-mobile',
         playlists: 'nav-playlists-mobile'
     };
     Object.values(map).forEach((id) => document.getElementById(id)?.classList.remove('active'));
     if (tab === 'home' || tab === 'home-album') document.getElementById(map.home)?.classList.add('active');
+    else if (tab === 'albums') document.getElementById(map.albums)?.classList.add('active');
+    else if (tab === 'artists') document.getElementById(map.artists)?.classList.add('active');
     else if (tab === 'all') document.getElementById(map.all)?.classList.add('active');
     else if (tab === 'fav') document.getElementById(map.fav)?.classList.add('active');
     else if (tab === 'home-playlists' || typeof tab === 'number') document.getElementById(map.playlists)?.classList.add('active');
@@ -6447,9 +6937,13 @@ window.switchTab = (tab) => {
     }
     
     // Обработка переключения вкладок
-    if (tab === 'home' || tab === 'home-album' || tab === 'home-playlists') {
-        if (tab === 'home' || tab === 'home-album') {
+    if (tab === 'home' || tab === 'home-album' || tab === 'home-playlists' || tab === 'albums' || tab === 'artists') {
+        if (tab === 'home' || tab === 'home-album' || tab === 'home-playlists') {
             document.getElementById('nav-home')?.classList.add('active');
+        } else if (tab === 'albums') {
+            document.getElementById('nav-albums')?.classList.add('active');
+        } else if (tab === 'artists') {
+            document.getElementById('nav-artists')?.classList.add('active');
         }
         console.log('[TAB] Switched to Home mode:', tab);
 
@@ -6549,6 +7043,8 @@ window.switchTab = (tab) => {
         const homeSection = document.getElementById('homeSection');
         const homeAlbumSection = document.getElementById('homeAlbumSection');
         const homePlaylistsSection = document.getElementById('homePlaylistsSection');
+        const albumsSection = document.getElementById('albumsSection');
+        const artistsSection = document.getElementById('artistsSection');
         const mobileLibraryView = document.getElementById('mobileLibraryView');
 
         if (navidromeContainer) {
@@ -6565,6 +7061,8 @@ window.switchTab = (tab) => {
         if (homeSection) homeSection.style.display = 'none';
         if (homeAlbumSection) homeAlbumSection.style.display = 'none';
         if (homePlaylistsSection) homePlaylistsSection.style.display = 'none';
+        if (albumsSection) albumsSection.style.display = 'none';
+        if (artistsSection) artistsSection.style.display = 'none';
         if (mobileLibraryView) mobileLibraryView.style.display = 'none';
         if (playlistDetailSection) playlistDetailSection.style.display = 'flex';
 
@@ -6609,6 +7107,10 @@ window.switchTab = (tab) => {
                 window.getAllNavidromeSongs().then((songs) => {
                     console.log('[TAB] Navidrome songs loaded:', songs.length);
                     state.navidromeSongs = songs;
+                    invalidateMediaCatalogCache();
+                    if (state.currentTab === 'albums' || state.currentTab === 'artists') {
+                        window.refreshMediaCatalog(state.currentTab, true);
+                    }
                     renderNavidromeInterface();
                 }).catch(err => {
                     console.error('[TAB] Error loading Navidrome:', err);
@@ -7987,6 +8489,7 @@ export async function initApp() {
             const cachedSongs = JSON.parse(cached);
             window._navidromeSongsCache = cachedSongs;
             window.state.navidromeSongs = cachedSongs;
+            invalidateMediaCatalogCache();
             console.log('[APP] Restored Navidrome songs from cache:', cachedSongs.length);
         }
     } catch (err) {
@@ -8224,6 +8727,10 @@ export async function initApp() {
             if (window.getAllNavidromeSongs) {
                 const songs = await window.getAllNavidromeSongs();
                 state.navidromeSongs = songs;
+                invalidateMediaCatalogCache();
+                if (state.currentTab === 'albums' || state.currentTab === 'artists') {
+                    window.refreshMediaCatalog(state.currentTab, true);
+                }
                 console.log('[APP] Navidrome songs loaded:', songs.length);
             }
         } catch (err) {

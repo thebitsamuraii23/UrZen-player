@@ -335,6 +335,14 @@ export function applyLanguage() {
             console.warn('[SETTINGS] Failed to update home welcome:', e);
         }
     }
+
+    if (typeof window.refreshMediaCatalog === 'function' && (state.currentTab === 'albums' || state.currentTab === 'artists')) {
+        try {
+            window.refreshMediaCatalog(state.currentTab, false);
+        } catch (e) {
+            console.warn('[SETTINGS] Failed to refresh media catalog page:', e);
+        }
+    }
     
     refreshIcons();
 }
