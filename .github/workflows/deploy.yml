@@ -1,32 +1,37 @@
-name: Deploy z-player to EC2 Root
+name: Deploy z-player to EC2
+
 on:
   push:
     branches:
       - tests/updates
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          echo "Host *" > ~/.ssh/config
-          echo " StrictHostKeyChecking no" >> ~/.ssh/config
-          echo " UserKnownHostsFile /dev/null" >> ~/.ssh/config
+          mkdir -p \~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > \~/.ssh/id_rsa
+          chmod 600 \~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> \~/.ssh/known_hosts || true
+          echo "Host *" > \~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> \~/.ssh/config
+          echo "  UserKnownHostsFile /dev/null" >> \~/.ssh/config
+
       - name: Deployment Execution
         run: |
-          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
-            sudo -i
+          ssh -i \~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
             set -ex
+
             PROJECT_DIR="/root/z-player"
-            
+
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
-            
+
             echo "➡️ Обновление кода..."
             if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
@@ -35,21 +40,28 @@ jobs:
               git reset --hard FETCH_HEAD
               git clean -fd
             fi
-            
+
+            # Проверяем, что код свежий (для дебага)
+            git log -1 --pretty=format:"Последний коммит: %h %s %cr"
+
             echo "➡️ Работа с Docker..."
             docker stop z-player || true
             docker rm z-player || true
+
+            # Жёстко удаляем старый имидж, чтоб не жрал кэш
             docker rmi z-player || true
-            
-            echo "➡️ Билд..."
-            if ! docker build --no-cache -t z-player .; then
+
+            echo "➡️ Билд с уникальным тегом..."
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            if ! docker build --no-cache -t z-player:$COMMIT_HASH .; then
               echo "❌ Билд упал, ошибка!"
               exit 1
             fi
-            
-            echo "➡️ Запуск..."
-            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
-            
+
+            echo "➡️ Запуск новой версии..."
+            docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player:$COMMIT_HASH
+
             echo "✅ Статус:"
             docker ps | grep z-player
+            docker logs --tail 20 z-player || true
           EOF
