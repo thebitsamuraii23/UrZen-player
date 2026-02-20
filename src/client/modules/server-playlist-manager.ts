@@ -552,6 +552,38 @@ export async function fetchAISmartShuffleTracks(payload = {}) {
   }
 }
 
+export async function fetchAITracksForPlaylistPrompt(payload = {}) {
+  try {
+    if (!isUserAuthenticated()) {
+      throw new Error('User not authenticated');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/ai/playlist-add-tracks`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({
+        ...(payload || {}),
+        navidrome: getNavidromeSettingsFromClient()
+      })
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const errPayload = await response.json();
+        throw new Error(errPayload?.details || errPayload?.error || `HTTP ${response.status}`);
+      }
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data?.tracks) ? data.tracks : [];
+  } catch (error) {
+    console.error('[SERVER-PLAYLIST] AI playlist-add-tracks error:', error);
+    throw error;
+  }
+}
+
 /**
  * Sync local playlists with server (when user logs in)
  */
@@ -796,5 +828,6 @@ export default {
   syncPlaylistsWithServer,
   createAIPlaylistFromPrompt,
   fetchAISmartShuffleTracks,
+  fetchAITracksForPlaylistPrompt,
   getAuthHeader
 };

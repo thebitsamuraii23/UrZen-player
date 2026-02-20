@@ -1529,6 +1529,114 @@ app.post('/api/ai/create-playlist', verifyToken, async (req, res) => {
   }
 });
 
+// AI add tracks to existing playlist (does not create a new playlist)
+app.post('/api/ai/playlist-add-tracks', verifyToken, async (req, res) => {
+  const userId = req.user.userId;
+  const body = req.body || {};
+  const prompt = String(body.prompt || body.request || '').trim();
+  const excludeIds = toArray(body.excludeIds).map((id) => String(id || '').trim()).filter(Boolean);
+  const seedTracks = toArray(body.seedTracks).map((track) => ({
+    title: String(track?.title || ''),
+    artist: String(track?.artist || ''),
+    album: String(track?.album || ''),
+    genre: String(track?.genre || ''),
+    navidrome_id: String(track?.navidrome_id || track?.navidromeId || '')
+  }));
+
+  if (!prompt && !seedTracks.length && !body.genres && !body.genre && !body.artists) {
+    return res.status(400).json({ error: 'Prompt or seed tracks are required' });
+  }
+
+  try {
+    const requestedCount = body.trackCount || body.count || extractRequestedTrackCount(prompt);
+    const fallbackCount = Math.max(8, Math.min(24, seedTracks.length || 12));
+    const parsed = await parsePlaylistRequestWithAI(prompt, {
+      genres: body.genres || body.genre,
+      artists: body.artists,
+      trackCount: requestedCount || fallbackCount
+    });
+
+    const seedArtists = normalizeTagList(seedTracks.map((track) => track.artist).filter(Boolean), 8);
+    const seedGenres = normalizeTagList(seedTracks.map((track) => track.genre).filter(Boolean), 8);
+    const seedAlbums = normalizeTagList(seedTracks.map((track) => track.album).filter(Boolean), 10);
+
+    const requestPlan = {
+      prompt,
+      mood: String(parsed.mood || '').trim(),
+      artists: normalizeTagList([...(parsed.artists || []), ...seedArtists], 8),
+      genres: normalizeTagList([...(parsed.genres || []), ...seedGenres], 8),
+      albums: seedAlbums,
+      trackCount: clampNumber(
+        parsed.trackCount || requestedCount,
+        AI_PLAYLIST_MIN_TRACK_COUNT,
+        AI_PLAYLIST_MAX_TRACK_COUNT,
+        fallbackCount
+      )
+    };
+
+    let candidates = normalizeCandidateTracksFromBody(
+      body.candidateTracks,
+      Math.max(120, Math.min(3200, requestPlan.trackCount * 10))
+    );
+    if (!candidates.length) {
+      const userSettings = await dbGetAsync(
+        'SELECT navidrome_server, navidrome_user, navidrome_pass FROM users WHERE id = ?',
+        [userId]
+      );
+      const navidromeConfig = resolveRequestNavidromeConfig(userSettings, body);
+      const seedPromptHint = seedTracks
+        .slice(0, 5)
+        .map((track) => `${track.artist} ${track.album} ${track.genre}`.trim())
+        .filter(Boolean)
+        .join(' ');
+      candidates = await fetchCandidateTracks(navidromeConfig, {
+        artists: requestPlan.artists,
+        genres: requestPlan.genres,
+        prompt: prompt || requestPlan.mood || seedPromptHint,
+        limit: Math.max(80, Math.min(3200, requestPlan.trackCount * 7))
+      });
+    }
+
+    candidates = dedupeTracksById(candidates, excludeIds);
+    if (!candidates.length) {
+      return res.json({ tracks: [], aiUsed: !!GROQ_API_KEY, request: requestPlan });
+    }
+
+    const scored = candidates
+      .map((track) => ({
+        ...track,
+        _score: scoreTrackCandidate(track, requestPlan)
+      }))
+      .sort((a, b) => b._score - a._score);
+
+    const ranked = await rankTracksWithAI(
+      `Add tracks to existing playlist. Prompt: "${prompt || requestPlan.mood || 'n/a'}". Existing artists: ${seedArtists.join(', ') || 'none'}. Existing genres: ${seedGenres.join(', ') || 'none'}. Existing albums: ${seedAlbums.join(', ') || 'none'}.`,
+      scored,
+      requestPlan.trackCount
+    );
+
+    const selectedTracks = dedupeTracksById(ranked, excludeIds).slice(0, requestPlan.trackCount);
+    res.json({
+      tracks: selectedTracks.map((track) => ({
+        navidrome_id: track.navidrome_id,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        genre: track.genre,
+        duration: track.duration,
+        cover_art_id: track.cover_art_id,
+        track_url: track.track_url
+      })),
+      tracksSuggested: selectedTracks.length,
+      aiUsed: !!GROQ_API_KEY,
+      request: requestPlan
+    });
+  } catch (error) {
+    console.error('[AI] Failed to suggest playlist tracks:', error);
+    res.status(500).json({ error: 'Failed to generate tracks for playlist', details: error.message });
+  }
+});
+
 // AI smart shuffle
 app.post('/api/ai/smart-shuffle', verifyToken, async (req, res) => {
   const userId = req.user.userId;
