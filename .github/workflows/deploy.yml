@@ -19,36 +19,37 @@ jobs:
           echo " UserKnownHostsFile /dev/null" >> ~/.ssh/config
       - name: Deployment Execution
         run: |
-          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} "
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} '
+            sudo -i
             set -ex
-            PROJECT_DIR='/root/z-player'
-           
-            mkdir -p \$PROJECT_DIR
-            cd \$PROJECT_DIR
-           
-            echo '➡️ Обновление кода...'
-            if [ ! -d '.git' ]; then
+            PROJECT_DIR="/root/z-player"
+            
+            mkdir -p $PROJECT_DIR
+            cd $PROJECT_DIR
+            
+            echo "➡️ Обновление кода..."
+            if [ ! -d ".git" ]; then
               git clone -b tests/updates https://github.com/${{ github.repository }}.git .
             else
               git fetch origin tests/updates
               git reset --hard FETCH_HEAD
               git clean -fd
             fi
-           
-            echo '➡️ Работа с Docker...'
+            
+            echo "➡️ Работа с Docker..."
             docker stop z-player || true
             docker rm z-player || true
             docker rmi z-player || true
-           
-            echo '➡️ Билд...'
+            
+            echo "➡️ Билд..."
             if ! docker build --no-cache -t z-player .; then
-              echo '❌ Билд упал, ошибка!'
+              echo "❌ Билд упал, ошибка!"
               exit 1
             fi
-           
-            echo '➡️ Запуск...'
+            
+            echo "➡️ Запуск..."
             docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player
-           
-            echo '✅ Статус:'
+            
+            echo "✅ Статус:"
             docker ps | grep z-player
-          "
+          '
