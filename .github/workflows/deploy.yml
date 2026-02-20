@@ -19,13 +19,13 @@ jobs:
           echo " UserKnownHostsFile /dev/null" >> ~/.ssh/config
       - name: Deployment Execution
         run: |
-          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} '
+          ssh -i ~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
             sudo -i
             set -ex
             PROJECT_DIR="/root/z-player"
             
-            mkdir -p $PROJECT_DIR
-            cd $PROJECT_DIR
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
             
             echo "➡️ Обновление кода..."
             if [ ! -d ".git" ]; then
@@ -52,4 +52,4 @@ jobs:
             
             echo "✅ Статус:"
             docker ps | grep z-player
-          '
+          EOF
