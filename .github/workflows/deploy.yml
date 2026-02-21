@@ -14,20 +14,23 @@ jobs:
 
       - name: Setup SSH
         run: |
-          mkdir -p \~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > \~/.ssh/id_rsa
-          chmod 600 \~/.ssh/id_rsa
-          # Добавляем свежий host key, чтоб не было verification failed
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> \~/.ssh/known_hosts
-          chmod 644 \~/.ssh/known_hosts
-          # Config для игнора строгой проверки (на всякий случай)
-          echo "Host *" > \~/.ssh/config
-          echo "  StrictHostKeyChecking accept-new" >> \~/.ssh/config
-          echo "  UserKnownHostsFile \~/.ssh/known_hosts" >> \~/.ssh/config
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa || true
+          # Дебаг: проверим, создался ли файл ключа
+          ls -la ~/.ssh
+          echo "Длина ключа: $(wc -l < ~/.ssh/id_rsa || echo 0)"
+          # Добавляем свежий host key с типом
+          ssh-keyscan -t ed25519 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 644 ~/.ssh/known_hosts
+          # Config
+          echo "Host *" > ~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+          echo "  UserKnownHostsFile ~/.ssh/known_hosts" >> ~/.ssh/config
 
       - name: Deployment Execution
         run: |
-          ssh -i \~/.ssh/id_rsa root@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
+          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes root@${{ secrets.SSH_HOST }} /bin/bash << 'EOF'
             set -ex
 
             PROJECT_DIR="/root/z-player"
@@ -44,7 +47,6 @@ jobs:
               git clean -fd
             fi
 
-            # Для дебага: покажем последний коммит
             git log -1 --pretty=format:"Последний коммит: %h %s %cr"
 
             echo "➡️ Работа с Docker..."
