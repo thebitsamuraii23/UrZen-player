@@ -12,61 +12,51 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa || true
-          ls -la ~/.ssh || true
-          ssh-keyscan -t ed25519 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
-          chmod 644 ~/.ssh/known_hosts || true
-          echo "Host *" > ~/.ssh/config
-          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
-          echo "  UserKnownHostsFile ~/.ssh/known_hosts" >> ~/.ssh/config
-
-      - name: Deployment Execution
-        run: |
-          # Дебаг: локальный whoami и pwd
-          whoami
-          pwd
-
-          ssh -i ~/.ssh/id_rsa -o IdentitiesOnly=yes ubuntu@${{ secrets.SSH_HOST }} "
-            whoami && echo 'Мы на remote, юзер: $(whoami)'
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ubuntu  # или root, если включишь PermitRootLogin yes вручную
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             set -ex
 
-            PROJECT_DIR=\"/home/ubuntu/z-player\"
+            PROJECT_DIR="/home/ubuntu/z-player"  # если хочешь в /root - смени, но сначала почини права/логин
 
-            ls -ld /home/ubuntu || echo 'Home dir проблема'
-            mkdir -p \"\$PROJECT_DIR\" || { echo 'mkdir failed на remote'; exit 1; }
-            cd \"\$PROJECT_DIR\"
+            # Дебаг: кто мы и где home
+            whoami
+            pwd
+            ls -ld /home/ubuntu || echo "Home dir проблема, права сломаны или юзер проблема"
 
-            echo '➡️ Обновление кода...'
-            if [ ! -d \".git\" ]; then
-              git clone -b tests/updates https://github.com/${{ github.repository }}.git .
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+
+            echo "➡️ Обновление кода..."
+            if [ ! -d ".git" ]; then
+              git clone -b tests/updates https://github.com/thebitsamuraii23/UrZen-player.git .
             else
               git fetch origin tests/updates
               git reset --hard FETCH_HEAD
               git clean -fd
             fi
 
-            git log -1 --pretty=format:\"Последний коммит: %h %s %cr\"
+            git log -1 --pretty=format:"Последний коммит: %h %s %cr"
 
-            echo '➡️ Работа с Docker...'
+            echo "➡️ Работа с Docker..."
             sudo docker stop z-player || true
             sudo docker rm z-player || true
             sudo docker rmi z-player || true
 
-            echo '➡️ Билд...'
-            COMMIT_HASH=\$(git rev-parse --short HEAD)
-            if ! sudo docker build --no-cache -t z-player:\$COMMIT_HASH .; then
-              echo '❌ Билд упал!'
+            echo "➡️ Билд..."
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            if ! sudo docker build --no-cache -t z-player:$COMMIT_HASH .; then
+              echo "❌ Билд упал, ошибка!"
               exit 1
             fi
 
-            echo '➡️ Запуск...'
-            sudo docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player:\$COMMIT_HASH
+            echo "➡️ Запуск..."
+            sudo docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player:$COMMIT_HASH
 
-            echo '✅ Статус:'
+            echo "✅ Статус:"
             sudo docker ps | grep z-player
             sudo docker logs --tail 20 z-player || true
-          "
