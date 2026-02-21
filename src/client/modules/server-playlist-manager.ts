@@ -53,6 +53,37 @@ function normalizeTrackUrl(url) {
   return raw;
 }
 
+function appendAuthTokenToUrl(url) {
+  const normalized = String(url || '').trim();
+  if (!normalized || normalized.startsWith('data:')) return normalized;
+  const token = localStorage.getItem('auth_token');
+  if (!token) return normalized;
+  try {
+    const base = window.location?.origin || API_BASE_URL;
+    const parsed = new URL(normalized, base);
+    parsed.searchParams.set('token', token);
+    if (!/^https?:\/\//i.test(normalized) && normalized.startsWith('/')) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    return parsed.toString();
+  } catch (error) {
+    return normalized;
+  }
+}
+
+function normalizePlaylistCoverUrl(url) {
+  return appendAuthTokenToUrl(normalizeTrackUrl(url));
+}
+
+function normalizeServerPlaylist(playlist) {
+  const coverUrl = normalizePlaylistCoverUrl(playlist?.cover_url || playlist?.cover || '');
+  return {
+    ...(playlist || {}),
+    cover_url: coverUrl,
+    cover: coverUrl
+  };
+}
+
 function encodeMetaHeader(metadata) {
   try {
     return encodeURIComponent(JSON.stringify(metadata || {}));
@@ -312,8 +343,11 @@ export async function fetchServerPlaylists() {
     }
 
     const playlists = await response.json();
-    console.log('[SERVER-PLAYLIST] Fetched', playlists.length, 'playlists from server');
-    return playlists;
+    const normalized = Array.isArray(playlists)
+      ? playlists.map((playlist) => normalizeServerPlaylist(playlist))
+      : [];
+    console.log('[SERVER-PLAYLIST] Fetched', normalized.length, 'playlists from server');
+    return normalized;
   } catch (error) {
     console.error('[SERVER-PLAYLIST] Error fetching playlists:', error);
     return [];
@@ -338,12 +372,58 @@ export async function fetchServerPlaylistDetails(playlistId) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const playlist = await response.json();
+    const playlist = normalizeServerPlaylist(await response.json());
     console.log('[SERVER-PLAYLIST] Fetched playlist:', playlist.name, 'with', playlist.tracks?.length || 0, 'tracks');
     return playlist;
   } catch (error) {
     console.error('[SERVER-PLAYLIST] Error fetching playlist details:', error);
     return null;
+  }
+}
+
+export async function uploadServerPlaylistCover(playlistId, fileBlob, fileName = '') {
+  try {
+    if (!isUserAuthenticated()) {
+      throw new Error('User not authenticated');
+    }
+    if (!fileBlob) {
+      throw new Error('Cover file is required');
+    }
+
+    const token = getAuthToken();
+    const safeName = String(fileName || fileBlob.name || 'playlist-cover');
+
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/cover`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': fileBlob.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(safeName)
+      },
+      body: fileBlob
+    });
+
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`;
+      try {
+        const payload = await response.json();
+        if (payload?.error) message = payload.error;
+      } catch (e) {
+        // ignore parse errors
+      }
+      throw new Error(message);
+    }
+
+    const data = await response.json();
+    const coverUrl = normalizePlaylistCoverUrl(data?.cover_url || '');
+    return {
+      ...(data || {}),
+      cover_url: coverUrl,
+      cover: coverUrl
+    };
+  } catch (error) {
+    console.error('[SERVER-PLAYLIST] Error uploading playlist cover:', error);
+    throw error;
   }
 }
 
@@ -603,16 +683,20 @@ export async function syncPlaylistsWithServer(localPlaylists, db) {
     const localByName = new Map((localPlaylists || []).map(p => [p.name, p]));
 
     // Link local playlists to server IDs by name
-    for (const local of localPlaylists) {
+    for (const local of (localPlaylists || [])) {
       if (!local.serverId && serverByName.has(local.name)) {
         const match = serverByName.get(local.name);
-        await db.playlists.update(local.id, { serverId: match.id });
+        await db.playlists.update(local.id, {
+          serverId: match.id,
+          cover: match.cover || ''
+        });
         local.serverId = match.id;
+        local.cover = match.cover || '';
       }
     }
 
     // Create server playlists missing from server
-    for (const local of localPlaylists) {
+    for (const local of (localPlaylists || [])) {
       if (!serverByName.has(local.name)) {
         try {
           const created = await createServerPlaylist(local.name);
@@ -637,6 +721,7 @@ export async function syncPlaylistsWithServer(localPlaylists, db) {
             songIds: [],
             navidromeSongIds: [],
             navidromeSongs: [],
+            cover: serverPl.cover || '',
             serverId: serverPl.id
           });
           console.log('[SERVER-PLAYLIST] Created local playlist from server:', serverPl.name, 'localId:', newId);
@@ -659,6 +744,12 @@ export async function syncPlaylistsWithServer(localPlaylists, db) {
         const serverTracks = details?.tracks || [];
 
         let localChanged = false;
+        const serverCover = String(details?.cover || details?.cover_url || '').trim();
+        const localCover = String(local?.cover || '').trim();
+        if (serverCover !== localCover) {
+          local.cover = serverCover;
+          localChanged = true;
+        }
 
         // ----- Navidrome tracks -----
         const serverNavTracks = serverTracks.filter(t => t.track_source === 'navidrome' && (t.navidrome_id || t.track_url));
@@ -798,6 +889,7 @@ export async function syncPlaylistsWithServer(localPlaylists, db) {
             songIds: Array.from(localSongIdSet),
             navidromeSongIds: local.navidromeSongIds,
             navidromeSongs: localNavSongs,
+            cover: String(local.cover || ''),
             serverId
           });
         }
@@ -821,6 +913,7 @@ export default {
   renameServerPlaylist,
   addTrackToServerPlaylist,
   removeTrackFromServerPlaylist,
+  uploadServerPlaylistCover,
   fetchServerLocalTracks,
   uploadServerLocalTrack,
   ensureLocalTrackOnServer,

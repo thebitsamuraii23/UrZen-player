@@ -12,6 +12,16 @@ const crypto = require('crypto');
 const PROJECT_ROOT = process.cwd();
 const USER_MEDIA_ROOT = path.join(PROJECT_ROOT, 'User', 'Downloads');
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 200);
+const PLAYLIST_COVER_MAX_BYTES = Number(process.env.PLAYLIST_COVER_MAX_BYTES || 20 * 1024 * 1024);
+const PLAYLIST_COVER_DIR_NAME = 'playlist-covers';
+const PLAYLIST_COVER_MIME_TO_EXT = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/avif': '.avif'
+};
+const ALLOWED_PLAYLIST_COVER_EXTENSIONS = new Set(Object.values(PLAYLIST_COVER_MIME_TO_EXT));
 
 try {
   fs.mkdirSync(USER_MEDIA_ROOT, { recursive: true });
@@ -43,7 +53,10 @@ app.use(cors({
 }));
 const jsonParser = express.json({ limit: '1mb' });
 app.use((req, res, next) => {
-  if (req.path === '/api/user/local-tracks/upload') {
+  if (
+    req.path === '/api/user/local-tracks/upload'
+    || /^\/api\/playlists\/[^/]+\/cover$/i.test(String(req.path || ''))
+  ) {
     return next();
   }
   return jsonParser(req, res, next);
@@ -87,6 +100,7 @@ function initializeDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         name TEXT NOT NULL,
+        cover_path TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(user_id, name)
@@ -177,6 +191,11 @@ function initializeDatabase() {
         console.warn('[DB] local_track_id column:', err.message);
       }
     });
+    db.run('ALTER TABLE playlists ADD COLUMN cover_path TEXT', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] playlists.cover_path column:', err.message);
+      }
+    });
   });
 }
 
@@ -237,6 +256,51 @@ async function ensureUserMediaDir(userId, username) {
   const dir = buildUserMediaDir(userId, username);
   await fsp.mkdir(dir, { recursive: true });
   return dir;
+}
+
+function buildUserPlaylistCoverDir(userId, username) {
+  return path.join(buildUserMediaDir(userId, username), PLAYLIST_COVER_DIR_NAME);
+}
+
+async function ensureUserPlaylistCoverDir(userId, username) {
+  const dir = buildUserPlaylistCoverDir(userId, username);
+  await fsp.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function resolvePlaylistCoverExtension(mimeType = '', originalFileName = '') {
+  const normalizedMime = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  if (PLAYLIST_COVER_MIME_TO_EXT[normalizedMime]) {
+    return PLAYLIST_COVER_MIME_TO_EXT[normalizedMime];
+  }
+  const rawExt = path.extname(String(originalFileName || '')).toLowerCase().trim();
+  if (ALLOWED_PLAYLIST_COVER_EXTENSIONS.has(rawExt)) {
+    return rawExt;
+  }
+  return '';
+}
+
+function getPlaylistCoverMimeType(fileName = '') {
+  const ext = path.extname(String(fileName || '')).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.gif') return 'image/gif';
+  if (ext === '.avif') return 'image/avif';
+  return 'application/octet-stream';
+}
+
+function buildPlaylistCoverUrl(playlistId) {
+  return `/api/playlists/${playlistId}/cover`;
+}
+
+function mapPlaylistRow(row = {}) {
+  const coverPath = String(row.cover_path || '').trim();
+  return {
+    ...row,
+    cover_path: coverPath,
+    cover_url: coverPath ? buildPlaylistCoverUrl(row.id) : ''
+  };
 }
 
 function buildLocalTrackUrl(trackId) {
@@ -914,7 +978,7 @@ app.get('/api/playlists', verifyToken, (req, res) => {
   const userId = req.user.userId;
   
   db.all(
-    'SELECT id, user_id, name, created_at FROM playlists WHERE user_id = ? ORDER BY created_at DESC',
+    'SELECT id, user_id, name, cover_path, created_at FROM playlists WHERE user_id = ? ORDER BY created_at DESC',
     [userId],
     (err, rows) => {
       if (err) {
@@ -922,7 +986,7 @@ app.get('/api/playlists', verifyToken, (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
       }
       console.log('[ROUTE] Returning', rows?.length || 0, 'playlists');
-      res.json(rows || []);
+      res.json((rows || []).map((row) => mapPlaylistRow(row)));
     }
   );
 });
@@ -954,6 +1018,8 @@ app.post('/api/playlists', verifyToken, (req, res) => {
         id: this.lastID,
         user_id: userId,
         name: name,
+        cover_path: '',
+        cover_url: '',
         created_at: new Date().toISOString()
       });
     }
@@ -966,7 +1032,7 @@ app.get('/api/playlists/:playlistId', verifyToken, (req, res) => {
   const playlistId = req.params.playlistId;
 
   db.get(
-    'SELECT id, user_id, name, created_at FROM playlists WHERE id = ? AND user_id = ?',
+    'SELECT id, user_id, name, cover_path, created_at FROM playlists WHERE id = ? AND user_id = ?',
     [playlistId, userId],
     (err, playlist) => {
       if (err) {
@@ -989,13 +1055,157 @@ app.get('/api/playlists/:playlistId', verifyToken, (req, res) => {
           }
 
           res.json({
-            ...playlist,
+            ...mapPlaylistRow(playlist),
             tracks: tracks || []
           });
         }
       );
     }
   );
+});
+
+app.post('/api/playlists/:playlistId/cover', verifyToken, async (req, res) => {
+  const userId = req.user.userId;
+  const username = req.user.username;
+  const playlistId = Number(req.params.playlistId);
+  if (!Number.isFinite(playlistId)) {
+    return res.status(400).json({ error: 'Invalid playlist id' });
+  }
+
+  const rawFileName = decodeHeaderValue(req.headers['x-file-name']) || 'playlist-cover';
+  const safeFileName = sanitizeUploadFileName(rawFileName);
+  const mimeType = String(req.headers['content-type'] || 'application/octet-stream').toLowerCase();
+  const ext = resolvePlaylistCoverExtension(mimeType, safeFileName);
+  if (!ext) {
+    return res.status(400).json({ error: 'Unsupported image format. Allowed: jpg, png, webp, gif, avif' });
+  }
+
+  let tempFilePath = '';
+  let newStoredName = '';
+
+  try {
+    const playlist = await dbGetAsync(
+      'SELECT id, user_id, cover_path FROM playlists WHERE id = ?',
+      [playlistId]
+    );
+    if (!playlist || Number(playlist.user_id) !== Number(userId)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const coverDir = await ensureUserPlaylistCoverDir(userId, username);
+    tempFilePath = path.join(coverDir, `cover-upload-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+    const writeStream = fs.createWriteStream(tempFilePath, { flags: 'wx' });
+    let fileSize = 0;
+    let streamErrored = false;
+
+    await new Promise((resolve, reject) => {
+      req.on('data', (chunk) => {
+        fileSize += chunk.length;
+        if (fileSize > PLAYLIST_COVER_MAX_BYTES) {
+          streamErrored = true;
+          reject(new Error('File too large'));
+          req.destroy();
+          writeStream.destroy();
+          return;
+        }
+      });
+      req.on('error', reject);
+      writeStream.on('error', reject);
+      writeStream.on('finish', () => {
+        if (!streamErrored) resolve();
+      });
+      req.pipe(writeStream);
+    });
+
+    if (!fs.existsSync(tempFilePath)) {
+      return res.status(500).json({ error: 'Cover upload stream failed' });
+    }
+
+    const stat = await fsp.stat(tempFilePath);
+    if (!stat.size) {
+      await fsp.unlink(tempFilePath).catch(() => {});
+      return res.status(400).json({ error: 'Empty image upload is not allowed' });
+    }
+
+    newStoredName = `playlist-${playlistId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const finalPath = path.join(coverDir, newStoredName);
+    await fsp.rename(tempFilePath, finalPath);
+    tempFilePath = '';
+
+    await dbRunAsync('UPDATE playlists SET cover_path = ? WHERE id = ? AND user_id = ?', [newStoredName, playlistId, userId]);
+
+    const oldCoverPath = String(playlist.cover_path || '').trim();
+    if (oldCoverPath && oldCoverPath !== newStoredName) {
+      const safeOldName = path.basename(oldCoverPath);
+      const oldAbsolutePath = path.join(coverDir, safeOldName);
+      await fsp.unlink(oldAbsolutePath).catch(() => {});
+    }
+
+    res.status(201).json({
+      playlist_id: playlistId,
+      cover_path: newStoredName,
+      cover_url: buildPlaylistCoverUrl(playlistId),
+      max_size_bytes: PLAYLIST_COVER_MAX_BYTES
+    });
+  } catch (error) {
+    if (tempFilePath) {
+      await fsp.unlink(tempFilePath).catch(() => {});
+    }
+    if (newStoredName) {
+      const coverDir = buildUserPlaylistCoverDir(userId, username);
+      const uploadedPath = path.join(coverDir, path.basename(newStoredName));
+      await fsp.unlink(uploadedPath).catch(() => {});
+    }
+    const isTooLarge = String(error?.message || '').toLowerCase().includes('too large');
+    console.error('[UPLOAD] Playlist cover upload error:', error);
+    res.status(isTooLarge ? 413 : 500).json({
+      error: isTooLarge
+        ? `File is too large. Maximum ${Math.floor(PLAYLIST_COVER_MAX_BYTES / (1024 * 1024))}MB`
+        : 'Failed to upload playlist cover'
+    });
+  }
+});
+
+app.get('/api/playlists/:playlistId/cover', verifyTokenFlexible, async (req, res) => {
+  const userId = req.user.userId;
+  const username = req.user.username;
+  const playlistId = Number(req.params.playlistId);
+  if (!Number.isFinite(playlistId)) {
+    return res.status(400).json({ error: 'Invalid playlist id' });
+  }
+
+  try {
+    const playlist = await dbGetAsync(
+      'SELECT id, user_id, cover_path FROM playlists WHERE id = ?',
+      [playlistId]
+    );
+    if (!playlist || Number(playlist.user_id) !== Number(userId)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const coverPath = String(playlist.cover_path || '').trim();
+    if (!coverPath) {
+      return res.status(404).json({ error: 'Playlist cover not found' });
+    }
+
+    const safeFileName = path.basename(coverPath);
+    const absolutePath = path.join(buildUserPlaylistCoverDir(userId, username), safeFileName);
+    await fsp.access(absolutePath, fs.constants.R_OK);
+
+    res.setHeader('Content-Type', getPlaylistCoverMimeType(safeFileName));
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(absolutePath, (sendErr) => {
+      if (sendErr) {
+        console.error('[STREAM] Failed to send playlist cover:', sendErr);
+        if (!res.headersSent) {
+          res.status(sendErr.statusCode || 500).json({ error: 'Cover stream failed' });
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[STREAM] Playlist cover access error:', error);
+    res.status(404).json({ error: 'Playlist cover not found' });
+  }
 });
 
 // ADD track to playlist
@@ -1328,7 +1538,7 @@ app.delete('/api/playlists/:playlistId', verifyToken, (req, res) => {
 
   // Verify playlist belongs to user
   db.get(
-    'SELECT user_id FROM playlists WHERE id = ?',
+    'SELECT user_id, cover_path FROM playlists WHERE id = ?',
     [playlistId],
     (err, playlist) => {
       if (err) {
@@ -1343,10 +1553,17 @@ app.delete('/api/playlists/:playlistId', verifyToken, (req, res) => {
       db.run(
         'DELETE FROM playlists WHERE id = ?',
         [playlistId],
-        function(err) {
+        async function(err) {
           if (err) {
             console.error('Delete error:', err);
             return res.status(500).json({ error: 'Internal server error' });
+          }
+
+          const coverPath = String(playlist.cover_path || '').trim();
+          if (coverPath) {
+            const safeFileName = path.basename(coverPath);
+            const absolutePath = path.join(buildUserPlaylistCoverDir(userId, req.user.username), safeFileName);
+            await fsp.unlink(absolutePath).catch(() => {});
           }
 
           res.json({ message: 'Playlist deleted' });
@@ -1367,7 +1584,7 @@ app.patch('/api/playlists/:playlistId', verifyToken, (req, res) => {
   }
 
   db.get(
-    'SELECT user_id FROM playlists WHERE id = ?',
+    'SELECT user_id, cover_path FROM playlists WHERE id = ?',
     [playlistId],
     (err, playlist) => {
       if (err) {
@@ -1391,7 +1608,13 @@ app.patch('/api/playlists/:playlistId', verifyToken, (req, res) => {
             return res.status(500).json({ error: 'Internal server error' });
           }
 
-          res.json({ id: playlistId, name: name, message: 'Playlist renamed' });
+          res.json({
+            id: playlistId,
+            name: name,
+            cover_path: String(playlist.cover_path || ''),
+            cover_url: playlist.cover_path ? buildPlaylistCoverUrl(playlistId) : '',
+            message: 'Playlist renamed'
+          });
         }
       );
     }

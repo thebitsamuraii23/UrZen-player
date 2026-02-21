@@ -80,6 +80,7 @@ export async function removeSongFromPlaylist(playlistId, songId, source = 'local
 export async function createPlaylist(name) {
     const id = await window.db.playlists.add({ 
         name, 
+        cover: '',
         songIds: [],
         navidromeSongIds: [],
         navidromeSongs: []

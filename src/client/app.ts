@@ -18,6 +18,8 @@ import {
     isUserAuthenticated,
     syncPlaylistsWithServer,
     ensureLocalTrackOnServer,
+    fetchServerPlaylists,
+    uploadServerPlaylistCover,
     createAIPlaylistFromPrompt,
     fetchAISmartShuffleTracks,
     fetchAITracksForPlaylistPrompt
@@ -113,6 +115,14 @@ const MOBILE_FULLSCREEN_BREAKPOINT = 768;
 const MOBILE_FULL_SWIPE_X_THRESHOLD = 24;
 const MOBILE_FULL_SWIPE_CLOSE_THRESHOLD = 88;
 const MEDIA_CATALOG_FETCH_LIMIT = 2800;
+const PLAYLIST_COVER_MAX_BYTES = 20 * 1024 * 1024;
+const PLAYLIST_COVER_ALLOWED_MIME = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/avif'
+]);
 let aiPlaylistPromptResolver = null;
 let aiPlaylistPromptKeyHandler = null;
 let playlistAIPending = false;
@@ -126,6 +136,7 @@ let mediaAlbumsCatalogCache = [];
 let mediaArtistsCatalogCache = [];
 let mediaAlbumsCatalogSearchQuery = '';
 let mediaArtistsCatalogSearchQuery = '';
+let playlistCoverUploadPending = false;
 
 function isInfoTab(tab) {
     return tab === 'about' || tab === 'update-logs';
@@ -1224,6 +1235,144 @@ function initPlaylistDetailSearchInput() {
     });
 }
 
+async function ensurePlaylistServerLink(localPlaylist) {
+    if (!localPlaylist) return null;
+    const existing = Number(localPlaylist.serverId);
+    if (Number.isFinite(existing) && existing > 0) return existing;
+
+    try {
+        const serverPlaylists = await fetchServerPlaylists();
+        const match = (serverPlaylists || []).find((playlist) => (
+            String(playlist?.name || '').trim() === String(localPlaylist?.name || '').trim()
+        ));
+        const serverId = Number(match?.id);
+        if (!Number.isFinite(serverId) || serverId <= 0) return null;
+        const serverCover = String(match?.cover || match?.cover_url || '').trim();
+        await db.playlists.update(localPlaylist.id, {
+            serverId,
+            cover: serverCover || String(localPlaylist.cover || '')
+        });
+        localPlaylist.serverId = serverId;
+        if (serverCover) localPlaylist.cover = serverCover;
+        return serverId;
+    } catch (error) {
+        console.error('[PLAYLIST COVER] Failed to resolve server playlist link:', error);
+        return null;
+    }
+}
+
+function validatePlaylistCoverFile(file) {
+    if (!file) return { ok: false, message: t('upload_file_missing', 'Please choose a file first') };
+    const size = Number(file.size || 0);
+    if (!size) return { ok: false, message: t('upload_file_empty', 'Selected file is empty') };
+    if (size > PLAYLIST_COVER_MAX_BYTES) {
+        const maxMb = Math.floor(PLAYLIST_COVER_MAX_BYTES / (1024 * 1024));
+        return { ok: false, message: `${t('file_too_large', 'File is too large')}. Max ${maxMb} MB.` };
+    }
+    const mime = String(file.type || '').toLowerCase().trim();
+    if (PLAYLIST_COVER_ALLOWED_MIME.has(mime)) return { ok: true, message: '' };
+    if (mime.startsWith('image/')) return { ok: true, message: '' };
+    return {
+        ok: false,
+        message: t('invalid_image_type', 'Only image files are allowed (jpg, png, webp, gif, avif)')
+    };
+}
+
+async function handlePlaylistCoverUpload(input) {
+    if (!input) return;
+    const file = input.files?.[0];
+    input.value = '';
+    const playlistId = Number(input.dataset.playlistId || state.currentTab);
+    if (!Number.isFinite(playlistId) || typeof playlistId !== 'number') return;
+    if (!file) return;
+
+    if (!isUserAuthenticated()) {
+        showToast(t('login_required', 'Please sign in first'));
+        if (window.toggleAuthModal) window.toggleAuthModal();
+        return;
+    }
+
+    const fileValidation = validatePlaylistCoverFile(file);
+    if (!fileValidation.ok) {
+        showToast(fileValidation.message);
+        return;
+    }
+
+    const playlist = state.playlists.find((item) => Number(item?.id) === playlistId)
+        || await db.playlists.get(playlistId);
+    if (!playlist) {
+        showToast(t('playlist_not_found', 'Playlist not found'));
+        return;
+    }
+
+    playlistCoverUploadPending = true;
+    const coverEl = document.getElementById('playlistDetailCover');
+    if (coverEl) {
+        coverEl.classList.add('is-uploading');
+    }
+
+    try {
+        const serverId = await ensurePlaylistServerLink(playlist);
+        if (!serverId) {
+            showToast(t('playlist_sync_required', 'Sync playlist with server first'));
+            return;
+        }
+
+        const uploaded = await uploadServerPlaylistCover(serverId, file, file.name || 'playlist-cover');
+        const coverUrl = String(uploaded?.cover || uploaded?.cover_url || '').trim();
+        if (!coverUrl) {
+            throw new Error('Server did not return cover URL');
+        }
+
+        await db.playlists.update(playlistId, { serverId, cover: coverUrl });
+        const localPlaylist = state.playlists.find((item) => Number(item?.id) === playlistId);
+        if (localPlaylist) {
+            localPlaylist.serverId = serverId;
+            localPlaylist.cover = coverUrl;
+        }
+
+        await loadPlaylistsFromDB();
+        if (state.currentTab === playlistId) {
+            renderPlaylistDetailView(playlistId);
+        }
+        showToast(t('playlist_cover_updated', 'Playlist cover updated'));
+    } catch (error) {
+        console.error('[PLAYLIST COVER] Upload failed:', error);
+        showToast(`${t('upload_failed', 'Upload failed')}: ${error.message || error}`);
+    } finally {
+        playlistCoverUploadPending = false;
+        if (coverEl) {
+            coverEl.classList.remove('is-uploading');
+        }
+    }
+}
+
+function initPlaylistCoverUploadInput() {
+    const input = document.getElementById('playlistCoverUploadInput');
+    if (!input || input.dataset.bound === '1') return;
+    input.dataset.bound = '1';
+    input.addEventListener('change', () => {
+        handlePlaylistCoverUpload(input).catch((error) => {
+            console.error('[PLAYLIST COVER] Input handler failed:', error);
+        });
+    });
+}
+
+window.openPlaylistCoverPicker = (playlistId = state.currentTab) => {
+    if (playlistCoverUploadPending) return;
+    if (typeof playlistId !== 'number') return;
+    if (!isUserAuthenticated()) {
+        showToast(t('login_required', 'Please sign in first'));
+        if (window.toggleAuthModal) window.toggleAuthModal();
+        return;
+    }
+    const input = document.getElementById('playlistCoverUploadInput');
+    if (!input) return;
+    input.dataset.playlistId = String(playlistId);
+    input.value = '';
+    input.click();
+};
+
 function getPlaylistTrackVisualKey(track) {
     if (!track) return '';
     return getPlaylistTrackOrderKey(track);
@@ -1275,6 +1424,7 @@ function renderPlaylistDetailView(playlistId) {
     if (!section || !listEl || !titleEl || !subtitleEl || !coverEl) return;
 
     initPlaylistDetailSearchInput();
+    initPlaylistCoverUploadInput();
     if (playlistDetailSearchPlaylistId !== playlistId) {
         playlistDetailSearchPlaylistId = playlistId;
         playlistDetailSearchQuery = '';
@@ -1300,12 +1450,19 @@ function renderPlaylistDetailView(playlistId) {
         })
         : tracks;
     const coverTrack = tracks.find((track) => track?.cover) || null;
+    const playlistCover = String(playlist?.cover || '').trim();
 
     titleEl.textContent = playlist?.name || t('playlist', 'Playlist');
     subtitleEl.textContent = normalizedQuery
         ? `${visibleTracks.length}/${tracks.length} ${t('tracks', 'tracks')}`
         : `${tracks.length} ${t('tracks', 'tracks')}`;
-    applyImgFallback(coverEl, coverTrack?.cover || DEFAULT_COVER);
+    applyImgFallback(coverEl, playlistCover || coverTrack?.cover || DEFAULT_COVER);
+    coverEl.classList.add('playlist-cover-editable');
+    coverEl.classList.toggle('is-uploading', playlistCoverUploadPending);
+    coverEl.title = t('change_cover', 'Change cover');
+    coverEl.onclick = () => {
+        window.openPlaylistCoverPicker(playlistId);
+    };
     if (playBtn) playBtn.disabled = tracks.length === 0;
     if (shuffleBtn) shuffleBtn.disabled = tracks.length === 0;
     if (aiAddBtn) aiAddBtn.disabled = playlistAIPending;
@@ -2190,12 +2347,13 @@ function createHomePlaylistCard(playlist) {
     const countText = `${tracks.length} ${t('tracks', 'tracks')}`;
     const disabled = tracks.length === 0;
     const coverTrack = tracks.find((track) => track?.cover) || null;
+    const playlistCover = String(playlist?.cover || '').trim();
 
     const card = document.createElement('div');
     card.className = 'home-playlist-card';
     card.onclick = () => window.switchTab(playlist.id);
     card.innerHTML = `
-        <img class="home-playlist-cover" src="${resolveCover(coverTrack?.cover)}" alt="${title}" onerror="this.src='${DEFAULT_COVER}'">
+        <img class="home-playlist-cover" src="${resolveCover(playlistCover || coverTrack?.cover)}" alt="${title}" onerror="this.src='${DEFAULT_COVER}'">
         <div class="home-playlist-meta">
             <strong title="${title}">${title}</strong>
             <span>${countText}</span>

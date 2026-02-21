@@ -2187,6 +2187,22 @@ body.mobile-player-fullscreen #miniQueueModal {
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
+#playlistDetailCover.playlist-cover-editable {
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+#playlistDetailCover.playlist-cover-editable:hover {
+    transform: translateY(-2px);
+    border-color: rgba(var(--accent-rgb), 0.72);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(var(--accent-rgb), 0.28);
+}
+
+#playlistDetailCover.is-uploading {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
 .home-album-meta {
     min-width: 0;
 }

@@ -1,5 +1,14 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-21 - v2.6.8
+
+### Playlist Cover Upload + Server Storage
+- Added playlist cover update flow in playlist detail: click playlist cover to choose new image.
+- Added client-side image validation with 20MB max size limit.
+- Added server-side playlist cover upload endpoint with per-user storage in `playlist-covers`.
+- Added protected playlist cover stream endpoint for rendering uploaded covers.
+- Added playlist cover sync fields so server covers are reflected in local playlists and Home cards.
+
 ## 2026-02-21 - v2.6.7
 
 ### Albums/Artists Search + Mobile More Sheet

@@ -773,6 +773,12 @@
             </div>
             <div class="home-album-hero">
                 <img id="playlistDetailCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=280" alt="Playlist cover">
+                <input
+                    id="playlistCoverUploadInput"
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/*"
+                    style="display: none;"
+                >
                 <div class="home-album-meta">
                     <p class="home-eyebrow" data-t="playlist">Playlist</p>
                     <h2 class="home-title" id="playlistDetailTitle">Playlist</h2>
@@ -1046,6 +1052,21 @@ Auth: JWT + user scopes</code></pre>
             </header>
 
             <section class="update-log-list">
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.8</span>
+                        <span class="update-log-date">February 21, 2026</span>
+                    </div>
+                    <h2>Playlist Cover Upload (20MB) + Server Storage</h2>
+                    <ul class="about-list">
+                        <li>Added editable playlist cover: click playlist cover in playlist detail to choose a new image file.</li>
+                        <li>Added validation for supported image formats (`jpg`, `jpeg`, `png`, `webp`, `gif`, `avif`).</li>
+                        <li>Added upload size limit for playlist covers: maximum <strong>20MB</strong>.</li>
+                        <li>Implemented server-side playlist cover upload and storage in user media folder (`playlist-covers`).</li>
+                        <li>Playlist covers now sync from server to local playlists and are used in Home playlist cards and playlist detail view.</li>
+                    </ul>
+                </article>
+
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.7</span>
