@@ -17,13 +17,10 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa || true
-          # Дебаг: проверим ключ
           ls -la ~/.ssh
           echo "Длина ключа: $(wc -l < ~/.ssh/id_rsa || echo 0)"
-          # Host key scan
           ssh-keyscan -t ed25519 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
           chmod 644 ~/.ssh/known_hosts
-          # Config
           echo "Host *" > ~/.ssh/config
           echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
           echo "  UserKnownHostsFile ~/.ssh/known_hosts" >> ~/.ssh/config
@@ -35,7 +32,11 @@ jobs:
 
             PROJECT_DIR="/home/ubuntu/z-player"
 
-            mkdir -p "$PROJECT_DIR"
+            # Дебаг прав
+            ls -ld /home/ubuntu || echo "Home dir не существует или права проблема"
+            whoami  # должен быть ubuntu
+
+            mkdir -p "$PROJECT_DIR" || { echo "mkdir failed, права нахуй сломаны"; exit 1; }
             cd "$PROJECT_DIR"
 
             echo "➡️ Обновление кода..."
