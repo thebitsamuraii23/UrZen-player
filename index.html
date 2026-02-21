@@ -31,7 +31,7 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="/css/main.css?v=20260216-1">
+    <link rel="stylesheet" href="/css/main.css?v=20260221-1">
 </head>
 <body class="lang-ru">
 
@@ -52,6 +52,27 @@
             </span>
         </div>
         <div id="playlistNav-mobile"></div>
+    </div>
+</div>
+
+<div class="mobile-more-sheet-overlay" id="mobileMoreSheetOverlay" onclick="window.closeMobileMoreMenu()">
+    <div class="mobile-more-sheet" id="mobileMoreSheet" onclick="event.stopPropagation()">
+        <div class="mobile-playlists-sheet-header">
+            <strong>More</strong>
+            <button class="mini-btn" type="button" onclick="window.closeMobileMoreMenu()" title="Close" data-t-title="close_menu">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="mobile-more-sheet-actions">
+            <button class="mobile-more-action" type="button" onclick="window.closeMobileMoreMenu(); window.switchTab('albums')">
+                <i data-lucide="disc-3"></i>
+                <span data-t="albums">Albums</span>
+            </button>
+            <button class="mobile-more-action" type="button" onclick="window.closeMobileMoreMenu(); window.switchTab('artists')">
+                <i data-lucide="mic-2"></i>
+                <span data-t="artists">Artists</span>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -94,13 +115,9 @@
         <i data-lucide="house"></i>
         <span data-t="home">Home</span>
     </button>
-    <button class="mobile-bottom-item" id="nav-albums-mobile" type="button" onclick="window.switchTab('albums')">
-        <i data-lucide="disc-3"></i>
-        <span data-t="albums">Albums</span>
-    </button>
-    <button class="mobile-bottom-item" id="nav-artists-mobile" type="button" onclick="window.switchTab('artists')">
-        <i data-lucide="mic-2"></i>
-        <span data-t="artists">Artists</span>
+    <button class="mobile-bottom-item" id="nav-more-mobile" type="button" onclick="window.openMobileMoreMenu()">
+        <i data-lucide="ellipsis"></i>
+        <span>More</span>
     </button>
     <button class="mobile-bottom-item" id="nav-playlists-mobile" type="button" onclick="window.openMobileMenu()">
         <i data-lucide="list-music"></i>
@@ -631,6 +648,17 @@
                     <span data-t="refresh">Refresh</span>
                 </button>
             </div>
+            <div class="home-catalog-search-row">
+                <label class="home-search-box">
+                    <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                    <input
+                        type="search"
+                        id="albumsCatalogSearchInput"
+                        placeholder="Search albums or artists..."
+                        aria-label="Search albums or artists"
+                    />
+                </label>
+            </div>
             <div class="home-row">
                 <div class="home-row-header">
                     <h3 data-t="albums">Albums</h3>
@@ -650,6 +678,17 @@
                     <i data-lucide="refresh-cw" style="width: 16px;"></i>
                     <span data-t="refresh">Refresh</span>
                 </button>
+            </div>
+            <div class="home-catalog-search-row">
+                <label class="home-search-box">
+                    <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                    <input
+                        type="search"
+                        id="artistsCatalogSearchInput"
+                        placeholder="Search artists..."
+                        aria-label="Search artists"
+                    />
+                </label>
             </div>
             <div class="home-row">
                 <div class="home-row-header">
@@ -1009,6 +1048,22 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.7</span>
+                        <span class="update-log-date">February 21, 2026</span>
+                    </div>
+                    <h2>Albums/Artists Search + Mobile More Sheet</h2>
+                    <ul class="about-list">
+                        <li>Added in-section search input for <strong>Albums</strong> catalog with filtering by album title and artist name.</li>
+                        <li>Added in-section search input for <strong>Artists</strong> catalog with instant filtering by artist name.</li>
+                        <li>Catalog counters now show filtered/total values while search is active (for example: `12/248 Albums`).</li>
+                        <li>Redesigned mobile bottom bar: main labels now focus on <strong>Library / Favourites / Home / Playlists / Settings</strong>.</li>
+                        <li>Added new mobile <strong>More</strong> button that opens a compact bottom sheet with <strong>Albums</strong> and <strong>Artists</strong>.</li>
+                        <li>Updated mobile active-state logic so <strong>More</strong> highlights when user is in Albums or Artists tabs.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.6</span>
                         <span class="update-log-date">February 20, 2026</span>
                     </div>
@@ -1251,7 +1306,7 @@ Auth: JWT + user scopes</code></pre>
         return;
     }
 
-    const { initApp } = await import('/ts/app.ts?v=20260216-1');
+    const { initApp } = await import('/ts/app.ts?v=20260221-1');
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', initApp, { once: true });
     } else {
@@ -1286,35 +1341,61 @@ Auth: JWT + user scopes</code></pre>
 
 <script>
 const playlistSheetOverlay = document.getElementById('mobilePlaylistsSheetOverlay');
+const moreSheetOverlay = document.getElementById('mobileMoreSheetOverlay');
+
+function syncMobileSheetBodyState() {
+    const isAnySheetOpen = playlistSheetOverlay?.classList.contains('active')
+        || moreSheetOverlay?.classList.contains('active');
+    document.body.classList.toggle('mobile-sheet-open', !!isAnySheetOpen);
+}
 
 window.openMobileMenu = function() {
     if (!playlistSheetOverlay) return;
+    window.closeMobileMoreMenu();
     playlistSheetOverlay.classList.add('active');
-    document.body.classList.add('mobile-sheet-open');
+    document.getElementById('nav-more-mobile')?.classList.remove('active');
     document.getElementById('nav-playlists-mobile')?.classList.add('active');
+    syncMobileSheetBodyState();
 };
 
 window.closeMobileMenu = function() {
     if (!playlistSheetOverlay) return;
     playlistSheetOverlay.classList.remove('active');
-    document.body.classList.remove('mobile-sheet-open');
-    if (
-        typeof window.state === 'undefined'
-        || (typeof window.state.currentTab !== 'number' && window.state.currentTab !== 'home-playlists')
-    ) {
+    if (typeof window.state !== 'undefined' && typeof window.updateMobileBottomNav === 'function') {
+        window.updateMobileBottomNav(window.state.currentTab);
+    } else {
         document.getElementById('nav-playlists-mobile')?.classList.remove('active');
     }
+    syncMobileSheetBodyState();
+};
+
+window.openMobileMoreMenu = function() {
+    if (!moreSheetOverlay) return;
+    window.closeMobileMenu();
+    moreSheetOverlay.classList.add('active');
+    document.getElementById('nav-playlists-mobile')?.classList.remove('active');
+    document.getElementById('nav-more-mobile')?.classList.add('active');
+    syncMobileSheetBodyState();
+};
+
+window.closeMobileMoreMenu = function() {
+    if (!moreSheetOverlay) return;
+    moreSheetOverlay.classList.remove('active');
+    if (typeof window.state !== 'undefined' && typeof window.updateMobileBottomNav === 'function') {
+        window.updateMobileBottomNav(window.state.currentTab);
+    } else {
+        document.getElementById('nav-more-mobile')?.classList.remove('active');
+    }
+    syncMobileSheetBodyState();
 };
 
 window.updateMobileBottomNav = function(tab) {
-    const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-albums-mobile', 'nav-artists-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
+    const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-more-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
     ids.forEach((id) => document.getElementById(id)?.classList.remove('active'));
     if (tab === 'home' || tab === 'home-album') {
         document.getElementById('nav-home-mobile')?.classList.add('active');
-    } else if (tab === 'albums') {
-        document.getElementById('nav-albums-mobile')?.classList.add('active');
-    } else if (tab === 'artists') {
-        document.getElementById('nav-artists-mobile')?.classList.add('active');
+    } else if (tab === 'albums' || tab === 'artists') {
+        document.getElementById('nav-more-mobile')?.classList.add('active');
     } else if (tab === 'all') {
         document.getElementById('nav-library-mobile')?.classList.add('active');
     } else if (tab === 'fav') {
@@ -1332,7 +1413,9 @@ document.getElementById('nav-settings-mobile')?.addEventListener('click', () => 
 });
 
 window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') window.closeMobileMenu();
+    if (event.key !== 'Escape') return;
+    window.closeMobileMenu();
+    window.closeMobileMoreMenu();
 });
 </script>
 

@@ -124,6 +124,8 @@ let mobileCoverSwipeLockUntil = 0;
 let lastNonInfoTab = 'home';
 let mediaAlbumsCatalogCache = [];
 let mediaArtistsCatalogCache = [];
+let mediaAlbumsCatalogSearchQuery = '';
+let mediaArtistsCatalogSearchQuery = '';
 
 function isInfoTab(tab) {
     return tab === 'about' || tab === 'update-logs';
@@ -1919,15 +1921,45 @@ function createHomeArtistCatalogCard(artist) {
     return card;
 }
 
-function renderAlbumsCatalog(albums = [], loading = false) {
+function normalizeCatalogSearchQuery(rawQuery = '') {
+    return String(rawQuery || '').trim().toLowerCase();
+}
+
+function filterAlbumsCatalogByQuery(albums = [], rawQuery = '') {
+    const query = normalizeCatalogSearchQuery(rawQuery);
+    const list = Array.isArray(albums) ? albums : [];
+    if (!query) return list;
+    return list.filter((album) => {
+        const albumTitle = String(album?.title || '').toLowerCase();
+        const artistName = String(album?.artist || '').toLowerCase();
+        return albumTitle.includes(query) || artistName.includes(query);
+    });
+}
+
+function filterArtistsCatalogByQuery(artists = [], rawQuery = '') {
+    const query = normalizeCatalogSearchQuery(rawQuery);
+    const list = Array.isArray(artists) ? artists : [];
+    if (!query) return list;
+    return list.filter((artist) => String(artist?.name || '').toLowerCase().includes(query));
+}
+
+function renderAlbumsCatalog(albums = [], loading = false, totalCount = null, rawQuery = '') {
     const grid = document.getElementById('albumsCatalogGrid');
     if (!grid) return;
     grid.innerHTML = '';
+    const query = String(rawQuery || '').trim();
+    const hasQuery = query.length > 0;
+    const total = Math.max(
+        0,
+        Number.isFinite(Number(totalCount)) ? Number(totalCount) : albums.length
+    );
     const count = document.getElementById('albumsCatalogCount');
     if (count) {
         count.textContent = loading
             ? t('loading_status', 'Loading...')
-            : `${albums.length} ${t('albums', 'Albums')}`;
+            : hasQuery
+                ? `${albums.length}/${total} ${t('albums', 'Albums')}`
+                : `${albums.length} ${t('albums', 'Albums')}`;
     }
 
     if (loading) {
@@ -1941,7 +1973,9 @@ function renderAlbumsCatalog(albums = [], loading = false) {
     if (!albums.length) {
         const empty = document.createElement('div');
         empty.className = 'home-empty';
-        empty.textContent = t('home_albums_empty', 'No albums found in Navidrome.');
+        empty.textContent = hasQuery
+            ? t('no_results_found', 'No results found')
+            : t('home_albums_empty', 'No albums found in Navidrome.');
         grid.appendChild(empty);
         return;
     }
@@ -1951,15 +1985,23 @@ function renderAlbumsCatalog(albums = [], loading = false) {
     });
 }
 
-function renderArtistsCatalog(artists = [], loading = false) {
+function renderArtistsCatalog(artists = [], loading = false, totalCount = null, rawQuery = '') {
     const grid = document.getElementById('artistsCatalogGrid');
     if (!grid) return;
     grid.innerHTML = '';
+    const query = String(rawQuery || '').trim();
+    const hasQuery = query.length > 0;
+    const total = Math.max(
+        0,
+        Number.isFinite(Number(totalCount)) ? Number(totalCount) : artists.length
+    );
     const count = document.getElementById('artistsCatalogCount');
     if (count) {
         count.textContent = loading
             ? t('loading_status', 'Loading...')
-            : `${artists.length} ${t('artists', 'Artists')}`;
+            : hasQuery
+                ? `${artists.length}/${total} ${t('artists', 'Artists')}`
+                : `${artists.length} ${t('artists', 'Artists')}`;
     }
 
     if (loading) {
@@ -1973,7 +2015,9 @@ function renderArtistsCatalog(artists = [], loading = false) {
     if (!artists.length) {
         const empty = document.createElement('div');
         empty.className = 'home-empty';
-        empty.textContent = t('home_artists_empty', 'No artists found in Navidrome.');
+        empty.textContent = hasQuery
+            ? t('no_results_found', 'No results found')
+            : t('home_artists_empty', 'No artists found in Navidrome.');
         grid.appendChild(empty);
         return;
     }
@@ -2023,15 +2067,67 @@ function invalidateMediaCatalogCache() {
     mediaArtistsCatalogCache = [];
 }
 
+function renderAlbumsCatalogFromCache(loading = false) {
+    const filtered = filterAlbumsCatalogByQuery(mediaAlbumsCatalogCache, mediaAlbumsCatalogSearchQuery);
+    renderAlbumsCatalog(filtered, loading, mediaAlbumsCatalogCache.length, mediaAlbumsCatalogSearchQuery);
+}
+
+function renderArtistsCatalogFromCache(loading = false) {
+    const filtered = filterArtistsCatalogByQuery(mediaArtistsCatalogCache, mediaArtistsCatalogSearchQuery);
+    renderArtistsCatalog(filtered, loading, mediaArtistsCatalogCache.length, mediaArtistsCatalogSearchQuery);
+}
+
+function initMediaCatalogSearchInputs() {
+    const bindInput = (inputId, kind) => {
+        const input = document.getElementById(inputId);
+        if (!input || input.dataset.bound === '1') return;
+        input.dataset.bound = '1';
+        input.addEventListener('input', (event) => {
+            const nextValue = String(event.target.value || '');
+            if (kind === 'artists') {
+                mediaArtistsCatalogSearchQuery = nextValue;
+                renderArtistsCatalogFromCache(false);
+                return;
+            }
+            mediaAlbumsCatalogSearchQuery = nextValue;
+            renderAlbumsCatalogFromCache(false);
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            input.value = '';
+            if (kind === 'artists') {
+                mediaArtistsCatalogSearchQuery = '';
+                renderArtistsCatalogFromCache(false);
+                return;
+            }
+            mediaAlbumsCatalogSearchQuery = '';
+            renderAlbumsCatalogFromCache(false);
+        });
+    };
+
+    bindInput('albumsCatalogSearchInput', 'albums');
+    bindInput('artistsCatalogSearchInput', 'artists');
+
+    const albumsInput = document.getElementById('albumsCatalogSearchInput');
+    if (albumsInput && albumsInput.value !== mediaAlbumsCatalogSearchQuery) {
+        albumsInput.value = mediaAlbumsCatalogSearchQuery;
+    }
+    const artistsInput = document.getElementById('artistsCatalogSearchInput');
+    if (artistsInput && artistsInput.value !== mediaArtistsCatalogSearchQuery) {
+        artistsInput.value = mediaArtistsCatalogSearchQuery;
+    }
+}
+
 async function refreshMediaCatalog(kind = 'albums', force = false) {
     const tab = kind === 'artists' ? 'artists' : 'albums';
     const shouldShowLoading = force
         || (tab === 'albums' ? !mediaAlbumsCatalogCache.length : !mediaArtistsCatalogCache.length);
     if (shouldShowLoading) {
         if (tab === 'albums') {
-            renderAlbumsCatalog(mediaAlbumsCatalogCache, true);
+            renderAlbumsCatalogFromCache(true);
         } else {
-            renderArtistsCatalog(mediaArtistsCatalogCache, true);
+            renderArtistsCatalogFromCache(true);
         }
     }
 
@@ -2048,17 +2144,17 @@ async function refreshMediaCatalog(kind = 'albums', force = false) {
         }
 
         if (tab === 'artists') {
-            renderArtistsCatalog(mediaArtistsCatalogCache, false);
+            renderArtistsCatalogFromCache(false);
         } else {
-            renderAlbumsCatalog(mediaAlbumsCatalogCache, false);
+            renderAlbumsCatalogFromCache(false);
         }
         refreshIcons();
     } catch (error) {
         console.error(`[CATALOG] Failed to refresh ${tab}:`, error);
         if (tab === 'artists') {
-            renderArtistsCatalog([], false);
+            renderArtistsCatalog([], false, 0, mediaArtistsCatalogSearchQuery);
         } else {
-            renderAlbumsCatalog([], false);
+            renderAlbumsCatalog([], false, 0, mediaAlbumsCatalogSearchQuery);
         }
     }
 }
@@ -3828,6 +3924,9 @@ function updateHomeVisibility(force = false) {
         updateHomeWelcome();
         if (isHomeTab) renderHomePlaylists();
         if (isHomePlaylistsTab) renderHomeAllPlaylistsView();
+        if (isAlbumsTab || isArtistsTab) {
+            initMediaCatalogSearchInputs();
+        }
         if (isAlbumsTab) {
             window.refreshMediaCatalog('albums', force && !mediaAlbumsCatalogCache.length);
         }
@@ -6855,14 +6954,12 @@ function updateMobileBottomNavState(tab) {
         all: 'nav-library-mobile',
         fav: 'nav-favourites-mobile',
         home: 'nav-home-mobile',
-        albums: 'nav-albums-mobile',
-        artists: 'nav-artists-mobile',
+        more: 'nav-more-mobile',
         playlists: 'nav-playlists-mobile'
     };
     Object.values(map).forEach((id) => document.getElementById(id)?.classList.remove('active'));
     if (tab === 'home' || tab === 'home-album') document.getElementById(map.home)?.classList.add('active');
-    else if (tab === 'albums') document.getElementById(map.albums)?.classList.add('active');
-    else if (tab === 'artists') document.getElementById(map.artists)?.classList.add('active');
+    else if (tab === 'albums' || tab === 'artists') document.getElementById(map.more)?.classList.add('active');
     else if (tab === 'all') document.getElementById(map.all)?.classList.add('active');
     else if (tab === 'fav') document.getElementById(map.fav)?.classList.add('active');
     else if (tab === 'home-playlists' || typeof tab === 'number') document.getElementById(map.playlists)?.classList.add('active');

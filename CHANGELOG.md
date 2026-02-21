@@ -1,5 +1,16 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-21 - v2.6.7
+
+### Albums/Artists Search + Mobile More Sheet
+- Added catalog search input in `Albums` section (search by album title and artist).
+- Added catalog search input in `Artists` section (search by artist name).
+- Catalog counters now show filtered/total when search is active (example: `12/248 Albums`).
+- Mobile bottom navigation now keeps core labels: `Library`, `Favourites`, `Home`, `Playlists`, `Settings`.
+- Added new `More` button on mobile bottom nav.
+- `More` opens a compact bottom sheet with `Albums` and `Artists` shortcuts.
+- Updated mobile active-tab logic so `More` is highlighted while `Albums`/`Artists` tabs are active.
+
 ## 2026-02-20 - v2.6.5
 
 ### Playlist AI + Mobile + Responsive
