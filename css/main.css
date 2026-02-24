@@ -2351,6 +2351,42 @@ body.mobile-player-fullscreen #miniQueueModal {
     animation: playlistAiSpin 1s linear infinite;
 }
 
+.playlist-action-btn-add {
+    position: relative;
+    overflow: hidden;
+    border-color: rgba(var(--accent-rgb), 0.42);
+    background:
+        linear-gradient(135deg, rgba(var(--accent-rgb), 0.24), rgba(255, 255, 255, 0.04) 62%, rgba(0, 0, 0, 0.2) 100%);
+    box-shadow: 0 8px 18px rgba(var(--accent-rgb), 0.16);
+}
+
+.playlist-action-btn-add::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(118deg, transparent 18%, rgba(255, 255, 255, 0.24) 40%, transparent 66%);
+    transform: translateX(-140%);
+    transition: transform 0.6s ease;
+    pointer-events: none;
+}
+
+.playlist-action-btn-add:hover::after {
+    transform: translateX(130%);
+}
+
+.playlist-action-btn-add i {
+    transition: transform 0.22s ease, filter 0.22s ease;
+}
+
+.playlist-action-btn-add:hover i {
+    transform: translateY(-1px) scale(1.08);
+    filter: drop-shadow(0 0 8px rgba(var(--accent-rgb), 0.42));
+}
+
+.playlist-action-btn-add:active {
+    transform: translateY(0) scale(0.98);
+}
+
 .song-item.ai-added-track {
     animation: playlistAiTrackGlow 1.35s ease both;
 }
@@ -3114,7 +3150,7 @@ body.zen-active .zen-inline {
     bottom: 0;
     z-index: 5400;
     display: none;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0;
     padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
     background: rgba(8, 10, 13, 0.96);
@@ -3124,10 +3160,10 @@ body.zen-active .zen-inline {
 
 #nav-library-mobile { grid-column: 1; }
 #nav-favourites-mobile { grid-column: 2; }
-#nav-home-mobile { grid-column: 4; }
-#nav-playlists-mobile { grid-column: 5; }
-#nav-settings-mobile { grid-column: 6; }
-#nav-more-mobile { grid-column: 7; }
+#nav-home-mobile { grid-column: 3; }
+#nav-playlists-mobile { grid-column: 4; }
+#nav-settings-mobile { grid-column: 5; }
+#nav-more-mobile { grid-column: 6; }
 
 .mobile-bottom-item {
     border: none;
@@ -3223,6 +3259,8 @@ body.zen-active .zen-inline {
 }
 
 .mobile-playlists-sheet #playlistNav-mobile {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     padding-right: 2px;

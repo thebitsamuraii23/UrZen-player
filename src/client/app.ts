@@ -1521,6 +1521,26 @@ function setPlaylistAIActionState(pending = false) {
     }
 }
 
+window.openLocalImportPicker = (playlistId = null) => {
+    const input = document.getElementById('fileInput');
+    if (!input) return;
+    const normalizedPlaylistId = Number(playlistId);
+    if (Number.isInteger(normalizedPlaylistId) && normalizedPlaylistId > 0) {
+        input.dataset.targetPlaylistId = String(normalizedPlaylistId);
+    } else {
+        input.dataset.targetPlaylistId = '';
+    }
+    input.click();
+};
+
+window.importLocalTracksToCurrentPlaylist = () => {
+    if (typeof state.currentTab !== 'number') {
+        window.openLocalImportPicker();
+        return;
+    }
+    window.openLocalImportPicker(state.currentTab);
+};
+
 function renderPlaylistDetailView(playlistId) {
     const section = document.getElementById('playlistDetailSection');
     const listEl = document.getElementById('playlistDetailList');
@@ -1529,6 +1549,7 @@ function renderPlaylistDetailView(playlistId) {
     const coverEl = document.getElementById('playlistDetailCover');
     const playBtn = document.getElementById('playlistDetailPlayBtn');
     const shuffleBtn = document.getElementById('playlistDetailShufflePlayBtn');
+    const importBtn = document.getElementById('playlistDetailImportBtn');
     const aiAddBtn = document.getElementById('playlistDetailAddAIBtn');
     const searchInput = document.getElementById('playlistDetailSearchInput');
     if (!section || !listEl || !titleEl || !subtitleEl || !coverEl) return;
@@ -1575,6 +1596,7 @@ function renderPlaylistDetailView(playlistId) {
     };
     if (playBtn) playBtn.disabled = tracks.length === 0;
     if (shuffleBtn) shuffleBtn.disabled = tracks.length === 0;
+    if (importBtn) importBtn.disabled = false;
     if (aiAddBtn) aiAddBtn.disabled = playlistAIPending;
     setPlaylistAIActionState(playlistAIPending);
 
@@ -8716,8 +8738,13 @@ async function extractMetadata(file) {
 document.getElementById('fileInput').onchange = async (e) => {
     if (e.target.files.length === 0) return;
     console.log('[IMPORT] Files selected:', e.target.files.length);
+    const rawTargetPlaylistId = String(e.target.dataset.targetPlaylistId || '').trim();
+    e.target.dataset.targetPlaylistId = '';
+    const targetPlaylistId = Number(rawTargetPlaylistId);
+    const shouldAttachToPlaylist = Number.isInteger(targetPlaylistId) && targetPlaylistId > 0;
     dom.loader.classList.remove('hidden');
     const currentCount = await db.songs.count();
+    const importedSongIds = [];
     console.log('[IMPORT] Current count in DB:', currentCount);
     for(let i = 0; i < e.target.files.length; i++) {
         const file = e.target.files[i];
@@ -8736,10 +8763,33 @@ document.getElementById('fileInput').onchange = async (e) => {
             mimeType: file.type || '',
             order: currentCount + i
         });
+        importedSongIds.push(result);
         console.log('[IMPORT] Added to DB with id:', result);
     }
     console.log('[IMPORT] All files added, loading library...');
     await loadLibraryFromDB();
+
+    if (shouldAttachToPlaylist && importedSongIds.length) {
+        const playlist = await db.playlists.get(targetPlaylistId);
+        if (playlist) {
+            playlist.songIds = Array.isArray(playlist.songIds) ? playlist.songIds : [];
+            importedSongIds.forEach((songId) => {
+                const exists = playlist.songIds.some((value) => String(value) === String(songId));
+                if (!exists) playlist.songIds.push(songId);
+            });
+            await db.playlists.update(targetPlaylistId, { songIds: playlist.songIds });
+            await loadPlaylistsFromDB();
+            if (isUserAuthenticated()) {
+                try {
+                    await syncPlaylistsWithServer(state.playlists, db);
+                    await loadPlaylistsFromDB();
+                } catch (error) {
+                    console.error('[SYNC] Failed to sync playlists after import:', error);
+                }
+            }
+        }
+    }
+
     console.log('[IMPORT] Library reloaded, state.library.length:', state.library.length);
     console.log('[IMPORT] currentTab:', state.currentTab);
     
@@ -8747,11 +8797,20 @@ document.getElementById('fileInput').onchange = async (e) => {
     console.log('[IMPORT] Force rendering library and sidebar queue...');
     renderLibrary();
     renderSidebarQueue();
+    if (shouldAttachToPlaylist && state.currentTab === targetPlaylistId) {
+        renderPlaylistDetailView(targetPlaylistId);
+    }
     
     // Small delay to ensure DOM updates are rendered
     await new Promise(r => setTimeout(r, 100));
     dom.loader.classList.add('hidden');
-    showToast(t('files_imported', 'Files imported successfully!'));
+    if (shouldAttachToPlaylist) {
+        const template = t('added_to_playlist', 'Added {count} track(s) to {playlist}');
+        const playlistName = state.playlists.find((pl) => pl.id === targetPlaylistId)?.name || t('playlist', 'Playlist');
+        showToast(template.replace('{count}', String(importedSongIds.length)).replace('{playlist}', playlistName));
+    } else {
+        showToast(t('files_imported', 'Files imported successfully!'));
+    }
     
     // Reset file input so same file can be imported again
     e.target.value = '';

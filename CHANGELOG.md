@@ -1,5 +1,13 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-24 - v2.6.12
+
+### Mobile Nav Cleanup + Playlists Sheet Fix
+- Removed the empty slot near `Home` in mobile bottom navigation layout.
+- Mobile playlists sheet now shows all playlists with proper scrolling (`#playlistNav-mobile` flex/overflow fix).
+- Verified and restored `Artists` shortcut inside mobile `More` sheet (together with `Albums`).
+- Bumped CSS cache-busting version for stable production refresh.
+
 ## 2026-02-24 - v2.6.11
 
 ### Mobile Auth UI Redesign + No-Cache Deploy
