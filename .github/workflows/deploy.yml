@@ -22,6 +22,9 @@ jobs:
             set -ex
 
             PROJECT_DIR="/home/ubuntu/z-player"  # если хочешь в /root - смени, но сначала почини права/логин
+            STORAGE_DIR="/home/ubuntu/z-player-storage"
+            DB_DIR="$STORAGE_DIR/db"
+            MEDIA_DIR="$STORAGE_DIR/media"
 
             # Дебаг: кто мы и где home
             whoami
@@ -29,6 +32,7 @@ jobs:
             ls -ld /home/ubuntu || echo "Home dir проблема, права сломаны или юзер проблема"
 
             mkdir -p "$PROJECT_DIR"
+            mkdir -p "$DB_DIR" "$MEDIA_DIR"
             cd "$PROJECT_DIR"
 
             echo "➡️ Обновление кода..."
@@ -73,7 +77,14 @@ jobs:
             fi
 
             echo "➡️ Запуск..."
-            sudo docker run -d --restart unless-stopped --name z-player -p 3001:3001 z-player:$COMMIT_HASH
+            sudo docker run -d --restart unless-stopped \
+              --name z-player \
+              -p 3001:3001 \
+              -e NODE_ENV=production \
+              -e DB_PATH=/data/users.db \
+              -v "$DB_DIR:/data" \
+              -v "$MEDIA_DIR:/app/User/Downloads" \
+              z-player:$COMMIT_HASH
 
             echo "✅ Статус:"
             sudo docker ps | grep z-player
