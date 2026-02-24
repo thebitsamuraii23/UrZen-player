@@ -41,6 +41,9 @@ const DEFAULT_NAVIDROME_PASS = process.env.DEFAULT_NAVIDROME_PASS || 'guest';
 const AI_PLAYLIST_DEFAULT_TRACK_COUNT = 20;
 const AI_PLAYLIST_MIN_TRACK_COUNT = 1;
 const AI_PLAYLIST_MAX_TRACK_COUNT = 2000;
+const INACTIVE_ACCOUNT_MAX_DAYS = Math.max(1, Number(process.env.INACTIVE_ACCOUNT_MAX_DAYS || 30));
+const INACTIVE_CLEANUP_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.INACTIVE_CLEANUP_INTERVAL_MS || 12 * 60 * 60 * 1000));
+let inactiveCleanupTimer = null;
 
 // Middleware
 const isDev = process.env.NODE_ENV !== 'production';
@@ -87,6 +90,7 @@ function initializeDatabase() {
         navidrome_server TEXT,
         navidrome_user TEXT,
         navidrome_pass TEXT,
+        last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `, (err) => {
@@ -181,6 +185,11 @@ function initializeDatabase() {
         console.warn('[DB] navidrome_pass column:', err.message);
       }
     });
+    db.run('ALTER TABLE users ADD COLUMN last_active_at DATETIME', (err) => {
+      if (err && !String(err.message || '').includes('duplicate column')) {
+        console.warn('[DB] last_active_at column:', err.message);
+      }
+    });
     db.run('ALTER TABLE playlist_tracks ADD COLUMN track_url TEXT', (err) => {
       if (err && !String(err.message || '').includes('duplicate column')) {
         console.warn('[DB] track_url column:', err.message);
@@ -195,6 +204,19 @@ function initializeDatabase() {
       if (err && !String(err.message || '').includes('duplicate column')) {
         console.warn('[DB] playlists.cover_path column:', err.message);
       }
+    });
+    db.run('CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at)', (err) => {
+      if (err) {
+        console.warn('[DB] idx_users_last_active_at index:', err.message);
+      }
+    });
+    db.run('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE last_active_at IS NULL', (err) => {
+      if (err) {
+        console.warn('[DB] users.last_active_at backfill:', err.message);
+      }
+    });
+    db.run('SELECT 1', () => {
+      startInactiveCleanupScheduler();
     });
   });
 }
@@ -323,6 +345,95 @@ function normalizeServerUrl(url) {
   if (!raw) return DEFAULT_NAVIDROME_SERVER.replace(/\/+$/, '');
   const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
   return withProtocol.replace(/\/+$/, '');
+}
+
+function getInactiveCutoffSql(days) {
+  return `-${Math.max(1, Number(days) || 30)} days`;
+}
+
+async function removeUserMedia(userId, username) {
+  const candidates = new Set([
+    buildUserMediaDir(userId, username),
+    buildUserMediaDir(userId, String(userId))
+  ]);
+
+  for (const dir of candidates) {
+    try {
+      await fsp.rm(dir, { recursive: true, force: true });
+    } catch (error) {
+      console.warn('[CLEANUP] Failed to remove user media dir:', dir, error?.message || error);
+    }
+  }
+}
+
+async function deleteUserCompletely(userId, username) {
+  await removeUserMedia(userId, username);
+  const result = await dbRunAsync('DELETE FROM users WHERE id = ?', [userId]);
+  return Number(result?.changes || 0) > 0;
+}
+
+async function purgeInactiveUsers(reason = 'scheduled') {
+  const cutoffSql = getInactiveCutoffSql(INACTIVE_ACCOUNT_MAX_DAYS);
+  const inactiveUsers = await dbAllAsync(
+    `SELECT id, username, created_at, last_active_at
+     FROM users
+     WHERE datetime(COALESCE(last_active_at, created_at, CURRENT_TIMESTAMP)) < datetime('now', ?)`,
+    [cutoffSql]
+  );
+
+  if (!inactiveUsers.length) {
+    return { deletedCount: 0, checkedCount: 0 };
+  }
+
+  let deletedCount = 0;
+  for (const userRow of inactiveUsers) {
+    const userId = Number(userRow?.id);
+    if (!Number.isFinite(userId)) continue;
+    const username = String(userRow?.username || userId);
+    try {
+      const removed = await deleteUserCompletely(userId, username);
+      if (removed) {
+        deletedCount += 1;
+        console.log(`[CLEANUP] Deleted inactive user ${userId} (${username}) by ${reason}`);
+      }
+    } catch (error) {
+      console.error(`[CLEANUP] Failed to delete inactive user ${userId} (${username}):`, error);
+    }
+  }
+
+  return { deletedCount, checkedCount: inactiveUsers.length };
+}
+
+function startInactiveCleanupScheduler() {
+  if (inactiveCleanupTimer) return;
+
+  const runCleanup = async (reason) => {
+    try {
+      const result = await purgeInactiveUsers(reason);
+      if (result.deletedCount > 0 || isDev) {
+        console.log(
+          `[CLEANUP] Inactive account sweep (${reason}): checked=${result.checkedCount}, deleted=${result.deletedCount}, threshold=${INACTIVE_ACCOUNT_MAX_DAYS}d`
+        );
+      }
+    } catch (error) {
+      console.error('[CLEANUP] Inactive account sweep failed:', error);
+    }
+  };
+
+  runCleanup('startup');
+  inactiveCleanupTimer = setInterval(() => {
+    runCleanup('interval');
+  }, INACTIVE_CLEANUP_INTERVAL_MS);
+  if (typeof inactiveCleanupTimer.unref === 'function') {
+    inactiveCleanupTimer.unref();
+  }
+}
+
+async function touchUserActivity(userId) {
+  if (!Number.isFinite(Number(userId))) {
+    return { changes: 0 };
+  }
+  return dbRunAsync('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?', [userId]);
 }
 
 function normalizeTagList(value, maxItems = 5) {
@@ -802,14 +913,23 @@ const verifyToken = (req, res, next) => {
     return res.status(401).json({ error: 'Token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       if (isDev) console.log('[MIDDLEWARE] Token verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    if (isDev) console.log('[MIDDLEWARE] Token verified - User:', user.userId);
-    req.user = user;
-    next();
+    try {
+      const touched = await touchUserActivity(user.userId);
+      if (!touched.changes) {
+        return res.status(401).json({ error: 'User account not found or removed' });
+      }
+      if (isDev) console.log('[MIDDLEWARE] Token verified - User:', user.userId);
+      req.user = user;
+      next();
+    } catch (touchErr) {
+      console.error('[MIDDLEWARE] Failed to update user activity:', touchErr);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 };
 
@@ -825,13 +945,22 @@ const verifyTokenFlexible = (req, res, next) => {
     return res.status(401).json({ error: 'Token required' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       if (isDev) console.log('[MIDDLEWARE] Flexible token verification failed:', err.message);
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
-    req.user = user;
-    next();
+    try {
+      const touched = await touchUserActivity(user.userId);
+      if (!touched.changes) {
+        return res.status(401).json({ error: 'User account not found or removed' });
+      }
+      req.user = user;
+      next();
+    } catch (touchErr) {
+      console.error('[MIDDLEWARE] Failed to update user activity (flexible):', touchErr);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 };
 
@@ -863,7 +992,7 @@ app.post('/register', async (req, res) => {
 
         // Insert user
         db.run(
-          'INSERT INTO users (username, password) VALUES (?, ?)',
+          'INSERT INTO users (username, password, last_active_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
           [username, hashedPassword],
           function(err) {
             if (err) {
@@ -927,18 +1056,28 @@ app.post('/login', async (req, res) => {
           return res.status(401).json({ error: 'Invalid username or password' });
         }
 
-        // Generate JWT
-        const token = jwt.sign(
-          { userId: user.id, username: user.username },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        );
+        try {
+          const touched = await touchUserActivity(user.id);
+          if (!touched.changes) {
+            return res.status(401).json({ error: 'User account not found or removed' });
+          }
 
-        res.json({
-          message: 'Login successful',
-          token: token,
-          username: user.username
-        });
+          // Generate JWT
+          const token = jwt.sign(
+            { userId: user.id, username: user.username },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+          );
+
+          res.json({
+            message: 'Login successful',
+            token: token,
+            username: user.username
+          });
+        } catch (touchErr) {
+          console.error('Failed to update last_active_at on login:', touchErr);
+          res.status(500).json({ error: 'Internal server error' });
+        }
       } catch (error) {
         console.error('Password comparison error:', error);
         res.status(500).json({ error: 'Internal server error' });
@@ -951,7 +1090,7 @@ app.post('/login', async (req, res) => {
 });
 
 // Verify token endpoint (for frontend validation)
-app.post('/verify-token', (req, res) => {
+app.post('/verify-token', async (req, res) => {
   try {
     const { token } = req.body;
     
@@ -960,6 +1099,10 @@ app.post('/verify-token', (req, res) => {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
+    const touched = await touchUserActivity(decoded.userId);
+    if (!touched.changes) {
+      return res.status(401).json({ valid: false, error: 'User account not found or removed' });
+    }
     res.json({ valid: true, username: decoded.username, userId: decoded.userId });
   } catch (error) {
     res.status(401).json({ valid: false, error: 'Invalid or expired token' });
