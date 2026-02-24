@@ -2,14 +2,14 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install SQLite dependencies
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (compile native modules), then drop build deps
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm install \
+    && npm cache clean --force \
+    && apk del .build-deps
 
 # Copy app source and static files
 COPY src/ ./src/
