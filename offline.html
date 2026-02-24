@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f1115">
+  <title>UrZen Offline</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 20% 20%, #1a2030 0%, #0f1115 60%, #0a0c10 100%);
+      color: #f2f4f8;
+    }
+
+    .card {
+      width: min(520px, 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(17, 20, 26, 0.85);
+      backdrop-filter: blur(8px);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 28px;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: #c7ced9;
+      line-height: 1.5;
+    }
+
+    a {
+      display: inline-block;
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 700;
+      background: #ff6f91;
+      border-radius: 10px;
+      padding: 10px 16px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>You are offline</h1>
+    <p>UrZen is not connected to the network right now. Reconnect and reload to sync data and streaming content.</p>
+    <a href="/">Try again</a>
+  </main>
+</body>
+</html>

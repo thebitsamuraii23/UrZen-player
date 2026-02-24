@@ -82,6 +82,53 @@ function shouldBlockGuestHomePlayback() {
     return !isUserAuthenticated() && isHomePlaybackTab();
 }
 
+let swRegistrationStarted = false;
+
+function canRegisterServiceWorker() {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    if (!('serviceWorker' in navigator)) return false;
+    const { protocol, hostname } = window.location;
+    return protocol === 'https:' || hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function registerServiceWorker() {
+    if (swRegistrationStarted || !canRegisterServiceWorker()) return;
+    swRegistrationStarted = true;
+
+    const startRegistration = async () => {
+        try {
+            const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+            console.log('[PWA] Service worker registered:', registration.scope);
+
+            if (registration.waiting) {
+                console.log('[PWA] Update is ready. Reload page to apply.');
+            }
+
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (!newWorker) return;
+
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        console.log('[PWA] New version is available. Reload page to update.');
+                    }
+                });
+            });
+        } catch (error) {
+            console.warn('[PWA] Service worker registration failed:', error);
+        }
+    };
+
+    if (document.readyState === 'complete') {
+        void startRegistration();
+        return;
+    }
+
+    window.addEventListener('load', () => {
+        void startRegistration();
+    }, { once: true });
+}
+
 // ============ HOME / RECOMMENDATIONS ============
 const HOME_HISTORY_KEY = 'playHistory';
 const HOME_HISTORY_LIMIT = 200;
@@ -8730,6 +8777,7 @@ window.confirmWipeData = async () => {
 // ============ ИНИЦИАЛИЗАЦИЯ ============
 export async function initApp() {
     console.log('[APP] Starting initialization...');
+    registerServiceWorker();
     
     // Expose state and dom to window for access from non-module scripts
     window.state = state;

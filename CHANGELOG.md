@@ -1,5 +1,17 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-24 - v2.6.9
+
+### PWA Layer: Installable App + Offline Cache
+- Added PWA `manifest.json` with install metadata (`name`, `short_name`, `icons`, `start_url`, `display`, `theme_color`, `background_color`).
+- Added app install icons in `assets/icons` (`192x192`, `512x512`).
+- Added Service Worker registration in `src/client/app.ts` with safe context checks.
+- Added `sw.js` with versioned cache buckets for static/runtime resources.
+- Added static asset caching and navigation fallback logic for offline mode.
+- Added `offline.html` fallback page and integrated it into Service Worker fetch handling.
+- Added explicit server routes for `/manifest.json`, `/sw.js`, and `/offline.html`.
+- Added cache cleanup of older Service Worker cache versions during activation.
+
 ## 2026-02-21 - v2.6.8
 
 ### Playlist Cover Upload + Server Storage

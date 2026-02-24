@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f1115">
     <title>UrZen | Nothing But Ur Audio </title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
     <link rel="icon" type="image/png" href="https://thebitsamuraii23.github.io/urzen-sitefaviconpage/favicon.png?v=20260126-1">
     <script>
         // Pre-define toggleSettingsInfo before module loads
@@ -1052,6 +1055,22 @@ Auth: JWT + user scopes</code></pre>
             </header>
 
             <section class="update-log-list">
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.9</span>
+                        <span class="update-log-date">February 24, 2026</span>
+                    </div>
+                    <h2>PWA Layer: Installable App + Offline Cache</h2>
+                    <ul class="about-list">
+                        <li>Added full PWA manifest (`name`, `short_name`, `icons`, `start_url`, `display`, `theme_color`, `background_color`).</li>
+                        <li>Added Service Worker registration in app bootstrap with safe checks for supported secure contexts.</li>
+                        <li>Implemented static asset caching and navigation fallback for offline mode.</li>
+                        <li>Added dedicated offline fallback page and wired it into Service Worker fetch handling.</li>
+                        <li>Implemented versioned cache strategy with cleanup of old caches during activation.</li>
+                        <li>Added app icons (`192x192`, `512x512`) for installability in Chromium-based browsers.</li>
+                    </ul>
+                </article>
+
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.8</span>

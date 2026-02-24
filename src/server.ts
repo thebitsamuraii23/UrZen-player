@@ -2028,6 +2028,20 @@ const staticOptions = {
 app.use('/css', express.static(path.join(PROJECT_ROOT, 'css'), staticOptions));
 app.use('/assets', express.static(path.join(PROJECT_ROOT, 'assets'), staticOptions));
 app.use('/ts', express.static(path.join(PROJECT_ROOT, 'src', 'client'), staticOptions));
+app.get('/manifest.json', (req, res) => {
+  res.setHeader('Cache-Control', isDev ? 'no-store' : 'public, max-age=3600');
+  res.sendFile(path.join(PROJECT_ROOT, 'manifest.json'));
+});
+app.get('/offline.html', (req, res) => {
+  res.setHeader('Cache-Control', isDev ? 'no-store' : 'public, max-age=3600');
+  res.sendFile(path.join(PROJECT_ROOT, 'offline.html'));
+});
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.sendFile(path.join(PROJECT_ROOT, 'sw.js'));
+});
 
 // 404 handler for API routes that weren't matched
 app.use('/api', (req, res) => {
