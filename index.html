@@ -1346,7 +1346,7 @@ Auth: JWT + user scopes</code></pre>
         return;
     }
 
-    const { initApp } = await import('/ts/app.ts?v=20260221-1');
+    const { initApp } = await import('/ts/app.ts?v=20260224-1');
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', initApp, { once: true });
     } else {

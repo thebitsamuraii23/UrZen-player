@@ -1,4 +1,4 @@
-name: Deploy z-player to EC2
+name: Deploy UrZen Web Player to EC2
 
 on:
   push:
@@ -44,6 +44,7 @@ jobs:
 
             echo "➡️ Работа с Docker..."
             sudo docker stop z-player || true
+
             sudo docker rm z-player || true
             sudo docker rmi z-player || true
 
@@ -77,3 +78,12 @@ jobs:
             echo "✅ Статус:"
             sudo docker ps | grep z-player
             sudo docker logs --tail 20 z-player || true
+
+            echo "➡️ Проверка PWA endpoints..."
+            sleep 2
+            curl -fsSI http://127.0.0.1:3001/manifest.json
+            curl -fsSI http://127.0.0.1:3001/sw.js
+            curl -fsSI http://127.0.0.1:3001/offline.html
+            curl -fsS http://127.0.0.1:3001/manifest.json | grep -q '"name"'
+            curl -fsS http://127.0.0.1:3001/index.html | grep -q 'rel="manifest"'
+            echo "✅ PWA files are reachable on server"

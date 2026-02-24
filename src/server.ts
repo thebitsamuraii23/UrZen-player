@@ -2158,7 +2158,7 @@ const staticOptions = {
       res.setHeader('Cache-Control', cacheHeader);
     } else if (filepath.endsWith('.ts')) {
       res.setHeader('Content-Type', 'application/javascript');
-      res.setHeader('Cache-Control', cacheHeader);
+      res.setHeader('Cache-Control', 'no-store');
     } else if (filepath.endsWith('.png')) {
       res.setHeader('Content-Type', 'image/png');
     } else if (filepath.endsWith('.jpg') || filepath.endsWith('.jpeg')) {
@@ -2172,6 +2172,7 @@ app.use('/css', express.static(path.join(PROJECT_ROOT, 'css'), staticOptions));
 app.use('/assets', express.static(path.join(PROJECT_ROOT, 'assets'), staticOptions));
 app.use('/ts', express.static(path.join(PROJECT_ROOT, 'src', 'client'), staticOptions));
 app.get('/manifest.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', isDev ? 'no-store' : 'public, max-age=3600');
   res.sendFile(path.join(PROJECT_ROOT, 'manifest.json'));
 });
