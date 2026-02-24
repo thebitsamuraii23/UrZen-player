@@ -34,7 +34,7 @@
     </script>
     <script src="https://unpkg.com/lucide@latest" onload="window.loadLucideCallback && window.loadLucideCallback()" defer></script>
     
-    <link rel="stylesheet" href="/css/main.css?v=20260221-1">
+    <link rel="stylesheet" href="/css/main.css?v=20260224-3">
 </head>
 <body class="lang-ru">
 
@@ -101,8 +101,10 @@
     <input type="search" id="globalSearch" placeholder="Search tracks or artists..." aria-label="Search" data-t-placeholder="search_placeholder" data-t-aria-label="search_label" />
 </div>
 
-<button class="mobile-auth-chip" id="mobileAuthChip" type="button" onclick="window.handleMobileAuthAction()">
+<button class="mobile-auth-chip" id="mobileAuthChip" type="button" onclick="window.handleMobileAuthAction()" aria-label="Login">
+    <i data-lucide="user-round"></i>
     <span id="mobileAuthChipLabel" data-t="login">Login</span>
+    <span class="mobile-auth-chip-dot" aria-hidden="true"></span>
 </button>
 
 <button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks" data-t-title="import_tracks">
@@ -1132,6 +1134,22 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.11</span>
+                        <span class="update-log-date">February 24, 2026</span>
+                    </div>
+                    <h2>Mobile Auth UI Redesign + No-Cache Deploy</h2>
+                    <ul class="about-list">
+                        <li>Redesigned top-right mobile auth chip with animated glass/accent styling that adapts to active theme colors.</li>
+                        <li>Mobile auth chip now always stays in the top-right zone and no longer appears on desktop layout.</li>
+                        <li>Auth chip behavior preserved: shows username when logged in and <strong>Login</strong> for guests (tap logout/login action).</li>
+                        <li>Adjusted mobile top search spacing to prevent overlap with the auth chip.</li>
+                        <li>Updated deployment workflow to build Docker image with <strong>--no-cache</strong> on every deploy.</li>
+                        <li>Bumped CSS/SW cache versioning to force production clients to receive fresh UI assets.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.10</span>
                         <span class="update-log-date">February 24, 2026</span>
                     </div>
@@ -1437,7 +1455,7 @@ Auth: JWT + user scopes</code></pre>
         return;
     }
 
-    const { initApp } = await import('/ts/app.ts?v=20260224-1');
+    const { initApp } = await import('/ts/app.ts?v=20260224-2');
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', initApp, { once: true });
     } else {

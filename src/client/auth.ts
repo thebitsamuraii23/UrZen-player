@@ -38,6 +38,14 @@ export function initAuth() {
       console.log('[AUTH] No token found');
       updateAuthNavItem(null);
     }
+
+    if (!window.__mobileAuthChipViewportBound) {
+      window.__mobileAuthChipViewportBound = true;
+      window.addEventListener('resize', () => {
+        const currentUsername = getUsernameFromLocalStorage();
+        updateMobileAuthChip(currentUsername);
+      });
+    }
   } catch (err) {
     console.error('[AUTH] Init error:', err);
   }
@@ -222,12 +230,18 @@ function updateMobileAuthChip(username) {
   const label = document.getElementById('mobileAuthChipLabel');
   if (!chip || !label) return;
 
+  const isMobileViewport = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 1024px)').matches;
+  chip.style.display = isMobileViewport ? '' : 'none';
+
   const normalizedUsername = String(username || '').trim();
   if (normalizedUsername) {
     label.textContent = normalizedUsername;
     label.removeAttribute('data-t');
     chip.dataset.mode = 'logout';
     chip.title = t('logout', 'Logout');
+    chip.setAttribute('aria-label', `${t('logout', 'Logout')}: ${normalizedUsername}`);
     return;
   }
 
@@ -235,6 +249,7 @@ function updateMobileAuthChip(username) {
   label.setAttribute('data-t', 'login');
   chip.dataset.mode = 'login';
   chip.title = t('auth_login_title', 'Sign In');
+  chip.setAttribute('aria-label', t('auth_login_title', 'Sign In'));
 }
 
 /**

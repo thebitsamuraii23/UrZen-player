@@ -64,16 +64,9 @@ jobs:
 
             echo "➡️ Билд..."
             COMMIT_HASH=$(git rev-parse --short HEAD)
-            if ! sudo docker build --pull -t z-player:$COMMIT_HASH .; then
-              echo "⚠️ Первый билд упал, делаю глубокую очистку и повторяю..."
-              sudo docker system prune -af || true
-              sudo docker builder prune -af || true
-              sudo docker system df || true
-
-              if ! sudo docker build --no-cache -t z-player:$COMMIT_HASH .; then
-                echo "❌ Билд упал, ошибка!"
-                exit 1
-              fi
+            if ! sudo docker build --pull --no-cache -t z-player:$COMMIT_HASH .; then
+              echo "❌ Билд упал, ошибка!"
+              exit 1
             fi
 
             echo "➡️ Запуск..."

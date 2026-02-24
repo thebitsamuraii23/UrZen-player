@@ -1,5 +1,15 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-24 - v2.6.11
+
+### Mobile Auth UI Redesign + No-Cache Deploy
+- Redesigned the top-right mobile auth chip with animated glass/accent styling that adapts to active theme colors.
+- Mobile auth chip now stays top-right and is forcibly hidden on desktop layout.
+- Preserved auth behavior on chip tap: logout for authorized users, login modal for guests.
+- Tuned mobile top search spacing to avoid overlap with auth chip.
+- Updated deployment workflow to always build Docker image with `--no-cache`.
+- Bumped Service Worker/CSS cache versioning to force fresh asset delivery in production.
+
 ## 2026-02-24 - v2.6.10
 
 ### Artist Page + Mobile Auth Chip + Mobile Nav

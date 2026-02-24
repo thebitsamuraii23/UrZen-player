@@ -1,4 +1,4 @@
-const SW_VERSION = '2026-02-24-1';
+const SW_VERSION = '2026-02-24-2';
 const STATIC_CACHE = `urzen-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `urzen-runtime-${SW_VERSION}`;
 const CACHE_PREFIXES = ['urzen-static-', 'urzen-runtime-'];
@@ -10,6 +10,7 @@ const PRECACHE_URLS = [
   OFFLINE_URL,
   '/manifest.json',
   '/css/main.css',
+  '/css/main.css?v=20260224-3',
   '/assets/icons/icon-192.png',
   '/assets/icons/icon-512.png',
   '/favicon.png'
