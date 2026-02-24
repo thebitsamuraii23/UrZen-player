@@ -62,7 +62,11 @@ services:
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/css:/usr/share/nginx/html/css:ro
       - ./src/client:/usr/share/nginx/html/ts:ro
-      - ./frontend/assets:/usr/share/nginx/html/assets:ro
+      - ./assets:/usr/share/nginx/html/assets:ro
+      - ./manifest.json:/usr/share/nginx/html/manifest.json:ro
+      - ./sw.js:/usr/share/nginx/html/sw.js:ro
+      - ./offline.html:/usr/share/nginx/html/offline.html:ro
+      - ./favicon.png:/usr/share/nginx/html/favicon.png:ro
     networks:
       - z-network
     depends_on:

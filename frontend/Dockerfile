@@ -7,6 +7,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY index.html css assets ./
+COPY manifest.json sw.js offline.html favicon.png ./
 
 RUN npm run build 2>/dev/null || true
 

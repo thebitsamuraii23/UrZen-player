@@ -16,6 +16,7 @@ COPY src/ ./src/
 COPY index.html .
 COPY css/ ./css/
 COPY assets/ ./assets/
+COPY manifest.json sw.js offline.html favicon.png ./
 
 # Create volume mount point for database
 RUN mkdir -p /app/data
