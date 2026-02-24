@@ -4,6 +4,7 @@ export const state = {
     library: [],  // Только локальные песни + сыгранные Navidrome
     navidromeSongs: [],  // ВСЕ Navidrome песни для отображения в меню
     homeAlbumSongs: [],
+    homeArtistSongs: [],
     playlists: [],
     currentTab: 'home',
     currentIndex: -1,

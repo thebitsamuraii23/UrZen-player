@@ -195,9 +195,47 @@ window.handleLogout = function() {
   }
 };
 
+window.handleMobileAuthAction = function() {
+  const token = getTokenFromLocalStorage();
+  const username = getUsernameFromLocalStorage();
+  if (token && username) {
+    window.handleLogout();
+    return;
+  }
+
+  if (typeof window.openAuthModal === 'function') {
+    window.openAuthModal('login');
+    return;
+  }
+
+  if (typeof window.toggleAuthModal === 'function') {
+    window.toggleAuthModal();
+  }
+};
+
 // ============================================
 // UI Update Functions
 // ============================================
+
+function updateMobileAuthChip(username) {
+  const chip = document.getElementById('mobileAuthChip');
+  const label = document.getElementById('mobileAuthChipLabel');
+  if (!chip || !label) return;
+
+  const normalizedUsername = String(username || '').trim();
+  if (normalizedUsername) {
+    label.textContent = normalizedUsername;
+    label.removeAttribute('data-t');
+    chip.dataset.mode = 'logout';
+    chip.title = t('logout', 'Logout');
+    return;
+  }
+
+  label.textContent = t('login', 'Login');
+  label.setAttribute('data-t', 'login');
+  chip.dataset.mode = 'login';
+  chip.title = t('auth_login_title', 'Sign In');
+}
 
 /**
  * Update auth navigation item based on login state
@@ -206,14 +244,12 @@ function updateAuthNavItem(username) {
   const loginItem = document.getElementById('authNavItem');
   const userItem = document.getElementById('userNavItem');
   const userLabel = document.getElementById('userNavLabel');
-  
-  if (!loginItem || !userItem || !userLabel) return;
 
   if (username) {
     // User is logged in - show user panel, hide login button
-    loginItem.setAttribute('style', 'display: none !important;');
-    userItem.setAttribute('style', 'display: flex !important;');
-    userLabel.textContent = username;
+    if (loginItem) loginItem.setAttribute('style', 'display: none !important;');
+    if (userItem) userItem.setAttribute('style', 'display: flex !important;');
+    if (userLabel) userLabel.textContent = username;
     console.log('[AUTH] User logged in:', username, '- showing user nav item');
     
     // Refresh icons if lucide is available
@@ -222,8 +258,8 @@ function updateAuthNavItem(username) {
     }
   } else {
     // User is not logged in - show login button, hide user panel
-    loginItem.setAttribute('style', 'display: flex !important;');
-    userItem.setAttribute('style', 'display: none !important;');
+    if (loginItem) loginItem.setAttribute('style', 'display: flex !important;');
+    if (userItem) userItem.setAttribute('style', 'display: none !important;');
     console.log('[AUTH] User logged out - hiding user nav item');
     
     // Refresh icons if lucide is available
@@ -231,6 +267,8 @@ function updateAuthNavItem(username) {
       setTimeout(() => window.lucide.createIcons(), 0);
     }
   }
+
+  updateMobileAuthChip(username);
 
   if (typeof window.updateHomeWelcome === 'function') {
     try {

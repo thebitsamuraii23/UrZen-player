@@ -101,6 +101,10 @@
     <input type="search" id="globalSearch" placeholder="Search tracks or artists..." aria-label="Search" data-t-placeholder="search_placeholder" data-t-aria-label="search_label" />
 </div>
 
+<button class="mobile-auth-chip" id="mobileAuthChip" type="button" onclick="window.handleMobileAuthAction()">
+    <span id="mobileAuthChipLabel" data-t="login">Login</span>
+</button>
+
 <button class="mobile-add-btn" id="mobileAddBtn" onclick="document.getElementById('fileInput').click()" title="Import Tracks" data-t-title="import_tracks">
     <i data-lucide="plus-circle"></i>
 </button>
@@ -118,10 +122,6 @@
         <i data-lucide="house"></i>
         <span data-t="home">Home</span>
     </button>
-    <button class="mobile-bottom-item" id="nav-more-mobile" type="button" onclick="window.openMobileMoreMenu()">
-        <i data-lucide="ellipsis"></i>
-        <span>More</span>
-    </button>
     <button class="mobile-bottom-item" id="nav-playlists-mobile" type="button" onclick="window.openMobileMenu()">
         <i data-lucide="list-music"></i>
         <span data-t="playlists">Playlists</span>
@@ -129,6 +129,10 @@
     <button class="mobile-bottom-item" id="nav-settings-mobile" type="button" onclick="window.toggleSettings()">
         <i data-lucide="settings-2"></i>
         <span data-t="settings">Settings</span>
+    </button>
+    <button class="mobile-bottom-item" id="nav-more-mobile" type="button" onclick="window.openMobileMoreMenu()">
+        <i data-lucide="ellipsis"></i>
+        <span>More</span>
     </button>
 </nav>
 
@@ -767,6 +771,77 @@
             </div>
         </div>
 
+        <div id="homeArtistSection" class="home-album-section">
+            <div class="home-album-header">
+                <button class="home-action-btn" type="button" onclick="window.closeHomeArtistTab()">
+                    <i data-lucide="arrow-left" style="width: 16px;"></i>
+                    <span data-t="back">Back</span>
+                </button>
+            </div>
+            <div class="home-album-hero">
+                <img id="homeArtistCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=280" alt="Artist cover">
+                <div class="home-album-meta">
+                    <p class="home-eyebrow">Artist</p>
+                    <h2 class="home-title" id="homeArtistTitle">Artist</h2>
+                    <p class="home-subtitle" id="homeArtistSubtitle"></p>
+                    <div class="playlist-detail-actions">
+                        <button class="playlist-action-btn playlist-action-btn-primary" id="homeArtistPlayBtn" type="button" onclick="window.playHomeArtist()">
+                            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+                            <span data-t="play">Play</span>
+                        </button>
+                        <button class="playlist-action-btn" id="homeArtistShuffleBtn" type="button" onclick="window.shuffleHomeArtist()">
+                            <i data-lucide="shuffle" style="width: 16px; height: 16px;"></i>
+                            <span data-t="shuffle">Shuffle</span>
+                        </button>
+                        <button class="playlist-action-btn" id="homeArtistAddAllBtn" type="button" onclick="window.addHomeArtistToPlaylist()">
+                            <i data-lucide="list-plus" style="width: 16px; height: 16px;"></i>
+                            <span data-t="add_to_playlist">Add to playlist</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="home-row">
+                <div class="home-row-header">
+                    <h3 data-t="albums">Albums</h3>
+                </div>
+                <div class="home-catalog-grid" id="homeArtistAlbumsGrid"></div>
+            </div>
+            <div class="list-container home-album-list" id="homeArtistList"></div>
+            <div class="home-mini-player" id="homeArtistMiniPlayer">
+                <div class="home-mini-top">
+                    <button class="home-mini-cover-wrap" type="button" onclick="window.focusHomeMiniTrack()">
+                        <img id="homeArtistMiniCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120" alt="Now playing cover">
+                    </button>
+                    <div class="home-mini-meta">
+                        <strong id="homeArtistMiniTitle">Nothing is playing</strong>
+                        <span id="homeArtistMiniArtist">Select a track</span>
+                    </div>
+                    <div class="home-mini-transport">
+                        <button class="mini-btn" type="button" onclick="window.openZenFromMiniPlayer()" title="Zen Mode" data-t-title="zen_mode"><i data-lucide="expand"></i></button>
+                        <button class="mini-btn" id="homeArtistMiniSmartShuffleBtn" data-smart-shuffle-btn type="button" onclick="window.toggleSmartShuffle()" title="Smart Shuffle" aria-pressed="false"><i data-lucide="wand-sparkles"></i></button>
+                        <button class="mini-btn" type="button" onclick="window.prevTrack()" title="Previous" data-t-title="previous"><i data-lucide="skip-back"></i></button>
+                        <button class="mini-btn home-mini-play-btn" type="button" onclick="window.toggleHomeMiniPlayback()" title="Play/Pause" data-t-title="play_pause"><i id="homeArtistMiniPlayIcon" data-lucide="play"></i></button>
+                        <button class="mini-btn" type="button" onclick="window.nextTrack()" title="Next" data-t-title="next"><i data-lucide="skip-forward"></i></button>
+                    </div>
+                    <div class="home-mini-utils">
+                        <button class="mini-btn home-mini-queue-btn" type="button" onclick="window.openMiniQueueModal()" title="Queue" data-t-title="queue">
+                            <i data-lucide="list"></i>
+                            <span data-t="queue">Queue</span>
+                        </button>
+                        <div class="home-mini-volume" title="Volume" data-t-title="volume">
+                            <i data-lucide="volume-2" style="width: 14px; height: 14px;"></i>
+                            <div class="home-mini-vol-bar" id="homeArtistMiniVolBar"><div class="home-mini-vol-fill" id="homeArtistMiniVolFill"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="home-mini-bottom">
+                    <span class="home-mini-time" id="homeArtistMiniTimeCur">00:00</span>
+                    <div class="home-mini-progress"><div id="homeArtistMiniProgress"></div></div>
+                    <span class="home-mini-time" id="homeArtistMiniTimeDur">00:00</span>
+                </div>
+            </div>
+        </div>
+
         <div id="playlistDetailSection" class="home-album-section playlist-detail-section">
             <div class="home-album-header">
                 <button class="home-action-btn" type="button" onclick="window.switchTab('all')">
@@ -1055,6 +1130,22 @@ Auth: JWT + user scopes</code></pre>
             </header>
 
             <section class="update-log-list">
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
+                        <span class="update-log-version">v2.6.10</span>
+                        <span class="update-log-date">February 24, 2026</span>
+                    </div>
+                    <h2>Artist Page + Mobile Auth Chip + Mobile Nav Tuning</h2>
+                    <ul class="about-list">
+                        <li>Clicking an artist name in mini/mobile player now opens a dedicated artist page with header, albums, and tracks.</li>
+                        <li>Added dedicated Home artist view with play/shuffle/add-to-playlist actions and its own mini-player state.</li>
+                        <li>Mobile top-right now shows a compact user chip: displays username when logged in and <strong>Login</strong> when logged out.</li>
+                        <li>Tap on mobile user chip now logs out if authorized, or opens login modal if guest.</li>
+                        <li>Mobile bottom nav tuned to keep <strong>Home</strong> centered and <strong>More</strong> on the far right.</li>
+                        <li><strong>Artists</strong> is available in the <strong>More</strong> sheet (with Albums).</li>
+                    </ul>
+                </article>
+
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
                         <span class="update-log-version">v2.6.9</span>
@@ -1432,7 +1523,7 @@ window.closeMobileMoreMenu = function() {
 window.updateMobileBottomNav = function(tab) {
     const ids = ['nav-library-mobile', 'nav-favourites-mobile', 'nav-home-mobile', 'nav-more-mobile', 'nav-playlists-mobile', 'nav-settings-mobile'];
     ids.forEach((id) => document.getElementById(id)?.classList.remove('active'));
-    if (tab === 'home' || tab === 'home-album') {
+    if (tab === 'home' || tab === 'home-album' || tab === 'home-artist') {
         document.getElementById('nav-home-mobile')?.classList.add('active');
     } else if (tab === 'albums' || tab === 'artists') {
         document.getElementById('nav-more-mobile')?.classList.add('active');

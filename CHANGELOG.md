@@ -1,5 +1,16 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-24 - v2.6.10
+
+### Artist Page + Mobile Auth Chip + Mobile Nav
+- Clicking an artist name in mini player and mobile fullscreen player now opens a dedicated artist page.
+- Added Home artist view with artist header, albums list, track list, and play/shuffle/add-all actions.
+- Added top-right mobile auth chip that shows username for authorized users and `Login` for guests.
+- Tapping mobile auth chip now logs out authorized user or opens login modal for guest.
+- Mobile bottom nav tuned to keep `Home` centered and `More` on the far right.
+- `Artists` navigation on mobile is available inside `More` sheet (along with `Albums`).
+- Added clickable artist-link styling and support in mini-player/mobile fullscreen metadata labels.
+
 ## 2026-02-24 - v2.6.9
 
 ### PWA Layer: Installable App + Offline Cache

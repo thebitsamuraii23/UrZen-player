@@ -231,6 +231,9 @@ export function getCurrentListView(tabOverride = state.currentTab, applySearch =
     else if (tabOverride === 'home-album') {
         list = Array.isArray(state.homeAlbumSongs) ? state.homeAlbumSongs : [];
     }
+    else if (tabOverride === 'home-artist') {
+        list = Array.isArray(state.homeArtistSongs) ? state.homeArtistSongs : [];
+    }
     else if (typeof tabOverride === 'number') {
         const pl = state.playlists.find(p => p.id === tabOverride);
         console.log('[PLAYLIST VIEW] Getting list for playlist id:', tabOverride, 'playlist:', pl);
