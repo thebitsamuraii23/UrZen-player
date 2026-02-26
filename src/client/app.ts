@@ -4701,8 +4701,17 @@ window.refreshHome = async (force = false) => {
 // (Теперь в settings.ts)
 
 // ============ МОДАЛЬНЫЕ ОКНА ============
-window.toggleModal = (id) => { 
-    document.getElementById(id).classList.toggle('active'); 
+window.toggleModal = (id) => {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.toggle('active');
+    const isActive = modal.classList.contains('active');
+    if (id === 'settingsModal') {
+        document.body.classList.toggle('settings-modal-open', isActive);
+    }
+    document.dispatchEvent(new CustomEvent('app:modal-toggled', {
+        detail: { id, active: isActive }
+    }));
 };
 
 window.toggleSettings = () => { window.toggleModal('settingsModal'); };
@@ -7324,6 +7333,8 @@ window.playTrack = (id) => {
     if (window.saveQueueState) window.saveQueueState();
     
     renderLibrary();
+    renderSidebarQueue();
+    renderMiniQueueModal();
     logPlayHistory(track);
     if (track.source === 'navidrome' && track.navidromeId) {
         scrobbleNavidromeSong(track.navidromeId).catch(() => {});
@@ -8745,6 +8756,7 @@ document.getElementById('fileInput').onchange = async (e) => {
     dom.loader.classList.remove('hidden');
     const currentCount = await db.songs.count();
     const importedSongIds = [];
+    let addedToPlaylistCount = 0;
     console.log('[IMPORT] Current count in DB:', currentCount);
     for(let i = 0; i < e.target.files.length; i++) {
         const file = e.target.files[i];
@@ -8773,11 +8785,39 @@ document.getElementById('fileInput').onchange = async (e) => {
         const playlist = await db.playlists.get(targetPlaylistId);
         if (playlist) {
             playlist.songIds = Array.isArray(playlist.songIds) ? playlist.songIds : [];
+            playlist.trackOrder = Array.isArray(playlist.trackOrder) ? playlist.trackOrder : [];
+            const normalizeTrackOrderEntry = (entry) => {
+                if (typeof entry === 'string') return entry.trim();
+                if (!entry || typeof entry !== 'object') return '';
+                const source = entry.source === 'navidrome' ? 'navidrome' : 'local';
+                if (source === 'local') {
+                    const localId = Number(entry.id);
+                    return Number.isFinite(localId) ? `local:${localId}` : '';
+                }
+                const navKey = String(entry.navidromeId || entry.id || entry.url || '').trim();
+                return navKey ? `navidrome:${navKey}` : '';
+            };
+            const orderSet = new Set(
+                playlist.trackOrder
+                    .map(normalizeTrackOrderEntry)
+                    .filter(Boolean)
+            );
             importedSongIds.forEach((songId) => {
                 const exists = playlist.songIds.some((value) => String(value) === String(songId));
-                if (!exists) playlist.songIds.push(songId);
+                if (!exists) {
+                    playlist.songIds.push(songId);
+                    addedToPlaylistCount += 1;
+                }
+                const orderKey = `local:${Number(songId)}`;
+                if (!orderSet.has(orderKey)) {
+                    orderSet.add(orderKey);
+                    playlist.trackOrder.push(orderKey);
+                }
             });
-            await db.playlists.update(targetPlaylistId, { songIds: playlist.songIds });
+            await db.playlists.update(targetPlaylistId, {
+                songIds: playlist.songIds,
+                trackOrder: playlist.trackOrder
+            });
             await loadPlaylistsFromDB();
             if (isUserAuthenticated()) {
                 try {
@@ -8798,7 +8838,7 @@ document.getElementById('fileInput').onchange = async (e) => {
     renderLibrary();
     renderSidebarQueue();
     if (shouldAttachToPlaylist && state.currentTab === targetPlaylistId) {
-        renderPlaylistDetailView(targetPlaylistId);
+        window.switchTab(targetPlaylistId);
     }
     
     // Small delay to ensure DOM updates are rendered
@@ -8807,7 +8847,8 @@ document.getElementById('fileInput').onchange = async (e) => {
     if (shouldAttachToPlaylist) {
         const template = t('added_to_playlist', 'Added {count} track(s) to {playlist}');
         const playlistName = state.playlists.find((pl) => pl.id === targetPlaylistId)?.name || t('playlist', 'Playlist');
-        showToast(template.replace('{count}', String(importedSongIds.length)).replace('{playlist}', playlistName));
+        const addedCount = Number(addedToPlaylistCount || importedSongIds.length || 0);
+        showToast(template.replace('{count}', String(addedCount)).replace('{playlist}', playlistName));
     } else {
         showToast(t('files_imported', 'Files imported successfully!'));
     }
@@ -9324,6 +9365,11 @@ export async function initApp() {
         return;
     }
 
+    try {
+        const storedLang = normalizeLang(localStorage.getItem('language'));
+        if (storedLang) state.lang = storedLang;
+    } catch (e) {}
+
     // Step 3: Apply language immediately
     try {
         applyLanguage();
@@ -9455,6 +9501,7 @@ export async function initApp() {
         try {
             console.log('[APP] Loading settings...');
             await loadSettings();
+            applyLanguage();
             state.smartShuffleEnabled = localStorage.getItem(SMART_SHUFFLE_STORAGE_KEY) === 'true';
             if (state.smartShuffleEnabled && !isUserAuthenticated()) {
                 state.smartShuffleEnabled = false;
@@ -9553,3 +9600,6 @@ if (typeof originalPlayNavidromeSong === 'function') {
 // Export helper functions to window
 window.saveQueueState = saveQueueState;
 window.restoreQueueState = restoreQueueState;
+window.renderLibrary = renderLibrary;
+window.renderSidebarQueue = renderSidebarQueue;
+window.renderMiniQueueModal = renderMiniQueueModal;

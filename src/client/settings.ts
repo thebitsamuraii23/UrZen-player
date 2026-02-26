@@ -167,7 +167,8 @@ export async function loadSettings() {
     
     state.lang = normalizeLang(state.lang);
     
-    document.getElementById('langSelect').value = state.lang;
+    const langSelect = document.getElementById('langSelect');
+    if (langSelect) langSelect.value = state.lang;
     
     const bass = await window.db.settings.get('bassEnabled');
     if (bass !== undefined) state.bassEnabled = bass.value;
@@ -281,6 +282,8 @@ export async function loadSettings() {
     if (localStorage.getItem('auth_token')) {
         syncAccountMediaServer();
     }
+
+    applyLanguage();
 }
 
 export function applyLanguage() {
@@ -291,6 +294,9 @@ export function applyLanguage() {
         state.lang = 'en';
         return applyLanguage();
     }
+    state.lang = lang;
+    const langSelect = document.getElementById('langSelect');
+    if (langSelect) langSelect.value = lang;
     
     document.querySelectorAll('[data-t]').forEach(el => {
         const key = el.getAttribute('data-t');

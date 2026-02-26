@@ -604,6 +604,9 @@ const playNavidromeSong = async function(songId, title, artist, album = '', cove
     if (window.renderSidebarQueue) {
       window.renderSidebarQueue();
     }
+    if (window.renderMiniQueueModal) {
+      window.renderMiniQueueModal();
+    }
 
     if (window.state?.smartShuffleEnabled && typeof window.maybeExtendSmartShuffleQueue === 'function') {
       setTimeout(() => {

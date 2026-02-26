@@ -1138,6 +1138,19 @@ Auth: JWT + user scopes</code></pre>
             <section class="update-log-list">
                 <article class="about-card update-log-card">
                     <div class="update-log-head">
+                        <span class="update-log-version">v2.6.13</span>
+                        <span class="update-log-date">February 26, 2026</span>
+                    </div>
+                    <h2>Mobile Settings/Auth + Language + Queue Fixes</h2>
+                    <ul class="about-list">
+                        <li>Fixed mobile settings overlap: auth status chip is now hidden while <strong>Settings</strong> modal is open, so close button is always accessible.</li>
+                        <li>Fixed startup localization sync: saved language now applies immediately after settings load (UI no longer stays in old language while selector shows a different one).</li>
+                        <li>Fixed mobile queue refresh flow: queue UI now updates correctly on track switches (including Navidrome playback path) so tracks advance in visible order.</li>
+                    </ul>
+                </article>
+
+                <article class="about-card update-log-card">
+                    <div class="update-log-head">
                         <span class="update-log-version">v2.6.12</span>
                         <span class="update-log-date">February 24, 2026</span>
                     </div>

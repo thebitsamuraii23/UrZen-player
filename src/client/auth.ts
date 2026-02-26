@@ -46,6 +46,15 @@ export function initAuth() {
         updateMobileAuthChip(currentUsername);
       });
     }
+
+    if (!window.__mobileAuthChipSettingsBound) {
+      window.__mobileAuthChipSettingsBound = true;
+      document.addEventListener('app:modal-toggled', (event) => {
+        if (event?.detail?.id !== 'settingsModal') return;
+        const currentUsername = getUsernameFromLocalStorage();
+        updateMobileAuthChip(currentUsername);
+      });
+    }
   } catch (err) {
     console.error('[AUTH] Init error:', err);
   }
@@ -233,7 +242,9 @@ function updateMobileAuthChip(username) {
   const isMobileViewport = typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(max-width: 1024px)').matches;
-  chip.style.display = isMobileViewport ? '' : 'none';
+  const settingsOpen = document.body?.classList?.contains('settings-modal-open')
+    || document.getElementById('settingsModal')?.classList.contains('active');
+  chip.style.display = (isMobileViewport && !settingsOpen) ? '' : 'none';
 
   const normalizedUsername = String(username || '').trim();
   if (normalizedUsername) {

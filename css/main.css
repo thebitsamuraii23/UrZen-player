@@ -3314,6 +3314,10 @@ body.mobile-player-fullscreen .mobile-auth-chip {
     display: none !important;
 }
 
+body.settings-modal-open .mobile-auth-chip {
+    display: none !important;
+}
+
 @media (min-width: 1025px) {
     .mobile-auth-chip {
         display: none !important;

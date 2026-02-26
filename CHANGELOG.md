@@ -1,5 +1,13 @@
 # Changelog - Music Player UI Improvements
 
+## 2026-02-26 - v2.6.13
+
+### Mobile Settings/Auth + Language + Queue Fixes
+- Fixed mobile settings overlap: auth chip now hides while `Settings` modal is open, so the close button is never blocked.
+- Fixed localization startup sync: saved language now applies immediately after settings load.
+- Fixed mobile queue refresh behavior on track changes by wiring queue rerenders for both local and Navidrome playback paths.
+- Exposed queue/library render hooks globally so cross-module playback updates keep queue UI state in sync.
+
 ## 2026-02-24 - v2.6.12
 
 ### Mobile Nav Cleanup + Playlists Sheet Fix
