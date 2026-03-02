@@ -5,6 +5,13 @@ on:
     branches:
       - tests/updates
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-tests-updates
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -16,20 +23,15 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
-          username: ubuntu  # или root, если включишь PermitRootLogin yes вручную
+          username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -ex
+            set -euo pipefail
 
-            PROJECT_DIR="/home/ubuntu/z-player"  # если хочешь в /root - смени, но сначала почини права/логин
+            PROJECT_DIR="/home/ubuntu/z-player"
             STORAGE_DIR="/home/ubuntu/z-player-storage"
             DB_DIR="$STORAGE_DIR/db"
             MEDIA_DIR="$STORAGE_DIR/media"
-
-            # Дебаг: кто мы и где home
-            whoami
-            pwd
-            ls -ld /home/ubuntu || echo "Home dir проблема, права сломаны или юзер проблема"
 
             mkdir -p "$PROJECT_DIR"
             mkdir -p "$DB_DIR" "$MEDIA_DIR"
@@ -65,7 +67,7 @@ jobs:
             echo "➡️ Билд..."
             COMMIT_HASH=$(git rev-parse --short HEAD)
             if ! sudo docker build --pull --no-cache -t z-player:$COMMIT_HASH .; then
-              echo "❌ Билд упал, ошибка!"
+              echo "❌ Build failed"
               exit 1
             fi
 
@@ -81,7 +83,6 @@ jobs:
 
             echo "✅ Статус:"
             sudo docker ps | grep z-player
-            sudo docker logs --tail 20 z-player || true
 
             echo "➡️ Проверка PWA endpoints..."
             sleep 2
