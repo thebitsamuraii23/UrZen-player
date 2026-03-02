@@ -10,6 +10,37 @@ const fsp = require('fs/promises');
 const crypto = require('crypto');
 
 const PROJECT_ROOT = process.cwd();
+const DOTENV_PATH = path.join(PROJECT_ROOT, '.env');
+
+function loadDotEnvFromFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = String(line || '').trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex <= 0) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) continue;
+      let value = trimmed.slice(eqIndex + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"'))
+        || (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[ENV] Failed to load .env file:', error.message || error);
+    }
+  }
+}
+
+loadDotEnvFromFile(DOTENV_PATH);
+
 const USER_MEDIA_ROOT = path.join(PROJECT_ROOT, 'User', 'Downloads');
 const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || 1024 * 1024 * 200);
 const PLAYLIST_COVER_MAX_BYTES = Number(process.env.PLAYLIST_COVER_MAX_BYTES || 20 * 1024 * 1024);
@@ -32,6 +63,22 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || `${JWT_SECRET}:admin`;
+const ADMIN_TOKEN_TTL = process.env.ADMIN_TOKEN_TTL || '12h';
+const ADMIN_USERNAME = String(
+  process.env.ADMIN_USERNAME
+  || process.env.ADMIN_USER
+  || process.env.ADMIN_LOGIN
+  || process.env.FOUNDER_USERNAME
+  || ''
+).trim();
+const ADMIN_PASSWORD = String(
+  process.env.ADMIN_PASSWORD
+  || process.env.ADMIN_PASS
+  || process.env.FOUNDER_PASSWORD
+  || ''
+).trim();
+const ADMIN_PASSWORD_HASH = String(process.env.ADMIN_PASSWORD_HASH || '').trim();
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_API_URL = process.env.GROQ_API_URL || 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
@@ -234,6 +281,29 @@ const validateInput = (username, password) => {
   }
   return { valid: true };
 };
+
+function isAdminConfigured() {
+  return Boolean(ADMIN_USERNAME && (ADMIN_PASSWORD_HASH || ADMIN_PASSWORD));
+}
+
+function safeCompareStrings(a, b) {
+  const left = Buffer.from(String(a || ''), 'utf8');
+  const right = Buffer.from(String(b || ''), 'utf8');
+  if (left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch (error) {
+    return false;
+  }
+}
+
+async function verifyAdminPassword(candidate) {
+  const password = String(candidate || '');
+  if (ADMIN_PASSWORD_HASH) {
+    return bcrypt.compare(password, ADMIN_PASSWORD_HASH);
+  }
+  return safeCompareStrings(password, ADMIN_PASSWORD);
+}
 
 function decodeHeaderValue(value) {
   if (!value) return '';
@@ -964,6 +1034,28 @@ const verifyTokenFlexible = (req, res, next) => {
   });
 };
 
+const verifyAdminToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Admin token required' });
+  }
+
+  jwt.verify(token, ADMIN_JWT_SECRET, (err, payload) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired admin token' });
+    }
+    if (payload?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    req.admin = {
+      username: String(payload.username || 'admin')
+    };
+    next();
+  });
+};
+
 // Register endpoint
 app.post('/register', async (req, res) => {
   try {
@@ -1106,6 +1198,254 @@ app.post('/verify-token', async (req, res) => {
     res.json({ valid: true, username: decoded.username, userId: decoded.userId });
   } catch (error) {
     res.status(401).json({ valid: false, error: 'Invalid or expired token' });
+  }
+});
+
+// ============================================
+// ADMIN PANEL ENDPOINTS
+// ============================================
+
+app.post('/api/admin/login', async (req, res) => {
+  if (!isAdminConfigured()) {
+    return res.status(503).json({ error: 'Admin panel is not configured on this server' });
+  }
+
+  try {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    if (!safeCompareStrings(username, ADMIN_USERNAME)) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    const validPassword = await verifyAdminPassword(password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+
+    const token = jwt.sign(
+      { role: 'admin', username: ADMIN_USERNAME },
+      ADMIN_JWT_SECRET,
+      { expiresIn: ADMIN_TOKEN_TTL }
+    );
+    res.json({
+      token,
+      username: ADMIN_USERNAME,
+      expiresIn: ADMIN_TOKEN_TTL
+    });
+  } catch (error) {
+    console.error('[ADMIN] Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/admin/me', verifyAdminToken, (req, res) => {
+  res.json({
+    username: req.admin.username
+  });
+});
+
+app.get('/api/admin/overview', verifyAdminToken, async (req, res) => {
+  try {
+    const [usersCount, playlistsCount, playlistTracksCount, localUploadsCount, localTracksInPlaylists] = await Promise.all([
+      dbGetAsync('SELECT COUNT(*) AS count FROM users'),
+      dbGetAsync('SELECT COUNT(*) AS count FROM playlists'),
+      dbGetAsync('SELECT COUNT(*) AS count FROM playlist_tracks'),
+      dbGetAsync('SELECT COUNT(*) AS count FROM user_local_tracks'),
+      dbGetAsync(`SELECT COUNT(*) AS count FROM playlist_tracks WHERE track_source = 'local' OR local_track_id IS NOT NULL`)
+    ]);
+
+    res.json({
+      users_count: Number(usersCount?.count || 0),
+      playlists_count: Number(playlistsCount?.count || 0),
+      playlist_tracks_count: Number(playlistTracksCount?.count || 0),
+      local_uploads_count: Number(localUploadsCount?.count || 0),
+      local_tracks_in_playlists_count: Number(localTracksInPlaylists?.count || 0)
+    });
+  } catch (error) {
+    console.error('[ADMIN] Failed to load overview:', error);
+    res.status(500).json({ error: 'Failed to load admin overview' });
+  }
+});
+
+app.get('/api/admin/users', verifyAdminToken, async (req, res) => {
+  try {
+    const rows = await dbAllAsync(
+      `SELECT
+         u.id,
+         u.username,
+         u.created_at,
+         u.last_active_at,
+         (SELECT COUNT(*) FROM playlists p WHERE p.user_id = u.id) AS playlists_count,
+         (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.user_id = u.id) AS playlist_tracks_count,
+         (SELECT COUNT(*) FROM user_local_tracks ult WHERE ult.user_id = u.id) AS local_uploads_count
+       FROM users u
+       ORDER BY datetime(COALESCE(u.last_active_at, u.created_at)) DESC, u.id DESC`
+    );
+    const users = (rows || []).map((row) => ({
+      id: Number(row.id),
+      username: String(row.username || ''),
+      created_at: row.created_at || null,
+      last_active_at: row.last_active_at || null,
+      playlists_count: Number(row.playlists_count || 0),
+      playlist_tracks_count: Number(row.playlist_tracks_count || 0),
+      local_uploads_count: Number(row.local_uploads_count || 0)
+    }));
+    res.json(users);
+  } catch (error) {
+    console.error('[ADMIN] Failed to fetch users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/admin/local-activity', verifyAdminToken, async (req, res) => {
+  const limit = Math.max(1, Math.min(1000, Number(req.query.limit || 200)));
+  try {
+    const rows = await dbAllAsync(
+      `SELECT
+         pt.id AS playlist_track_id,
+         pt.playlist_id,
+         p.name AS playlist_name,
+         p.user_id AS playlist_owner_id,
+         owner.username AS playlist_owner_username,
+         pt.local_track_id,
+         COALESCE(ult.title, pt.track_title) AS track_title,
+         COALESCE(ult.artist, pt.track_artist, '') AS track_artist,
+         uploader.id AS uploaded_by_user_id,
+         uploader.username AS uploaded_by_username,
+         ult.created_at AS uploaded_at,
+         pt.created_at AS added_to_playlist_at
+       FROM playlist_tracks pt
+       INNER JOIN playlists p ON p.id = pt.playlist_id
+       INNER JOIN users owner ON owner.id = p.user_id
+       LEFT JOIN user_local_tracks ult ON ult.id = pt.local_track_id
+       LEFT JOIN users uploader ON uploader.id = ult.user_id
+       WHERE pt.track_source = 'local' OR pt.local_track_id IS NOT NULL
+       ORDER BY datetime(pt.created_at) DESC
+       LIMIT ?`,
+      [limit]
+    );
+
+    res.json((rows || []).map((row) => ({
+      playlist_track_id: Number(row.playlist_track_id),
+      playlist_id: Number(row.playlist_id),
+      playlist_name: String(row.playlist_name || ''),
+      playlist_owner_id: Number(row.playlist_owner_id || 0),
+      playlist_owner_username: String(row.playlist_owner_username || ''),
+      local_track_id: row.local_track_id == null ? null : Number(row.local_track_id),
+      track_title: String(row.track_title || ''),
+      track_artist: String(row.track_artist || ''),
+      uploaded_by_user_id: row.uploaded_by_user_id == null ? null : Number(row.uploaded_by_user_id),
+      uploaded_by_username: row.uploaded_by_username ? String(row.uploaded_by_username) : null,
+      uploaded_at: row.uploaded_at || null,
+      added_to_playlist_at: row.added_to_playlist_at || null
+    })));
+  } catch (error) {
+    console.error('[ADMIN] Failed to fetch local activity:', error);
+    res.status(500).json({ error: 'Failed to fetch local track activity' });
+  }
+});
+
+app.get('/api/admin/users/:userId/local-tracks', verifyAdminToken, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isFinite(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  try {
+    const user = await dbGetAsync('SELECT id, username FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const rows = await dbAllAsync(
+      `SELECT
+         ult.id AS local_track_id,
+         ult.title,
+         ult.artist,
+         ult.album,
+         ult.file_size,
+         ult.created_at,
+         ult.updated_at,
+         (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.local_track_id = ult.id) AS usage_count
+       FROM user_local_tracks ult
+       WHERE ult.user_id = ?
+       ORDER BY datetime(ult.updated_at) DESC, ult.id DESC`,
+      [userId]
+    );
+
+    res.json({
+      user: {
+        id: Number(user.id),
+        username: String(user.username || '')
+      },
+      tracks: (rows || []).map((row) => ({
+        local_track_id: Number(row.local_track_id),
+        title: String(row.title || ''),
+        artist: String(row.artist || ''),
+        album: String(row.album || ''),
+        file_size: Number(row.file_size || 0),
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
+        usage_count: Number(row.usage_count || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('[ADMIN] Failed to fetch user local tracks:', error);
+    res.status(500).json({ error: 'Failed to fetch user local tracks' });
+  }
+});
+
+app.patch('/api/admin/users/:userId/password', verifyAdminToken, async (req, res) => {
+  const userId = Number(req.params.userId);
+  const newPassword = String(req.body?.password || '');
+  if (!Number.isFinite(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const result = await dbRunAsync('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+    if (!Number(result?.changes || 0)) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ success: true, userId });
+  } catch (error) {
+    console.error('[ADMIN] Failed to update user password:', error);
+    res.status(500).json({ error: 'Failed to update user password' });
+  }
+});
+
+app.delete('/api/admin/users/:userId', verifyAdminToken, async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!Number.isFinite(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  try {
+    const user = await dbGetAsync('SELECT id, username FROM users WHERE id = ?', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const removed = await deleteUserCompletely(userId, user.username);
+    if (!removed) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({
+      success: true,
+      deleted_user: {
+        id: userId,
+        username: String(user.username || '')
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN] Failed to delete user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 
@@ -2171,6 +2511,11 @@ const staticOptions = {
 app.use('/css', express.static(path.join(PROJECT_ROOT, 'css'), staticOptions));
 app.use('/assets', express.static(path.join(PROJECT_ROOT, 'assets'), staticOptions));
 app.use('/ts', express.static(path.join(PROJECT_ROOT, 'src', 'client'), staticOptions));
+app.use('/admin-assets', express.static(path.join(PROJECT_ROOT, 'src', 'admin'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', isDev ? 'no-store' : 'public, max-age=300');
+  }
+}));
 app.get('/manifest.json', (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
   res.setHeader('Cache-Control', isDev ? 'no-store' : 'public, max-age=3600');
@@ -2185,6 +2530,10 @@ app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Service-Worker-Allowed', '/');
   res.sendFile(path.join(PROJECT_ROOT, 'sw.js'));
+});
+app.get(['/admin', '/admin/'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(PROJECT_ROOT, 'src', 'admin', 'admin.html'));
 });
 
 // 404 handler for API routes that weren't matched

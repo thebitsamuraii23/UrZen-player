@@ -2,6 +2,45 @@
 // Модуль для управления плейлистами
 import { state, dom } from '../state.ts';
 
+function normalizeQueueLikeId(value) {
+    if (value === undefined || value === null) return '';
+    const raw = String(value);
+    if (raw.startsWith('http')) {
+        try {
+            const parsed = new URL(raw);
+            parsed.searchParams.delete('f');
+            return parsed.toString();
+        } catch (e) {
+            return raw;
+        }
+    }
+    return raw;
+}
+
+function normalizeTrackOrderEntry(entry) {
+    if (typeof entry === 'string') return entry.trim();
+    if (!entry || typeof entry !== 'object') return '';
+    const source = entry.source === 'navidrome' ? 'navidrome' : 'local';
+    if (source === 'navidrome') {
+        const navKey = normalizeQueueLikeId(entry.navidromeId || entry.id || entry.url);
+        return navKey ? `navidrome:${navKey}` : '';
+    }
+    const localId = Number(entry.id);
+    return Number.isFinite(localId) ? `local:${localId}` : '';
+}
+
+function normalizeTrackOrderList(trackOrder) {
+    const normalized = [];
+    const seen = new Set();
+    (Array.isArray(trackOrder) ? trackOrder : []).forEach((entry) => {
+        const key = normalizeTrackOrderEntry(entry);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        normalized.push(key);
+    });
+    return normalized;
+}
+
 export async function addSongToPlaylist(playlistId, songId, track, source = 'local') {
     const playlist = await window.db.playlists.get(playlistId);
     if (!playlist) return;
@@ -49,6 +88,7 @@ export async function addSongToPlaylist(playlistId, songId, track, source = 'loc
 export async function removeSongFromPlaylist(playlistId, songId, source = 'local') {
     const pl = await window.db.playlists.get(playlistId);
     if (!pl) return;
+    pl.trackOrder = normalizeTrackOrderList(pl.trackOrder);
     
     if (source === 'navidrome') {
         const isUrl = typeof songId === 'string' && /^https?:\/\//i.test(songId);
@@ -62,17 +102,28 @@ export async function removeSongFromPlaylist(playlistId, songId, source = 'local
         pl.navidromeSongIds = pl.navidromeSongs
             .map(s => s.navidromeId)
             .filter(id => id !== undefined && id !== null);
+        const navKey = normalizeQueueLikeId(songId);
+        const orderKey = navKey ? `navidrome:${navKey}` : '';
+        if (orderKey) {
+            pl.trackOrder = pl.trackOrder.filter((entry) => entry !== orderKey);
+        }
     } else {
         const songIdStr = String(songId);
         pl.songIds = Array.isArray(pl.songIds)
             ? pl.songIds.filter(id => String(id) !== songIdStr)
             : [];
+        const localId = Number(songId);
+        const orderKey = Number.isFinite(localId) ? `local:${localId}` : '';
+        if (orderKey) {
+            pl.trackOrder = pl.trackOrder.filter((entry) => entry !== orderKey);
+        }
     }
     
     await window.db.playlists.update(playlistId, { 
         songIds: pl.songIds,
         navidromeSongIds: pl.navidromeSongIds,
-        navidromeSongs: pl.navidromeSongs
+        navidromeSongs: pl.navidromeSongs,
+        trackOrder: pl.trackOrder
     });
     console.log('[PLAYLIST] Removed song from playlist', playlistId);
 }

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UrZen Admin</title>
+  <link rel="stylesheet" href="/admin-assets/admin.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <main class="admin-shell">
+    <section id="loginView" class="panel panel-login">
+      <h1 class="terminal-title">FAULTY TERMINAL :: ADMIN</h1>
+      <p class="terminal-subtitle">Авторизация основателя</p>
+      <form id="adminLoginForm" class="terminal-form" autocomplete="off">
+        <label>
+          <span>LOGIN</span>
+          <input id="adminUsername" name="username" type="text" required minlength="3" />
+        </label>
+        <label>
+          <span>PASSWORD</span>
+          <input id="adminPassword" name="password" type="password" required minlength="6" />
+        </label>
+        <button class="btn btn-primary" type="submit">Enter</button>
+      </form>
+      <p id="loginError" class="error-text" role="alert"></p>
+    </section>
+
+    <section id="dashboardView" class="panel panel-dashboard hidden">
+      <header class="dash-header">
+        <div>
+          <h2>Admin Console</h2>
+          <p id="adminIdentity" class="admin-identity"></p>
+        </div>
+        <div class="header-actions">
+          <button id="refreshDashboard" class="btn btn-ghost" type="button">Refresh</button>
+          <button id="logoutAdmin" class="btn btn-danger" type="button">Logout</button>
+        </div>
+      </header>
+
+      <section class="overview-grid" id="overviewGrid">
+        <article class="metric-card">
+          <h3>Users</h3>
+          <strong id="metricUsers">0</strong>
+        </article>
+        <article class="metric-card">
+          <h3>Playlists</h3>
+          <strong id="metricPlaylists">0</strong>
+        </article>
+        <article class="metric-card">
+          <h3>Tracks</h3>
+          <strong id="metricTracks">0</strong>
+        </article>
+        <article class="metric-card">
+          <h3>Local Uploads</h3>
+          <strong id="metricLocalUploads">0</strong>
+        </article>
+        <article class="metric-card">
+          <h3>Local In Playlists</h3>
+          <strong id="metricLocalInPlaylists">0</strong>
+        </article>
+      </section>
+
+      <section class="table-panel">
+        <div class="panel-head">
+          <h3>Пользователи</h3>
+          <p>Список аккаунтов, их активность и действия</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Created</th>
+                <th>Last Active</th>
+                <th>Playlists</th>
+                <th>Tracks</th>
+                <th>Local</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="table-panel">
+        <div class="panel-head">
+          <h3>Локальные треки в плейлистах</h3>
+          <p>Кто загрузил трек и где он используется</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Playlist</th>
+                <th>Owner</th>
+                <th>Track</th>
+                <th>Uploaded By</th>
+                <th>Uploaded At</th>
+                <th>Added To Playlist</th>
+              </tr>
+            </thead>
+            <tbody id="localActivityBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <p id="dashboardError" class="error-text" role="alert"></p>
+    </section>
+
+    <aside id="userTracksPanel" class="side-panel hidden" aria-live="polite">
+      <div class="side-panel-head">
+        <h3 id="userTracksTitle">Local tracks</h3>
+        <button id="closeUserTracks" class="btn btn-ghost" type="button">Close</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Artist</th>
+              <th>Album</th>
+              <th>Used</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="userTracksBody"></tbody>
+        </table>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/admin-assets/admin.js" defer></script>
+</body>
+</html>
