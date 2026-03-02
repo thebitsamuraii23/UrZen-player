@@ -82,6 +82,8 @@ jobs:
             curl -fsSI http://127.0.0.1:3001/manifest.json
             curl -fsSI http://127.0.0.1:3001/sw.js
             curl -fsSI http://127.0.0.1:3001/offline.html
-            curl -fsS http://127.0.0.1:3001/manifest.json | grep -q '"name"'
-            curl -fsS http://127.0.0.1:3001/index.html | grep -q 'rel="manifest"'
+            MANIFEST_JSON="$(curl -fsS http://127.0.0.1:3001/manifest.json)"
+            INDEX_HTML="$(curl -fsS http://127.0.0.1:3001/index.html)"
+            [[ "$MANIFEST_JSON" == *'"name"'* ]]
+            [[ "$INDEX_HTML" == *'rel="manifest"'* ]]
             echo "✅ PWA files are reachable on server"
